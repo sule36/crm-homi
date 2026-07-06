@@ -105,8 +105,8 @@ class WhatsAppWebhookController extends Controller
                 'status' => 'new',
             ]);
 
-            // Assign via Smart Auto-Assign
-            $assignedAgent = LeadAssignmentService::assign($lead);
+            // Assign via Smart Auto-Assign (pass false to avoid duplicate WA notification to agent since it's a direct message chat)
+            $assignedAgent = LeadAssignmentService::assign($lead, false);
 
             // Send Auto-Reply if configured
             if ($assignedAgent) {
