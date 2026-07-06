@@ -14,6 +14,7 @@ class Unit extends Model
         'project_id', 'unit_type_id', 'block', 'number', 'floor',
         'status', 'facing_direction', 'premium_charge', 'final_price',
         'held_by', 'held_until', 'notes',
+        'certificate_status', 'certificate_number', 'imb_number', 'pbb_number', 'legal_notes',
     ];
 
     protected function casts(): array
@@ -67,6 +68,16 @@ class Unit extends Model
     public function booking()
     {
         return $this->hasOne(Booking::class)->latestOfMany();
+    }
+
+    public function progressHistory()
+    {
+        return $this->hasMany(UnitProgress::class)->orderBy('recorded_date', 'desc')->orderBy('created_at', 'desc');
+    }
+
+    public function latestProgress()
+    {
+        return $this->hasOne(UnitProgress::class)->latestOfMany();
     }
 
     // Label: "Blok A No. 01"

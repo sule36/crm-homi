@@ -176,11 +176,14 @@ const triggerWaReceipt = (tx) => {
                                     {{ formatCurrency(tx.amount) }}
                                 </td>
                                 <td class="px-6 py-4 text-right">
-                                    <div class="flex items-center justify-end gap-2">
-                                        <a :href="`/finance/transactions/${tx.id}/receipt`" class="px-2.5 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 text-[10px] font-black rounded-lg transition-all">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <a :href="`/finance/transactions/${tx.id}/receipt`" target="_blank" class="px-2 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-[10px] font-black rounded-lg transition-all flex items-center gap-1">
                                             📄 Kwitansi
                                         </a>
-                                        <Link :href="`/bookings/${tx.booking_id}`" class="px-2.5 py-1.5 bg-slate-900 text-white hover:bg-slate-800 text-[10px] font-black rounded-lg transition-all">
+                                        <button @click="triggerWaReceipt(tx)" class="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black rounded-lg transition-all flex items-center gap-1">
+                                            💬 WA
+                                        </button>
+                                        <Link :href="`/bookings/${tx.booking_id}`" class="px-2 py-1 bg-slate-900 text-white hover:bg-slate-800 text-[10px] font-black rounded-lg transition-all">
                                             👁️ Detail
                                         </Link>
                                     </div>

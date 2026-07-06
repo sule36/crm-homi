@@ -75,6 +75,7 @@ class ExpenseController extends Controller
             'expenses' => $expenses,
             'categories' => ExpenseCategory::active()->orderBy('sort_order')->get(),
             'projects' => Project::orderBy('name')->get(['id', 'name']),
+            'rab_items' => \App\Models\RabItem::orderBy('category')->get(['id', 'project_id', 'category', 'description']),
             'bank_accounts' => \App\Models\BankAccount::where('is_active', true)->get(['id', 'name', 'current_balance']),
             'stats' => [
                 'total_this_month' => (int) $totalThisMonth,
@@ -91,6 +92,7 @@ class ExpenseController extends Controller
         $validated = $request->validate([
             'project_id' => 'nullable|exists:projects,id',
             'expense_category_id' => 'required|exists:expense_categories,id',
+            'rab_item_id' => 'nullable|exists:rab_items,id',
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:1',
             'expense_date' => 'required|date',
@@ -118,6 +120,7 @@ class ExpenseController extends Controller
         $validated = $request->validate([
             'project_id' => 'nullable|exists:projects,id',
             'expense_category_id' => 'required|exists:expense_categories,id',
+            'rab_item_id' => 'nullable|exists:rab_items,id',
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:1',
             'expense_date' => 'required|date',
@@ -133,7 +136,27 @@ class ExpenseController extends Controller
         $oldData = $expense->toArray();
 
         DB::transaction(function () use ($expense, $validated) {
+            // If rab_item_id was changed or removed, handle old RabRealization
+            if ($expense->rab_item_id !== ($validated['rab_item_id'] ?? null)) {
+                \App\Models\RabRealization::where('expense_id', $expense->id)->delete();
+            }
+
             $expense->update($validated);
+
+            // Update or create RabRealization
+            if ($expense->rab_item_id) {
+                \App\Models\RabRealization::updateOrCreate(
+                    ['expense_id' => $expense->id],
+                    [
+                        'rab_item_id' => $expense->rab_item_id,
+                        'amount' => $expense->amount,
+                        'realization_date' => $expense->expense_date,
+                        'vendor_name' => $expense->vendor_name,
+                        'notes' => "[Pengeluaran] " . ($expense->notes ?? $expense->description),
+                        'recorded_by' => auth()->id(),
+                    ]
+                );
+            }
 
             // Update GL entry
             $gl = \App\Models\GeneralLedger::where('reference_type', Expense::class)

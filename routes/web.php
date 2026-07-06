@@ -36,6 +36,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
     Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
     Route::post('/units/bulk', [UnitController::class, 'bulkStore'])->name('units.bulk');
+    Route::post('/units/progress', [\App\Http\Controllers\Inventory\UnitProgressController::class, 'store'])->name('units.progress.store');
 
     // Unit Types
     Route::post('/unit-types', [\App\Http\Controllers\Inventory\UnitTypeController::class, 'store'])->name('unit-types.store');

@@ -106,6 +106,78 @@ function formatPrice(p) {
     if (p >= 1000000000) return `Rp ${(p / 1000000000).toFixed(1)}M`;
     return `Rp ${(p / 1000000).toFixed(0)}jt`;
 }
+
+// Detail Unit Drawer/Modal State
+const selectedUnitDetail = ref(null);
+const detailTab = ref('progress'); // progress | legal | booking
+
+const certificateLabels = {
+    belum_pecah: 'Belum Pecah (Induk)',
+    pecah_di_notaris: 'Proses Pecah di Notaris',
+    sudah_balik_nama: 'Sudah Balik Nama (SHM/SHGB)',
+    diserahkan_ke_konsumen: 'Diserahkan ke Konsumen',
+    diserahkan_ke_bank: 'Diserahkan ke Bank (Jaminan KPR)',
+};
+
+const legalForm = useForm({
+    certificate_status: 'belum_pecah',
+    certificate_number: '',
+    imb_number: '',
+    pbb_number: '',
+    legal_notes: '',
+    status: '',
+});
+
+const progressForm = useForm({
+    unit_id: '',
+    progress_percentage: 0,
+    description: '',
+    notes: '',
+    recorded_date: new Date().toISOString().split('T')[0],
+});
+
+function openUnitDetail(unit) {
+    selectedUnitDetail.value = unit;
+    detailTab.value = 'progress';
+
+    legalForm.certificate_status = unit.certificate_status || 'belum_pecah';
+    legalForm.certificate_number = unit.certificate_number || '';
+    legalForm.imb_number = unit.imb_number || '';
+    legalForm.pbb_number = unit.pbb_number || '';
+    legalForm.legal_notes = unit.legal_notes || '';
+    legalForm.status = unit.status || 'available';
+
+    progressForm.reset();
+    progressForm.unit_id = unit.id;
+    progressForm.progress_percentage = unit.latest_progress?.progress_percentage || 0;
+    progressForm.recorded_date = new Date().toISOString().split('T')[0];
+}
+
+function submitLegalUpdate() {
+    legalForm.put(`/units/${selectedUnitDetail.value.id}`, {
+        preserveScroll: true,
+        onSuccess: (page) => {
+            const updatedUnit = props.units.data.find(u => u.id === selectedUnitDetail.value.id);
+            if (updatedUnit) {
+                selectedUnitDetail.value = updatedUnit;
+            }
+        }
+    });
+}
+
+function submitProgressUpdate() {
+    progressForm.post('/units/progress', {
+        preserveScroll: true,
+        onSuccess: (page) => {
+            progressForm.description = '';
+            progressForm.notes = '';
+            const updatedUnit = props.units.data.find(u => u.id === selectedUnitDetail.value.id);
+            if (updatedUnit) {
+                selectedUnitDetail.value = updatedUnit;
+            }
+        }
+    });
+}
 </script>
 
 <template>
@@ -167,7 +239,8 @@ function formatPrice(p) {
             <div v-for="unit in units.data" :key="unit.id"
                 :class="statusConfig[unit.status]?.bgLight || 'bg-white border-slate-200'"
                 class="relative border rounded-xl p-2.5 text-center hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group"
-                :title="`${unit.block || ''}${unit.number} — ${statusConfig[unit.status]?.label}`">
+                :title="`${unit.block || ''}${unit.number} — ${statusConfig[unit.status]?.label}`"
+                @click="openUnitDetail(unit)">
                 
                 <!-- Status Dot -->
                 <span :class="statusConfig[unit.status]?.color" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"></span>
@@ -175,16 +248,21 @@ function formatPrice(p) {
                 <!-- Unit Label -->
                 <p class="text-xs font-black text-slate-800 leading-tight">{{ unit.block }}{{ unit.number }}</p>
                 <p class="text-[9px] text-slate-500 font-medium truncate mt-0.5">{{ unit.unit_type?.name || '-' }}</p>
+                <!-- Progress Percentage Indicator on Grid -->
+                <div v-if="unit.latest_progress?.progress_percentage" class="mt-1 flex items-center justify-center gap-0.5">
+                    <span class="w-1.5 h-1.5 bg-blue-500 rounded-full inline-block"></span>
+                    <span class="text-[8px] font-black text-blue-600">{{ unit.latest_progress.progress_percentage }}%</span>
+                </div>
                 <p class="text-[9px] font-bold mt-1" :class="statusConfig[unit.status]?.textColor">{{ formatPrice(unit.final_price) }}</p>
 
                 <!-- Hover Actions -->
-                <div class="absolute inset-0 bg-white/95 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1.5">
+                <div class="absolute inset-0 bg-white/95 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1.5" @click.stop>
                     <select @change="updateUnitStatus(unit, $event.target.value); $event.target.value = unit.status" :value="unit.status"
                         class="w-full text-[10px] font-bold border-0 bg-slate-100 rounded-md py-1 cursor-pointer focus:ring-1 focus:ring-blue-500">
                         <option v-for="(c, k) in statusConfig" :key="k" :value="k">{{ c.label }}</option>
                     </select>
+                    <button @click.stop="openUnitDetail(unit)" class="w-full py-1 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-md hover:bg-slate-200 transition-colors">👁️ Detail</button>
                     <button @click.stop="openKprSimulator(unit)" class="w-full py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-md hover:bg-blue-100 transition-colors">Hitung KPR</button>
-                    <button @click.stop="deleteUnit(unit.id)" class="w-full py-1 bg-rose-50 text-rose-500 text-[10px] font-bold rounded-md hover:bg-rose-100 transition-colors">Hapus</button>
                 </div>
             </div>
         </div>
@@ -198,20 +276,30 @@ function formatPrice(p) {
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase">Unit</th>
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase hidden md:table-cell">Proyek</th>
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase hidden md:table-cell">Tipe</th>
+                            <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase">Progress Fisik</th>
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase">Status</th>
                             <th class="text-right px-4 py-3 text-[10px] font-black text-slate-500 uppercase">Harga</th>
                             <th class="text-right px-4 py-3 text-[10px] font-black text-slate-500 uppercase">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
-                        <tr v-for="unit in units.data" :key="unit.id" class="hover:bg-blue-50/30 transition-colors">
+                        <tr v-for="unit in units.data" :key="unit.id" class="hover:bg-blue-50/30 transition-colors cursor-pointer" @click="openUnitDetail(unit)">
                             <td class="px-4 py-3">
                                 <p class="text-sm font-bold text-slate-900">{{ unit.block }}{{ unit.number }}</p>
                                 <p v-if="unit.facing_direction" class="text-[10px] text-slate-400">{{ unit.facing_direction }}</p>
                             </td>
                             <td class="px-4 py-3 hidden md:table-cell text-xs text-slate-600">{{ unit.project?.name }}</td>
                             <td class="px-4 py-3 hidden md:table-cell text-xs text-slate-600">{{ unit.unit_type?.name }}</td>
-                            <td class="px-4 py-3">
+                            <!-- Progress Column in Table -->
+                            <td class="px-4 py-3 text-xs">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                        <div class="bg-blue-600 h-full rounded-full transition-all" :style="`width: ${unit.latest_progress?.progress_percentage || 0}%`"></div>
+                                    </div>
+                                    <span class="font-bold text-slate-700">{{ unit.latest_progress?.progress_percentage || 0 }}%</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3" @click.stop>
                                 <select :value="unit.status" @change="updateUnitStatus(unit, $event.target.value)"
                                     :class="statusConfig[unit.status]?.bgLight"
                                     class="text-[10px] font-bold rounded-full px-2 py-0.5 border cursor-pointer focus:ring-2 focus:ring-blue-500/20">
@@ -219,8 +307,11 @@ function formatPrice(p) {
                                 </select>
                             </td>
                             <td class="px-4 py-3 text-right text-sm font-bold text-slate-900">{{ formatPrice(unit.final_price) }}</td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-3 text-right" @click.stop>
                                 <div class="flex items-center justify-end gap-1.5 ml-auto">
+                                    <button @click="openUnitDetail(unit)" class="px-2.5 py-1 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg hover:bg-slate-200 transition-colors">
+                                        👁️ Detail
+                                    </button>
                                     <button @click="openKprSimulator(unit)" class="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg hover:bg-blue-100 transition-colors">
                                         🧮 KPR
                                     </button>
@@ -270,6 +361,10 @@ function formatPrice(p) {
                             class="aspect-square border rounded-xl flex flex-col items-center justify-center p-1.5 hover:shadow-md transition-all relative">
                             <span class="text-xs font-black text-slate-800">{{ unit.number }}</span>
                             <span class="text-[8px] font-bold mt-0.5 text-slate-400 capitalize">{{ unit.unit_type?.code }}</span>
+                            <!-- Progress Percentage Indicator on Denah Map -->
+                            <span v-if="unit.latest_progress?.progress_percentage" class="text-[7px] bg-blue-100 text-blue-700 px-1 py-0.5 rounded font-black mt-0.5 leading-none">
+                                {{ unit.latest_progress.progress_percentage }}%
+                            </span>
                             <span :class="statusConfig[unit.status]?.color" class="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full"></span>
                         </button>
                     </div>
@@ -302,6 +397,9 @@ function formatPrice(p) {
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
+                        <button @click="openUnitDetail(selectedMapUnit)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-350 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-slate-700">
+                            👁️ Detail
+                        </button>
                         <button @click="openKprSimulator(selectedMapUnit)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-slate-700">
                             🧮 KPR
                         </button>
@@ -428,6 +526,187 @@ function formatPrice(p) {
                             <button type="submit" :disabled="bulkForm.processing" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50">Generate Unit</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- DRAWER DETAIL UNIT (Tab: Progress, Legal, Booking) -->
+        <teleport to="body">
+            <div v-if="selectedUnitDetail" class="fixed inset-0 z-[100] flex items-center justify-end">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm shadow-2xl" @click="selectedUnitDetail = null"></div>
+                <div class="relative bg-white h-screen w-full max-w-xl shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-350">
+                    
+                    <!-- Header -->
+                    <div class="p-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-[#0f172a] text-white">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-lg">🏠</div>
+                            <div>
+                                <h2 class="text-sm font-black uppercase tracking-wider">Unit {{ selectedUnitDetail.block }}{{ selectedUnitDetail.number }}</h2>
+                                <p class="text-[10px] text-slate-400 font-bold mt-0.5">{{ selectedUnitDetail.project?.name }} • Tipe {{ selectedUnitDetail.unit_type?.name }}</p>
+                            </div>
+                        </div>
+                        <button @click="selectedUnitDetail = null" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-slate-400 hover:text-white font-bold">&times;</button>
+                    </div>
+
+                    <!-- Info Ribbon -->
+                    <div class="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span :class="statusConfig[selectedUnitDetail.status]?.color" class="w-2.5 h-2.5 rounded-full inline-block"></span>
+                            <span class="font-black text-slate-700 uppercase">{{ statusConfig[selectedUnitDetail.status]?.label }}</span>
+                        </div>
+                        <div class="font-black text-blue-600 text-sm">
+                            {{ formatPrice(selectedUnitDetail.final_price) }}
+                        </div>
+                    </div>
+
+                    <!-- Tab Buttons -->
+                    <div class="flex border-b border-slate-100 px-4 shrink-0 bg-slate-50">
+                        <button @click="detailTab = 'progress'" :class="detailTab === 'progress' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent text-slate-500 font-bold'"
+                            class="px-4 py-3 border-b-2 text-[10px] uppercase tracking-wider transition-all flex-1 text-center">🏗️ Progress Fisik</button>
+                        <button @click="detailTab = 'legal'" :class="detailTab === 'legal' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent text-slate-500 font-bold'"
+                            class="px-4 py-3 border-b-2 text-[10px] uppercase tracking-wider transition-all flex-1 text-center">🧾 Legal & Sertifikat</button>
+                        <button @click="detailTab = 'booking'" :class="detailTab === 'booking' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent text-slate-500 font-bold'"
+                            class="px-4 py-3 border-b-2 text-[10px] uppercase tracking-wider transition-all flex-1 text-center">👤 Transaksi</button>
+                    </div>
+
+                    <!-- Scrollable Tab Content -->
+                    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+                        <!-- ══ PROGRESS TAB ══ -->
+                        <div v-if="detailTab === 'progress'" class="space-y-6">
+                            <!-- Current progress circle/badge -->
+                            <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Progress Pembangunan</h3>
+                                    <p class="text-xs text-slate-300 font-medium mt-1">{{ selectedUnitDetail.latest_progress?.description || 'Belum ada catatan progress lapangan' }}</p>
+                                </div>
+                                <div class="w-16 h-16 rounded-full border-4 border-blue-500/25 flex items-center justify-center text-sm font-black text-blue-400 bg-white/5">
+                                    {{ selectedUnitDetail.latest_progress?.progress_percentage || 0 }}%
+                                </div>
+                            </div>
+
+                            <!-- Form Update Progress (Admin/Staff) -->
+                            <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-4">
+                                <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider">👷 Rekam Progress Fisik Baru</h4>
+                                <form @submit.prevent="submitProgressUpdate" class="space-y-3.5">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Progress (%) *</label>
+                                            <input v-model.number="progressForm.progress_percentage" type="number" min="0" max="100" required class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Tanggal *</label>
+                                            <input v-model="progressForm.recorded_date" type="date" required class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Deskripsi Pekerjaan *</label>
+                                        <input v-model="progressForm.description" type="text" placeholder="Contoh: Pengecoran tiang pancang, pasang atap..." required class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Catatan Tambahan</label>
+                                        <textarea v-model="progressForm.notes" placeholder="Opsional" rows="2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500"></textarea>
+                                    </div>
+                                    <button type="submit" :disabled="progressForm.processing" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md shadow-blue-500/10">
+                                        {{ progressForm.processing ? 'Menyimpan...' : 'Simpan Progress Baru' }}
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- History Timeline -->
+                            <div class="space-y-4">
+                                <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider">⏳ Riwayat Pembangunan</h4>
+                                <div v-if="selectedUnitDetail.progress_history?.length" class="relative pl-6 border-l-2 border-slate-100 space-y-5">
+                                    <div v-for="log in selectedUnitDetail.progress_history" :key="log.id" class="relative">
+                                        <span class="absolute -left-[31px] top-0 w-3 h-3 rounded-full bg-blue-500 border-2 border-white"></span>
+                                        <p class="text-xs font-black text-slate-800">{{ log.description }} ({{ log.progress_percentage }}%)</p>
+                                        <p class="text-[9px] text-slate-400 font-bold mt-0.5">{{ new Date(log.recorded_date).toLocaleDateString('id-ID', { dateStyle: 'medium' }) }} • Oleh: {{ log.recorded_by?.name || 'Sistem' }}</p>
+                                        <p v-if="log.notes" class="text-[10px] text-slate-500 italic mt-1 bg-slate-50 p-2 rounded-lg border border-slate-100">{{ log.notes }}</p>
+                                    </div>
+                                </div>
+                                <div v-else class="text-center py-6 text-slate-400 italic text-xs font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                    Belum ada histori pembangunan fisik.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ══ LEGAL TAB ══ -->
+                        <div v-else-if="detailTab === 'legal'" class="space-y-5">
+                            <form @submit.prevent="submitLegalUpdate" class="space-y-4">
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Status Sertifikat</label>
+                                    <select v-model="legalForm.certificate_status" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500">
+                                        <option v-for="(label, key) in certificateLabels" :key="key" :value="key">{{ label }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Nomor Sertifikat (SHM/SHGB)</label>
+                                    <input v-model="legalForm.certificate_number" type="text" placeholder="Masukkan nomor sertifikat" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Nomor PBG / IMB</label>
+                                    <input v-model="legalForm.imb_number" type="text" placeholder="Masukkan nomor IMB / PBG" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Nomor PBB (Pajak Bumi Bangunan)</label>
+                                    <input v-model="legalForm.pbb_number" type="text" placeholder="Masukkan nomor PBB unit" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Catatan Hukum / Notaris</label>
+                                    <textarea v-model="legalForm.legal_notes" placeholder="Catatan tambahan mengenai berkas sertifikat, PBB, atau IMB..." rows="3" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500"></textarea>
+                                </div>
+                                <button type="submit" :disabled="legalForm.processing" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md">
+                                    {{ legalForm.processing ? 'Menyimpan...' : 'Simpan Pembaruan Dokumen Legal' }}
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- ══ TRANSACTION TAB ══ -->
+                        <div v-else-if="detailTab === 'booking'" class="space-y-6">
+                            <div v-if="selectedUnitDetail.booking" class="space-y-6">
+                                <!-- Buyer profile summary -->
+                                <div class="bg-blue-50 rounded-2xl p-5 border border-blue-100 space-y-3">
+                                    <h4 class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Informasi Pembeli</h4>
+                                    <div>
+                                        <p class="text-sm font-black text-slate-900">{{ selectedUnitDetail.booking.lead?.name }}</p>
+                                        <p class="text-xs text-slate-500 mt-0.5">{{ selectedUnitDetail.booking.lead?.phone || '-' }} • {{ selectedUnitDetail.booking.lead?.email || '-' }}</p>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-blue-100">
+                                        <div>
+                                            <p class="text-[9px] font-bold text-slate-400 uppercase">Skema Bayar</p>
+                                            <p class="font-black text-slate-800 capitalize mt-0.5">{{ selectedUnitDetail.booking.payment_scheme }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[9px] font-bold text-slate-400 uppercase">Nilai Transaksi</p>
+                                            <p class="font-black text-blue-600 mt-0.5">{{ formatCurrency(selectedUnitDetail.booking.deal_price) }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex gap-2">
+                                    <Link :href="`/bookings/${selectedUnitDetail.booking.id}`" class="flex-1 py-2 bg-slate-950 hover:bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all text-center">
+                                        👁️ Detail Booking
+                                    </Link>
+                                    <button @click="openKprSimulator(selectedUnitDetail)" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all text-center">
+                                        🧮 KPR Simulator
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-else class="text-center py-16 bg-slate-50 rounded-3xl border border-dashed border-slate-200 space-y-4 p-6">
+                                <div class="text-4xl">🔑</div>
+                                <div>
+                                    <p class="text-xs font-black text-slate-500 uppercase tracking-wider">Unit Belum Terjual / Booking</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">Unit ini saat ini berstatus bebas dan siap dipesan konsumen baru.</p>
+                                </div>
+                                <div class="pt-2">
+                                    <Link :href="`/bookings/create?unit_id=${selectedUnitDetail.id}`" class="inline-block px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-500/10">
+                                        Pesan / Booking Unit Ini
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </div>
         </teleport>

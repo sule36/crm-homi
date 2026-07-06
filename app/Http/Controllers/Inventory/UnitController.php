@@ -14,7 +14,7 @@ class UnitController extends Controller
 {
     public function index(Request $request)
     {
-        $units = Unit::with(['project', 'unitType', 'heldByUser'])
+        $units = Unit::with(['project', 'unitType', 'heldByUser', 'latestProgress', 'progressHistory.recordedBy'])
             ->when($request->search, fn ($q, $s) => $q->where('block', 'like', "%{$s}%")->orWhere('number', 'like', "%{$s}%"))
             ->when($request->project_id, fn ($q, $p) => $q->where('project_id', $p))
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
@@ -29,6 +29,7 @@ class UnitController extends Controller
         // Master Plan data (grouped by block then floor)
         $masterPlanProject = $request->project_id ?? Project::first()?->id;
         $masterPlan = $masterPlanProject ? Unit::where('project_id', $masterPlanProject)
+            ->with(['latestProgress', 'project', 'unitType'])
             ->orderBy('number')
             ->get()
             ->groupBy(['block', 'floor']) : [];
@@ -55,6 +56,11 @@ class UnitController extends Controller
             'premium_charge' => 'nullable|numeric|min:0',
             'final_price' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            'certificate_status' => 'nullable|in:belum_pecah,pecah_di_notaris,sudah_balik_nama,diserahkan_ke_konsumen,diserahkan_ke_bank',
+            'certificate_number' => 'nullable|string|max:255',
+            'imb_number' => 'nullable|string|max:255',
+            'pbb_number' => 'nullable|string|max:255',
+            'legal_notes' => 'nullable|string',
         ]);
 
         $type = UnitType::find($validated['unit_type_id']);
@@ -85,6 +91,11 @@ class UnitController extends Controller
             'premium_charge' => 'nullable|numeric|min:0',
             'final_price' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            'certificate_status' => 'nullable|in:belum_pecah,pecah_di_notaris,sudah_balik_nama,diserahkan_ke_konsumen,diserahkan_ke_bank',
+            'certificate_number' => 'nullable|string|max:255',
+            'imb_number' => 'nullable|string|max:255',
+            'pbb_number' => 'nullable|string|max:255',
+            'legal_notes' => 'nullable|string',
         ]);
 
         $old = $unit->toArray();

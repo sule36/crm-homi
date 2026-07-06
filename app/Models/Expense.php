@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Expense extends Model
 {
     protected $fillable = [
-        'project_id', 'expense_category_id', 'description', 'amount',
+        'project_id', 'expense_category_id', 'rab_item_id', 'description', 'amount',
         'expense_date', 'payment_method', 'vendor_name', 'receipt_number',
         'receipt_file', 'notes', 'recorded_by', 'approved_by', 'status',
         'bank_account_id', 'ppn_amount', 'pph_amount',
@@ -25,7 +25,7 @@ class Expense extends Model
 
     protected static function booted()
     {
-        // Auto-record to General Ledger when expense is created
+        // Auto-record to General Ledger and RabRealization when expense is created
         static::created(function ($expense) {
             if ($expense->status === 'approved') {
                 GeneralLedger::recordEntry(
@@ -39,18 +39,36 @@ class Expense extends Model
                     recordedBy: $expense->recorded_by,
                     bankAccountId: $expense->bank_account_id,
                 );
+
+                if ($expense->rab_item_id) {
+                    RabRealization::create([
+                        'rab_item_id' => $expense->rab_item_id,
+                        'expense_id' => $expense->id,
+                        'amount' => $expense->amount,
+                        'realization_date' => $expense->expense_date,
+                        'vendor_name' => $expense->vendor_name,
+                        'notes' => "[Pengeluaran] " . ($expense->notes ?? $expense->description),
+                        'recorded_by' => $expense->recorded_by,
+                    ]);
+                }
             }
         });
 
-        // Remove GL entry when expense is deleted
+        // Remove GL entry and RAB realization when expense is deleted
         static::deleted(function ($expense) {
             GeneralLedger::removeForReference($expense);
+            RabRealization::where('expense_id', $expense->id)->delete();
         });
     }
 
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function rabItem()
+    {
+        return $this->belongsTo(RabItem::class);
     }
 
     public function category()

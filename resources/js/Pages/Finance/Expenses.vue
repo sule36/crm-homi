@@ -7,6 +7,7 @@ const props = defineProps({
     expenses: Object,
     categories: Array,
     projects: Array,
+    rab_items: Array,
     bank_accounts: Array,
     stats: Object,
     filters: Object,
@@ -24,6 +25,7 @@ const selectedExpense = ref(null);
 const form = useForm({
     project_id: '',
     expense_category_id: '',
+    rab_item_id: '',
     description: '',
     amount: '',
     expense_date: new Date().toISOString().split('T')[0],
@@ -35,6 +37,23 @@ const form = useForm({
     ppn_amount: 0,
     pph_amount: 0,
 });
+
+const rabCategoryLabels = {
+    tanah: 'Tanah',
+    pondasi: 'Pondasi',
+    struktur: 'Struktur',
+    dinding: 'Dinding',
+    atap: 'Atap',
+    mep_listrik: 'Listrik',
+    mep_plumbing: 'Plumbing',
+    finishing_interior: 'Finishing In',
+    finishing_exterior: 'Finishing Ex',
+    infrastruktur: 'Infrastruktur',
+    perizinan: 'Perizinan',
+    overhead: 'Overhead',
+    lain_lain: 'Lain-lain',
+};
+const getRabCategoryLabel = (category) => rabCategoryLabels[category] || category;
 
 function openCreateModal() {
     editMode.value = false;
@@ -52,6 +71,7 @@ function openEditModal(expense) {
     selectedExpense.value = expense;
     form.project_id = expense.project_id || '';
     form.expense_category_id = expense.expense_category_id;
+    form.rab_item_id = expense.rab_item_id || '';
     form.description = expense.description;
     form.amount = expense.amount;
     form.expense_date = expense.expense_date?.split('T')[0] || '';
@@ -368,13 +388,23 @@ const maxTrend = computed(() => {
                         </div>
 
                         <!-- Project -->
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Proyek Terkait</label>
-                            <select v-model="form.project_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-rose-500">
-                                <option value="">Umum (Tidak Terkait Proyek)</option>
-                                <option v-for="proj in projects" :key="proj.id" :value="proj.id">🏗️ {{ proj.name }}</option>
-                            </select>
-                            <p class="text-[10px] text-slate-400 mt-1 font-medium italic">Kosongkan jika pengeluaran tidak terkait proyek spesifik.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Proyek Terkait</label>
+                                <select v-model="form.project_id" @change="form.rab_item_id = ''" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-rose-500">
+                                    <option value="">Umum (Tidak Terkait Proyek)</option>
+                                    <option v-for="proj in projects" :key="proj.id" :value="proj.id">🏗️ {{ proj.name }}</option>
+                                </select>
+                            </div>
+                            <div v-if="form.project_id">
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Kaitkan ke RAB Pekerjaan</label>
+                                <select v-model="form.rab_item_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-rose-500">
+                                    <option value="">Umum / Tanpa Item RAB</option>
+                                    <option v-for="item in rab_items.filter(i => i.project_id == form.project_id)" :key="item.id" :value="item.id">
+                                        [{{ getRabCategoryLabel(item.category) }}] {{ item.description }}
+                                    </option>
+                                </select>
+                            </div>
                         </div>
 
                         <!-- Notes -->
