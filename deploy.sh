@@ -10,7 +10,7 @@ echo "🚀 Deploying Homi Developer CRM..."
 
 # 1. Pull kode terbaru
 echo "📦 Pulling latest code..."
-git pull origin master
+git pull origin main
 
 # 2. Install dependencies PHP (tanpa dev)
 echo "📚 Installing PHP dependencies..."
