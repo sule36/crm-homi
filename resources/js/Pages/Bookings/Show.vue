@@ -91,6 +91,44 @@ const whatsappReminderLink = computed(() => {
     const message = `Halo Bapak/Ibu ${props.booking.lead.name}, ini dari tim sales ${props.booking.project.name}. Berikut adalah link untuk memantau progres pesanan dan riwayat pembayaran unit Anda: ${url}. Terima kasih.`;
     return `https://wa.me/${props.booking.lead.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
 });
+
+// Document Upload Logic
+const docForm = useForm({
+    type: 'ktp',
+    file: null,
+});
+
+const handleFileChange = (e) => {
+    docForm.file = e.target.files[0];
+};
+
+const submitDocument = () => {
+    if (!docForm.file) return alert('Silakan pilih berkas terlebih dahulu.');
+    docForm.post(`/bookings/${props.booking.id}/documents`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            docForm.reset();
+            const fileInput = document.getElementById('doc-file-input');
+            if (fileInput) fileInput.value = '';
+        }
+    });
+};
+
+const deleteDocument = (id) => {
+    if (confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) {
+        router.delete(`/booking-documents/${id}`, {
+            preserveScroll: true
+        });
+    }
+};
+
+const docTypeLabels = {
+    ktp: '🪪 KTP Pemesan',
+    kk: '👨‍👩‍👧‍👦 Kartu Keluarga (KK)',
+    npwp: '💳 NPWP Pemesan',
+    payment_proof: '🧾 Bukti Bayar UTJ/DP',
+    other: '📁 Dokumen Tambahan'
+};
 </script>
 
 <template>
@@ -343,6 +381,51 @@ const whatsappReminderLink = computed(() => {
                     <p class="text-xs text-slate-500 italic leading-relaxed">
                         {{ booking.notes || 'Tidak ada catatan khusus.' }}
                     </p>
+                </div>
+
+                <!-- DOKUMEN PERSYARATAN KONSUMEN -->
+                <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-5">
+                    <h3 class="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center justify-between">
+                        <span>📁 Berkas Persyaratan</span>
+                        <span class="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-black">{{ booking.documents?.length || 0 }} File</span>
+                    </h3>
+
+                    <!-- Upload Form -->
+                    <form @submit.prevent="submitDocument" class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Unggah Berkas Baru</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select v-model="docForm.type" class="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer">
+                                <option value="ktp">🪪 KTP Pemesan</option>
+                                <option value="kk">👨‍👩‍👧‍👦 Kartu Keluarga</option>
+                                <option value="npwp">💳 NPWP</option>
+                                <option value="payment_proof">🧾 Bukti Bayar</option>
+                                <option value="other">📁 Dokumen Lain</option>
+                            </select>
+                            <input id="doc-file-input" type="file" @change="handleFileChange" class="hidden" accept=".jpg,.jpeg,.png,.pdf" />
+                            <button type="button" @click="document.getElementById('doc-file-input').click()" class="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-600 hover:bg-slate-100 text-center truncate">
+                                {{ docForm.file ? docForm.file.name : '📎 Pilih File' }}
+                            </button>
+                        </div>
+                        <button type="submit" :disabled="docForm.processing || !docForm.file" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md shadow-blue-500/10 disabled:opacity-40">
+                            {{ docForm.processing ? 'Mengunggah...' : 'Unggah Dokumen' }}
+                        </button>
+                    </form>
+
+                    <!-- Document List -->
+                    <div class="space-y-2">
+                        <div v-for="doc in booking.documents" :key="doc.id" class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                            <div class="min-w-0 flex-1 pr-2">
+                                <p class="text-[9px] font-black text-slate-400 uppercase">{{ docTypeLabels[doc.type] }}</p>
+                                <a :href="`/storage/${doc.file_path}`" target="_blank" class="font-bold text-blue-600 hover:underline block truncate mt-0.5">{{ doc.name }}</a>
+                            </div>
+                            <button @click="deleteDocument(doc.id)" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors shrink-0">
+                                🗑️
+                            </button>
+                        </div>
+                        <div v-if="!booking.documents?.length" class="text-center py-6 text-slate-400 italic text-[10px] font-bold bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                            Belum ada dokumen persyaratan diunggah.
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
