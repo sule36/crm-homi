@@ -1,0 +1,1 @@
+@media print{body *{visibility:hidden}#receipt-paper,#receipt-paper *{visibility:visible}#receipt-paper{border:none;width:100%;margin:0;padding:0;position:absolute;top:0;left:0}}
