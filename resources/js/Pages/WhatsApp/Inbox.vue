@@ -127,73 +127,102 @@ function insertTemplate(type) {
         text = `Halo Bapak/Ibu *${customerName}*,\n\nMenyambung rencana kepemilikan hunian di *${projectName}*, kami mengundang Bapak/Ibu untuk berkunjung langsung (*Site Visit*) melihat unit contoh dan lokasi proyek kami pada akhir pekan ini.\n\nApakah hari Sabtu atau Minggu besok ada waktu luang? Kami siap menyambut kunjungan Anda.`;
     } else if (type === 'booking') {
         text = `Halo Bapak/Ibu *${customerName}*,\n\nUntuk mengamankan nomor kavling unit pilihan Anda di *${projectName}* agar tidak terjual ke konsumen lain, Anda dapat melakukan pembayaran Booking Fee / Tanda Jadi (UTJ) sebesar *${formatCurrency(5000000)}*.\n\nPembayaran dapat ditransfer langsung ke rekening resmi developer. Jika ingin dikirimkan invoice resminya, silakan kabari saya. Terima kasih.`;
+    } else if (type === 'kpr_docs') {
+        text = `Halo Bapak/Ibu *${customerName}*,\n\nBerikut adalah daftar berkas persyaratan yang diperlukan untuk pengajuan KPR unit di *${projectName}*:\n\n📄 *Kategori Identitas & Keluarga:*\n- Foto KTP Suami & Istri\n- Foto Kartu Keluarga (KK)\n- Foto NPWP Pribadi\n- Foto Akta Nikah / Cerai (jika ada)\n\n💼 *Kategori Pekerjaan & Penghasilan:*\n- Slip Gaji 3 Bulan Terakhir\n- Surat Keterangan Kerja (SKK) Asli\n- Rekening Koran Tabungan 3 Bulan Terakhir\n\nMohon siapkan berkas di atas dalam format PDF atau foto yang jelas, lalu kirimkan ke kami agar bisa segera dibantu proses pengajuannya ke bank partner. Terima kasih.`;
+    } else if (type === 'promo') {
+        text = `📢 *PROMO SPESIAL BULAN INI di ${projectName.toUpperCase()}* 🎉\n\nDapatkan berbagai keuntungan eksklusif untuk pembelian unit pilihan Anda:\n✅ *Diskon DP* atau Subsidi Uang Muka\n✅ *Free Biaya Surat-Surat* (BPHTB, AJB, Balik Nama)\n✅ *Free AC & Canopy Carport*\n✅ *Voucher Belanja Jutaan Rupiah* (S&K Berlaku)\n\nPromo ini terbatas hanya untuk 3 unit pertama bulan ini! Segera amankan unit impian Anda sekarang sebelum kehabisan.`;
+    } else if (type === 'share_loc') {
+        text = `📍 *LOKASI KANTOR PEMASARAN & PROYEK*\n\nHalo Bapak/Ibu *${customerName}*,\n\nBerikut adalah link peta petunjuk arah Google Maps untuk menuju ke lokasi proyek *${projectName}* kami:\n🔗 https://maps.google.com/?q=${encodeURIComponent(projectName)}\n\nKami buka setiap hari pukul 09.00 - 17.00 WIB. Kabari saya jika Anda sudah di perjalanan agar bisa saya sambut di lokasi gallery pemasaran.`;
     }
 
     messageInput.value = text;
     showKprAssistant.value = false;
 }
 
-// Calculate and Insert KPR Simulation into input
+// Calculator Mode: 'kpr' or 'inhouse'
+const calculatorMode = ref('kpr');
+const inhouseTenorMonths = ref(12);
+
+// Calculate and Insert KPR / In-house Simulation into input
 function insertKprSimulation() {
     if (!activeChat.value) return;
 
     const customerName = activeChat.value.name;
     const projectName = activeChat.value.project || 'Proyek Homi';
     const dpAmount = Math.round((kprPrice.value * kprDpPercent.value) / 100);
-    const loanPrincipal = Math.max(0, kprPrice.value - dpAmount);
+    const remainingAmount = Math.max(0, kprPrice.value - dpAmount);
     
-    let bankName = 'Bunga Kustom';
-    let interestRate = 5.0; // Default custom rate
-    let type = 'conventional';
+    let simulationText = '';
 
-    const selectedBank = props.partnerBanks.find(b => b.id === Number(kprSelectedBankId.value));
-    if (selectedBank) {
-        bankName = selectedBank.name;
-        if (selectedBank.is_syariah) {
-            type = 'syariah';
-            interestRate = Number(selectedBank.syariah_margin_rate);
-        } else {
-            interestRate = Number(selectedBank.interest_rate_fixed);
-        }
-    }
-
-    let simulationText = `*SIMULASI CICILAN KPR PINTAR* 🏠\n` +
+    if (calculatorMode.value === 'inhouse') {
+        const monthly = Math.round(remainingAmount / inhouseTenorMonths.value);
+        simulationText = `*SIMULASI CICILAN IN-HOUSE DEVELOPER* 🏡\n` +
                          `-----------------------------------\n` +
                          `Proyek: *${projectName}*\n` +
                          `Harga Properti: *${formatCurrency(kprPrice.value)}*\n` +
                          `Uang Muka (DP ${kprDpPercent.value}%): *${formatCurrency(dpAmount)}*\n` +
-                         `Jumlah Pinjaman KPR: *${formatCurrency(loanPrincipal)}*\n` +
+                         `Sisa Piutang Developer: *${formatCurrency(remainingAmount)}*\n` +
+                         `-----------------------------------\n` +
+                         `Skema: *Cicilan Langsung ke Developer*\n` +
+                         `Tenor Cicilan: *${inhouseTenorMonths.value} Bulan*\n` +
+                         `Cicilan Bulanan: *${formatCurrency(monthly)}/bulan*\n` +
+                         `-----------------------------------\n` +
+                         `Tanpa BI Checking, Tanpa Bunga Bank! Balas pesan ini untuk info prosedur booking unitnya.`;
+    } else {
+        // KPR Bank Simulation
+        let bankName = 'Bunga Kustom';
+        let interestRate = 5.0; // Default custom rate
+        let type = 'conventional';
+
+        const selectedBank = props.partnerBanks.find(b => b.id === Number(kprSelectedBankId.value));
+        if (selectedBank) {
+            bankName = selectedBank.name;
+            if (selectedBank.is_syariah) {
+                type = 'syariah';
+                interestRate = Number(selectedBank.syariah_margin_rate);
+            } else {
+                interestRate = Number(selectedBank.interest_rate_fixed);
+            }
+        }
+
+        simulationText = `*SIMULASI CICILAN KPR BANK PINTAR* 🏠\n` +
+                         `-----------------------------------\n` +
+                         `Proyek: *${projectName}*\n` +
+                         `Harga Properti: *${formatCurrency(kprPrice.value)}*\n` +
+                         `Uang Muka (DP ${kprDpPercent.value}%): *${formatCurrency(dpAmount)}*\n` +
+                         `Jumlah Pinjaman KPR: *${formatCurrency(remainingAmount)}*\n` +
                          `-----------------------------------\n` +
                          `Bank Rekomendasi: *${bankName}*\n` +
                          `Tenor KPR: *${kprTenor.value} Tahun*\n`;
 
-    if (type === 'syariah') {
-        const totalMargin = loanPrincipal * (interestRate / 100) * kprTenor.value;
-        const totalPayable = loanPrincipal + totalMargin;
-        const monthly = Math.round(totalPayable / (kprTenor.value * 12));
-        
-        simulationText += `Skema: *Flat Syariah (Margin ${interestRate}%/thn)*\n` +
-                          `Cicilan Bulanan: *${formatCurrency(monthly)}/bulan*\n`;
-    } else {
-        // Simple conventional fixed calculations (Annuity formula)
-        const monthlyRate = (interestRate / 100) / 12;
-        const totalMonths = kprTenor.value * 12;
-        let monthly = 0;
-        
-        if (monthlyRate === 0) {
-            monthly = loanPrincipal / totalMonths;
+        if (type === 'syariah') {
+            const totalMargin = remainingAmount * (interestRate / 100) * kprTenor.value;
+            const totalPayable = remainingAmount + totalMargin;
+            const monthly = Math.round(totalPayable / (kprTenor.value * 12));
+            
+            simulationText += `Skema: *Flat Syariah (Margin ${interestRate}%/thn)*\n` +
+                              `Cicilan Bulanan: *${formatCurrency(monthly)}/bulan*\n`;
         } else {
-            const factor = Math.pow(1 + monthlyRate, totalMonths);
-            monthly = (loanPrincipal * monthlyRate * factor) / (factor - 1);
+            // Simple conventional fixed calculations (Annuity formula)
+            const monthlyRate = (interestRate / 100) / 12;
+            const totalMonths = kprTenor.value * 12;
+            let monthly = 0;
+            
+            if (monthlyRate === 0) {
+                monthly = remainingAmount / totalMonths;
+            } else {
+                const factor = Math.pow(1 + monthlyRate, totalMonths);
+                monthly = (remainingAmount * monthlyRate * factor) / (factor - 1);
+            }
+            monthly = Math.round(monthly);
+
+            simulationText += `Skema: *Fix & Floating (Asumsi fixed ${interestRate}%/thn)*\n` +
+                              `Cicilan Bulanan (Masa Fixed): *${formatCurrency(monthly)}/bulan*\n`;
         }
-        monthly = Math.round(monthly);
 
-        simulationText += `Skema: *Fix & Floating (Asumsi fixed ${interestRate}%/thn)*\n` +
-                          `Cicilan Bulanan (Masa Fixed): *${formatCurrency(monthly)}/bulan*\n`;
+        simulationText += `-----------------------------------\n` +
+                          `Tertarik untuk mengajukan KPR ini? Balas pesan ini untuk kami bantu siapkan berkas pengajuannya.`;
     }
-
-    simulationText += `-----------------------------------\n` +
-                      `Tertarik untuk mengajukan KPR ini? Balas pesan ini untuk kami bantu buatkan berkas pengajuannya.`;
 
     messageInput.value = simulationText;
     showKprAssistant.value = false;
@@ -364,17 +393,27 @@ onUnmounted(() => {
                             <button @click="insertTemplate('welcome')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">👋 Sapaan</button>
                             <button @click="insertTemplate('visit')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">🏠 Visit</button>
                             <button @click="insertTemplate('booking')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">🧾 Booking UTJ</button>
+                            <button @click="insertTemplate('kpr_docs')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">📄 Berkas KPR</button>
+                            <button @click="insertTemplate('promo')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">🎁 Promo Spesial</button>
+                            <button @click="insertTemplate('share_loc')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">📍 Lokasi Proyek</button>
                             <button @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'" class="px-2.5 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1">
-                                🧮 Hitung KPR
+                                🧮 Kalkulator Simulasi
                             </button>
                         </div>
 
                         <!-- KPR Assistant Dialog (Embedded/Interactive Floating) -->
                         <div v-if="showKprAssistant" class="absolute left-4 bottom-[72px] bg-white border border-slate-200 rounded-3xl p-5 shadow-2xl w-80 space-y-3.5 z-[20] animate-in slide-in-from-bottom-3 duration-250">
                             <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                                <span class="text-[10px] font-black text-slate-900 uppercase">Hitung Simulasi KPR Prospek</span>
+                                <span class="text-[10px] font-black text-slate-900 uppercase">Kalkulator Simulasi Cicilan</span>
                                 <button @click="showKprAssistant = false" class="text-slate-400 font-bold">&times;</button>
                             </div>
+                            
+                            <!-- Mode Tabs: KPR Bank vs In-house -->
+                            <div class="flex bg-slate-100 p-0.5 rounded-xl text-[9px] font-black uppercase text-center shrink-0">
+                                <button type="button" @click="calculatorMode = 'kpr'" :class="calculatorMode === 'kpr' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'" class="flex-1 py-1.5 rounded-lg transition-all">KPR Bank</button>
+                                <button type="button" @click="calculatorMode = 'inhouse'" :class="calculatorMode === 'inhouse' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'" class="flex-1 py-1.5 rounded-lg transition-all">In-House</button>
+                            </div>
+
                             <div class="space-y-2 text-xs">
                                 <div>
                                     <label class="block text-[8px] font-bold text-slate-400 uppercase mb-1">Harga Unit Rumah</label>
@@ -385,12 +424,20 @@ onUnmounted(() => {
                                         <label class="block text-[8px] font-bold text-slate-400 uppercase mb-1">DP (%)</label>
                                         <input v-model.number="kprDpPercent" type="number" min="0" max="90" step="5" class="w-full px-2.5 py-1.5 bg-slate-50 border-none rounded-lg text-xs font-bold" />
                                     </div>
-                                    <div>
+                                    
+                                    <!-- Dynamic Tenor based on mode -->
+                                    <div v-if="calculatorMode === 'kpr'">
                                         <label class="block text-[8px] font-bold text-slate-400 uppercase mb-1">Tenor (Thn)</label>
                                         <input v-model.number="kprTenor" type="number" min="1" max="30" class="w-full px-2.5 py-1.5 bg-slate-50 border-none rounded-lg text-xs font-bold" />
                                     </div>
+                                    <div v-else>
+                                        <label class="block text-[8px] font-bold text-slate-400 uppercase mb-1">Tenor (Bln)</label>
+                                        <input v-model.number="inhouseTenorMonths" type="number" min="1" max="120" step="6" class="w-full px-2.5 py-1.5 bg-slate-50 border-none rounded-lg text-xs font-bold" />
+                                    </div>
                                 </div>
-                                <div>
+                                
+                                <!-- Bank Selection only for KPR Bank mode -->
+                                <div v-if="calculatorMode === 'kpr'">
                                     <label class="block text-[8px] font-bold text-slate-400 uppercase mb-1">Pilih Bank Partner</label>
                                     <select v-model="kprSelectedBankId" class="w-full px-2.5 py-1.5 bg-slate-50 border-none rounded-lg text-xs font-bold">
                                         <option value="">-- Bunga Kustom 5% --</option>
