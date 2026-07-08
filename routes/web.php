@@ -57,6 +57,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/bookings/{booking}/documents', [\App\Http\Controllers\BookingDocumentController::class, 'store'])->name('bookings.documents.store');
     Route::delete('/booking-documents/{document}', [\App\Http\Controllers\BookingDocumentController::class, 'destroy'])->name('bookings.documents.destroy');
 
+    // WhatsApp Inbox
+    Route::get('/whatsapp/inbox', [\App\Http\Controllers\WhatsAppChatController::class, 'index'])->name('whatsapp.inbox');
+    Route::get('/whatsapp/chat/{phone}', [\App\Http\Controllers\WhatsAppChatController::class, 'getMessages'])->name('whatsapp.chat.messages');
+    Route::post('/whatsapp/send', [\App\Http\Controllers\WhatsAppChatController::class, 'sendMessage'])->name('whatsapp.chat.send');
+
     // Finance - Kas & Pembayaran
     Route::get('/finance', [\App\Http\Controllers\FinanceController::class, 'index'])->name('finance.index');
     Route::post('/transactions', [\App\Http\Controllers\TransactionController::class, 'store'])->name('transactions.store');

@@ -71,6 +71,7 @@ class WhatsAppWebhookController extends Controller
     {
         // Check if lead already exists
         $existingLead = Lead::where('phone', $phone)->first();
+        $lead = null;
 
         if (!$existingLead) {
             // Smart Source Detection
@@ -114,6 +115,7 @@ class WhatsAppWebhookController extends Controller
             }
         } else {
             // LEAD RE-ACTIVATION LOGIC
+            $lead = $existingLead;
             
             // 1. Update status to 'new' if they were lost or stale, and update last_contacted
             $oldStatus = $existingLead->status;
@@ -147,6 +149,17 @@ class WhatsAppWebhookController extends Controller
                     $this->sendAutoReply($phone, $agent->name);
                 }
             }
+        }
+
+        // Save incoming message to the chat history
+        if ($lead) {
+            \App\Models\ChatMessage::create([
+                'lead_id' => $lead->id,
+                'phone' => $phone,
+                'direction' => 'incoming',
+                'message' => $messageText,
+                'status' => 'received',
+            ]);
         }
     }
 
