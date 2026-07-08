@@ -37,6 +37,7 @@ class WhatsAppChatController extends Controller
                     'name' => $lead->name,
                     'phone' => $lead->phone,
                     'project' => $lead->project?->name ?? 'Umum',
+                    'status' => $lead->status,
                     'last_message' => $lastMsg?->message ?? '',
                     'last_message_time' => $lastMsg?->created_at ? $lastMsg->created_at->diffForHumans() : '',
                     'last_message_timestamp' => $lastMsg?->created_at ? $lastMsg->created_at->timestamp : 0,
@@ -165,5 +166,34 @@ class WhatsAppChatController extends Controller
             $phone = '62' . substr($phone, 1);
         }
         return $phone;
+    }
+
+    /**
+     * Update Lead Status directly from WhatsApp Inbox
+     */
+    public function updateLeadStatus(Request $request, Lead $lead)
+    {
+        $request->validate([
+            'status' => 'required|in:new,contacted,visited,negotiation,booking,won,lost'
+        ]);
+
+        $lead->update([
+            'status' => $request->status,
+            'last_contacted_at' => now()
+        ]);
+
+        // Recalculate score
+        $lead->recalculateScore();
+
+        // Create activity log
+        \App\Models\LeadActivity::create([
+            'lead_id' => $lead->id,
+            'user_id' => auth()->id(),
+            'type' => 'status_change',
+            'description' => "Status diubah menjadi " . ucfirst($request->status) . " dari WhatsApp Inbox.",
+            'completed_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Status lead berhasil diperbarui.']);
     }
 }

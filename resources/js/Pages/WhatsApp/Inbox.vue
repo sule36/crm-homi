@@ -273,11 +273,38 @@ onMounted(() => {
     }, 5000);
 });
 
-onUnmounted(() => {
-    if (pollingInterval.value) {
-        clearInterval(pollingInterval.value);
+// Update Lead Status via Axios API
+async function updateStatus(leadId, newStatus) {
+    try {
+        await axios.post(`/whatsapp/leads/${leadId}/status`, {
+            status: newStatus
+        });
+        
+        // Update local chat list item status as well
+        const chat = props.chats.find(c => c.id === leadId);
+        if (chat) {
+            chat.status = newStatus;
+        }
+        
+        console.log('Lead status updated successfully to ' + newStatus);
+    } catch (error) {
+        alert('Gagal memperbarui status: ' + (error.response?.data?.message || error.message));
     }
-});
+}
+
+// Status Styling utility
+const statusColorClass = (status) => {
+    const classes = {
+        'new': 'bg-blue-50 text-blue-700',
+        'contacted': 'bg-amber-50 text-amber-700',
+        'visited': 'bg-purple-50 text-purple-700',
+        'negotiation': 'bg-indigo-50 text-indigo-700',
+        'booking': 'bg-rose-50 text-rose-700',
+        'won': 'bg-emerald-50 text-emerald-700',
+        'lost': 'bg-slate-50 text-slate-500',
+    };
+    return classes[status] || 'bg-slate-50 text-slate-700';
+};
 </script>
 
 <template>
@@ -348,7 +375,21 @@ onUnmounted(() => {
                                 <p class="text-[9px] text-slate-400 font-bold mt-1">{{ activeChat.phone }} • Proyek {{ activeChat.project }}</p>
                             </div>
                         </div>
-                        <div class="flex gap-2">
+                        <div class="flex items-center gap-3">
+                            <!-- Status Dropdown -->
+                            <div class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100/50 select-none">
+                                <span class="text-[8px] font-black text-slate-400 uppercase tracking-wider">Status:</span>
+                                <select v-model="activeChat.status" @change="updateStatus(activeChat.id, activeChat.status)" :class="statusColorClass(activeChat.status)" class="text-[9px] font-black py-0.5 px-2 border-none rounded-lg focus:ring-0 focus:outline-none cursor-pointer">
+                                    <option value="new">Baru (New)</option>
+                                    <option value="contacted">Dihubungi</option>
+                                    <option value="visited">Kunjungan</option>
+                                    <option value="negotiation">Negosiasi</option>
+                                    <option value="booking">Booking UTJ</option>
+                                    <option value="won">Closing (Won)</option>
+                                    <option value="lost">Lost</option>
+                                </select>
+                            </div>
+
                             <a :href="`https://wa.me/${activeChat.phone.replace(/^0/, '62')}`" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-black rounded-lg transition-colors border border-emerald-100/50">
                                 📱 Buka di WA
                             </a>

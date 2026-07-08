@@ -61,6 +61,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/whatsapp/inbox', [\App\Http\Controllers\WhatsAppChatController::class, 'index'])->name('whatsapp.inbox');
     Route::get('/whatsapp/chat/{phone}', [\App\Http\Controllers\WhatsAppChatController::class, 'getMessages'])->name('whatsapp.chat.messages');
     Route::post('/whatsapp/send', [\App\Http\Controllers\WhatsAppChatController::class, 'sendMessage'])->name('whatsapp.chat.send');
+    Route::post('/whatsapp/leads/{lead}/status', [\App\Http\Controllers\WhatsAppChatController::class, 'updateLeadStatus'])->name('whatsapp.chat.lead-status');
 
     // Finance - Kas & Pembayaran
     Route::get('/finance', [\App\Http\Controllers\FinanceController::class, 'index'])->name('finance.index');
