@@ -72,17 +72,33 @@ class LeadAssignmentService
         $sourceLabel = ucfirst(str_replace('_', ' ', $lead->source));
         $projectName = $lead->project?->name ?? 'Semua Proyek';
         
-        // WhatsApp template message to Sales Agent
-        $message = "🔔 *PROSPEK BARU MASUK (FORM)*\n\n" .
-                   "Halo *{$agent->name}*, Anda baru saja ditugaskan untuk mem-follow up prospek baru:\n\n" .
-                   "👤 *Nama:* {$lead->name}\n" .
-                   "📞 *No. HP:* {$lead->phone}\n" .
-                   "🏗️ *Proyek:* {$projectName}\n" .
-                   "📢 *Sumber:* {$sourceLabel}\n" .
-                   (empty($lead->notes) ? "" : "📝 *Catatan:* {$lead->notes}\n") .
-                   "\n" .
-                   "⚡ *Segera hubungi prospek di link berikut:* \n" .
-                   "👉 https://wa.me/{$customerPhone}?text=" . urlencode("Halo Bpk/Ibu *{$lead->name}*, perkenalkan saya *{$agent->name}* dari Homi Developer. Terima kasih telah menyatakan minat pada proyek *{$projectName}*...");
+        // Check if it is a WhatsApp direct chat lead or a form lead
+        $isChatLead = ($lead->source === 'whatsapp' || str_contains(strtolower($lead->notes), 'via whatsapp api'));
+
+        if ($isChatLead) {
+            // Chat lead notification: Agent is directed to open the CRM Inbox
+            $message = "💬 *CHAT WHATSAPP BARU MASUK*\n\n" .
+                       "Halo *{$agent->name}*, Anda ditugaskan untuk membalas chat masuk baru dari calon pembeli:\n\n" .
+                       "👤 *Nama:* {$lead->name}\n" .
+                       "📞 *No. HP:* {$lead->phone}\n" .
+                       "🏗️ *Proyek:* {$projectName}\n" .
+                       (empty($lead->notes) ? "" : "📝 *Pesan:* {$lead->notes}\n") .
+                       "\n" .
+                       "⚡ *Segera buka dasbor CRM Homi untuk membalas chat:* \n" .
+                       "👉 https://crm.homi.id/whatsapp/inbox";
+        } else {
+            // Form lead notification: Agent is given a wa.me link to start direct WhatsApp chat
+            $message = "🔔 *PROSPEK BARU MASUK (FORM)*\n\n" .
+                       "Halo *{$agent->name}*, Anda baru saja ditugaskan untuk mem-follow up prospek baru:\n\n" .
+                       "👤 *Nama:* {$lead->name}\n" .
+                       "📞 *No. HP:* {$lead->phone}\n" .
+                       "🏗️ *Proyek:* {$projectName}\n" .
+                       "📢 *Sumber:* {$sourceLabel}\n" .
+                       (empty($lead->notes) ? "" : "📝 *Catatan:* {$lead->notes}\n") .
+                       "\n" .
+                       "⚡ *Segera hubungi prospek di link berikut:* \n" .
+                       "👉 https://wa.me/{$customerPhone}?text=" . urlencode("Halo Bpk/Ibu *{$lead->name}*, perkenalkan saya *{$agent->name}* dari Homi Developer. Terima kasih telah menyatakan minat pada proyek *{$projectName}*...");
+        }
 
         $url = "https://graph.facebook.com/v19.0/{$phoneNumberId}/messages";
 

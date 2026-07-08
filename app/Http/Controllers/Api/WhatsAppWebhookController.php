@@ -110,8 +110,8 @@ class WhatsAppWebhookController extends Controller
                 'status' => 'new',
             ]);
 
-            // Assign via Smart Auto-Assign (pass false to avoid duplicate WA notification to agent since it's a direct message chat)
-            $assignedAgent = LeadAssignmentService::assign($lead, false);
+            // Assign via Smart Auto-Assign
+            $assignedAgent = LeadAssignmentService::assign($lead, true);
 
             // Send Auto-Reply if configured
             if ($assignedAgent) {
@@ -147,9 +147,13 @@ class WhatsAppWebhookController extends Controller
                     'message' => 'URGENT: Pelanggan lama menghubungi kembali via WhatsApp Iklan! Segera respon pesannya.',
                 ]);
 
-                // Auto-reply for existing lead (optional, but good for UX)
+                // Auto-reply and notify agent for existing lead (UX & Speed)
                 $agent = \App\Models\User::find($existingLead->assigned_to);
                 if ($agent) {
+                    // Temporarily set notes for notification content
+                    $existingLead->notes = 'MENGHUBUNGI KEMBALI: ' . $messageText;
+                    LeadAssignmentService::notifyAgent($agent, $existingLead);
+                    
                     $this->sendAutoReply($phone, $agent->name);
                 }
             }
