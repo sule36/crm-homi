@@ -68,16 +68,25 @@ class UserController extends Controller
             'role' => 'required|exists:roles,name',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
+            'phone' => 'nullable|string|max:20',
+            'status' => 'required|in:active,inactive',
+            'password' => ['nullable', Rules\Password::defaults()],
             'commission_rate' => 'nullable|numeric|min:0|max:100',
             'bank_name' => 'nullable|string',
             'bank_account_number' => 'nullable|string',
             'bank_account_name' => 'nullable|string',
         ]);
 
-        $user->update($request->only([
+        $data = $request->only([
             'name', 'phone', 'project_id', 'broker_company_id', 'status', 
             'commission_rate', 'bank_name', 'bank_account_number', 'bank_account_name'
-        ]));
+        ]);
+
+        if ($request->filled('password')) {
+            $data['password'] = Hash::make($request->password);
+        }
+
+        $user->update($data);
         
         $user->syncRoles([$request->role]);
 

@@ -22,6 +22,7 @@ const form = useForm({
     project_id: '',
     broker_company_id: '',
     phone: '',
+    status: 'active',
     commission_rate: 1.00,
     bank_name: '',
     bank_account_number: '',
@@ -39,10 +40,12 @@ const openEditModal = (user) => {
     selectedUser.value = user;
     form.name = user.name;
     form.email = user.email;
+    form.password = ''; // biarkan kosong untuk opsional ganti password
     form.role = user.roles[0]?.name || '';
     form.project_id = user.project_id || '';
     form.broker_company_id = user.broker_company_id || '';
     form.phone = user.phone || '';
+    form.status = user.status || 'active';
     form.commission_rate = user.commission_rate || 1.00;
     form.bank_name = user.bank_name || '';
     form.bank_account_number = user.bank_account_number || '';
@@ -112,7 +115,12 @@ const deleteUser = (id) => {
                                     {{ user.name.charAt(0) }}
                                 </div>
                                 <div>
-                                    <p class="text-sm font-black text-slate-900">{{ user.name }}</p>
+                                    <div class="flex items-center gap-1.5">
+                                        <p class="text-sm font-black text-slate-900">{{ user.name }}</p>
+                                        <span :class="user.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'" class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider select-none">
+                                            {{ user.status === 'active' ? 'Aktif' : 'Nonaktif' }}
+                                        </span>
+                                    </div>
                                     <p class="text-[10px] text-slate-400 font-medium">{{ user.email }}</p>
                                 </div>
                             </div>
@@ -168,9 +176,21 @@ const deleteUser = (id) => {
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Email Address</label>
                             <input v-model="form.email" type="email" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20" placeholder="budi@homi.id" />
                         </div>
-                        <div v-if="!editMode">
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Password</label>
-                            <input v-model="form.password" type="password" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20" />
+                        <!-- Password Input -->
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">
+                                Password <span v-if="editMode" class="text-[9px] text-slate-400 font-bold lowercase italic">(kosongkan jika tidak ingin diubah)</span>
+                            </label>
+                            <input v-model="form.password" type="password" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20" :placeholder="editMode ? '••••••••' : ''" />
+                        </div>
+
+                        <!-- Status Input (Hanya tampil saat Edit Staff) -->
+                        <div v-if="editMode">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Status Keaktifan Staff</label>
+                            <select v-model="form.status" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer font-bold">
+                                <option value="active">🟢 AKTIF (Bisa login & terima leads)</option>
+                                <option value="inactive">🔴 NONAKTIF (Akses diblokir)</option>
+                            </select>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
