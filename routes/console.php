@@ -11,3 +11,4 @@ use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('app:check-stale-leads')->dailyAt('08:00');
 Schedule::command('app:release-expired-bookings')->dailyAt('00:01');
+Schedule::command('app:send-payment-reminders')->dailyAt('09:00');
