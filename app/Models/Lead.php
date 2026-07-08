@@ -60,6 +60,11 @@ class Lead extends Model
         return $this->hasMany(Booking::class);
     }
 
+    public function chatMessages()
+    {
+        return $this->hasMany(ChatMessage::class);
+    }
+
     // Auto-calculate score based on status + engagement
     public function recalculateScore(): void
     {
