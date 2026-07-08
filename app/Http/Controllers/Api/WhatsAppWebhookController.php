@@ -69,8 +69,12 @@ class WhatsAppWebhookController extends Controller
 
     private function processWhatsAppLead(string $phone, string $name, string $messageText, array $messageData = [])
     {
-        // Check if lead already exists
-        $existingLead = Lead::where('phone', $phone)->first();
+        // Check if lead already exists (robust matching for 08xxx vs 62xxx formats)
+        $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+        $normalizedPhone = str_starts_with($cleanPhone, '0') ? '62' . substr($cleanPhone, 1) : $cleanPhone;
+        $localPhone = str_starts_with($normalizedPhone, '62') ? '0' . substr($normalizedPhone, 2) : $normalizedPhone;
+
+        $existingLead = Lead::whereIn('phone', [$phone, $normalizedPhone, $localPhone])->first();
         $lead = null;
 
         if (!$existingLead) {
