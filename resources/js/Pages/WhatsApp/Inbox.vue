@@ -902,6 +902,8 @@ const statusColorClass = (status) => {
                         <button type="button" @click="startNewChat" :disabled="!selectedLeadIdForNewChat" class="px-5 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-lg hover:bg-blue-700 disabled:opacity-50">
                             Buka Chat
                         </button>
+                    </div>
+                </div>
             </div>
 
             <!-- FOLLOW-UP REMINDER MODAL -->
