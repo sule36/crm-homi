@@ -23,7 +23,7 @@ class WhatsAppChatController extends Controller
         // If the user is a sales agent, they can only see their assigned leads' chats.
         $leadsQuery = Lead::whereHas('chatMessages')
             ->with(['chatMessages' => fn($q) => $q->latest()])
-            ->with(['project']);
+            ->with(['project', 'assignedTo']);
 
         if ($user->hasRole('sales_agent')) {
             $leadsQuery->where('assigned_to', $user->id);
@@ -37,6 +37,7 @@ class WhatsAppChatController extends Controller
                     'name' => $lead->name,
                     'phone' => $lead->phone,
                     'project' => $lead->project?->name ?? 'Umum',
+                    'agent_name' => $lead->assignedTo?->name ?? 'Belum Ditugaskan',
                     'status' => $lead->status,
                     'last_message' => $lastMsg?->message ?? '',
                     'last_message_time' => $lastMsg?->created_at ? $lastMsg->created_at->diffForHumans() : '',

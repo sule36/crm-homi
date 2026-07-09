@@ -394,27 +394,29 @@ const statusColorClass = (status) => {
             <div :class="activeChat ? 'flex-1 flex' : 'hidden md:flex flex-1'" class="flex-col bg-[#efeae2]/40 relative">
                 <!-- If Active Chat Selected -->
                 <template v-if="activeChat">
-                    <!-- Chat Header -->
-                    <div class="px-4 md:px-6 py-4 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0">
-                        <div class="flex items-center gap-2 md:gap-3">
+                    <!-- Chat Header (Lebih Compact untuk Mobile) -->
+                    <div class="px-3 md:px-6 py-2.5 md:py-4 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0">
+                        <div class="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                             <!-- Mobile Back Button -->
-                            <button @click="activeChat = null" class="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-500 font-black text-sm shrink-0" title="Kembali ke Daftar Chat">
+                            <button @click="activeChat = null" class="md:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 font-black text-xs shrink-0" title="Kembali ke Daftar Chat">
                                 ◀
                             </button>
-                            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase shrink-0">
+                            <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase shrink-0 shadow-sm">
                                 {{ activeChat.name.substring(0, 2) }}
                             </div>
-                            <div class="min-w-0">
+                            <div class="min-w-0 flex-1">
                                 <h3 class="text-xs font-black text-slate-900 leading-none truncate">{{ activeChat.name }}</h3>
-                                <p class="text-[9px] text-slate-400 font-bold mt-1 truncate">{{ activeChat.phone }} • Proyek {{ activeChat.project }}</p>
+                                <p class="text-[9px] text-slate-500 font-semibold mt-1 truncate">
+                                    {{ activeChat.phone }} • Proyek: {{ activeChat.project }} • 👤 Agent: <span class="text-blue-600 font-black">{{ activeChat.agent_name || 'Belum Ditugaskan' }}</span>
+                                </p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-1.5 md:gap-3 shrink-0">
                             <!-- Status Dropdown -->
-                            <div class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100/50 select-none">
-                                <span class="text-[8px] font-black text-slate-400 uppercase tracking-wider">Status:</span>
-                                <select v-model="activeChat.status" @change="updateStatus(activeChat.id, activeChat.status)" :class="statusColorClass(activeChat.status)" class="text-[9px] font-black py-0.5 px-2 border-none rounded-lg focus:ring-0 focus:outline-none cursor-pointer">
-                                    <option value="new">Baru (New)</option>
+                            <div class="flex items-center gap-1 bg-slate-50 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-lg border border-slate-100/50 select-none">
+                                <span class="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline">Status:</span>
+                                <select v-model="activeChat.status" @change="updateStatus(activeChat.id, activeChat.status)" :class="statusColorClass(activeChat.status)" class="text-[8px] md:text-[9px] font-black py-0.5 px-1 md:px-2 border-none rounded focus:ring-0 focus:outline-none cursor-pointer">
+                                    <option value="new">Baru</option>
                                     <option value="contacted">Dihubungi</option>
                                     <option value="visited">Kunjungan</option>
                                     <option value="negotiation">Negosiasi</option>
@@ -424,8 +426,8 @@ const statusColorClass = (status) => {
                                 </select>
                             </div>
 
-                            <a :href="`https://wa.me/${activeChat.phone.replace(/^0/, '62')}`" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-black rounded-lg transition-colors border border-emerald-100/50">
-                                📱 Buka di WA
+                            <a :href="`https://wa.me/${activeChat.phone.replace(/^0/, '62')}`" target="_blank" class="px-2 md:px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[8px] md:text-[10px] font-black rounded-lg transition-colors border border-emerald-100/50 flex items-center gap-1 shrink-0">
+                                📱 <span class="hidden sm:inline">Buka di WA</span><span class="sm:hidden">WA</span>
                             </a>
                         </div>
                     </div>
@@ -460,19 +462,23 @@ const statusColorClass = (status) => {
                         </template>
                     </div>
 
-                    <!-- Input Bar & Smart Templates Panel -->
-                    <div class="p-4 bg-white border-t border-slate-100 shrink-0 space-y-3 z-10 relative">
-                        <!-- Smart Templates Selector -->
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Smart Assistent:</span>
-                            <button @click="insertTemplate('welcome')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">👋 Sapaan</button>
-                            <button @click="insertTemplate('visit')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">🏠 Visit</button>
-                            <button @click="insertTemplate('booking')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">🧾 Booking UTJ</button>
-                            <button @click="insertTemplate('kpr_docs')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">📄 Berkas KPR</button>
-                            <button @click="insertTemplate('promo')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">🎁 Promo Spesial</button>
-                            <button @click="insertTemplate('share_loc')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-black rounded-lg transition-colors">📍 Lokasi Proyek</button>
-                            <button @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'" class="px-2.5 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1">
-                                🧮 Kalkulator Simulasi
+                    <!-- Input Bar & Smart Templates Panel (Lebih Ringkas & Dropdown Ke Bawah) -->
+                    <div class="p-2 md:p-3 bg-white border-t border-slate-100 shrink-0 space-y-1.5 z-10 relative">
+                        <!-- Smart Templates Selector - Dropdown List Vertikal -->
+                        <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                            <span class="text-[8px] md:text-[9px] font-black text-slate-500 uppercase tracking-wider shrink-0 select-none">Balas Cepat:</span>
+                            <select @change="(e) => { if (e.target.value) { insertTemplate(e.target.value); e.target.value = ''; } }" class="flex-1 py-0.5 px-2 bg-white border border-slate-200 rounded-lg text-[9px] md:text-[10px] font-bold focus:ring-1 focus:ring-blue-500 cursor-pointer">
+                                <option value="">📋 Pilih Template Pesan...</option>
+                                <option value="welcome">👋 Sapaan Awal</option>
+                                <option value="visit">🏠 Jadwal Visit</option>
+                                <option value="booking">🧾 Booking UTJ</option>
+                                <option value="kpr_docs">📄 Berkas KPR</option>
+                                <option value="promo">🎁 Promo Spesial</option>
+                                <option value="share_loc">📍 Lokasi Proyek (Google Maps)</option>
+                            </select>
+                            
+                            <button type="button" @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'" class="px-2 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0">
+                                🧮 KPR
                             </button>
                         </div>
 
@@ -528,15 +534,15 @@ const statusColorClass = (status) => {
                         </div>
 
                         <!-- Typing Area and Send Button -->
-                        <form @submit.prevent="handleSendMessage" class="flex gap-2 items-end">
-                            <textarea v-model="messageInput" @keydown.enter.prevent="handleSendMessage" placeholder="Ketik pesan WhatsApp..." rows="2" class="flex-1 px-4 py-3 bg-slate-50 border-none rounded-2xl text-xs font-medium focus:ring-1 focus:ring-blue-500 resize-none font-sans leading-relaxed"></textarea>
+                        <form @submit.prevent="handleSendMessage" class="flex gap-1.5 items-center">
+                            <textarea v-model="messageInput" @keydown.enter.prevent="handleSendMessage" placeholder="Ketik pesan..." rows="1" class="flex-1 px-3 py-1.5 bg-slate-50 border-none rounded-xl text-xs font-semibold focus:ring-1 focus:ring-blue-500 resize-none font-sans leading-relaxed"></textarea>
                             
                             <!-- WA Manual Send Button (Bypass API for demo/offline usage) -->
-                            <button type="button" @click="handleSendManual" :disabled="!messageInput.trim()" class="h-10 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-black rounded-2xl flex items-center justify-center gap-1 transition-all shrink-0 select-none" title="Kirim via WhatsApp HP/Web Manual">
+                            <button type="button" @click="handleSendManual" :disabled="!messageInput.trim()" class="h-8 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[9px] font-black rounded-lg flex items-center justify-center gap-0.5 transition-all shrink-0 select-none" title="Kirim via WhatsApp HP/Web Manual">
                                 📱 Manual
                             </button>
 
-                            <button type="submit" :disabled="sendingMessage || !messageInput.trim()" class="h-10 w-10 shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 disabled:opacity-40 transition-all select-none" title="Kirim via API Meta Resmi">
+                            <button type="submit" :disabled="sendingMessage || !messageInput.trim()" class="h-8 w-8 shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center shadow-md disabled:opacity-40 transition-all select-none" title="Kirim via API Meta Resmi">
                                 🚀
                             </button>
                         </form>
