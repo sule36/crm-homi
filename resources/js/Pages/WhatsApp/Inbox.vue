@@ -316,7 +316,7 @@ const statusColorClass = (status) => {
 
         <div class="h-[calc(100vh-140px)] flex bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
             <!-- LEFT PANEL: CHAT LIST -->
-            <div class="w-[320px] md:w-[360px] border-r border-slate-100 flex flex-col shrink-0">
+            <div :class="activeChat ? 'hidden md:flex' : 'w-full md:w-[360px] flex'" class="border-r border-slate-100 flex flex-col shrink-0">
                 <!-- Search & New Chat Button -->
                 <div class="p-5 border-b border-slate-50 space-y-3 shrink-0">
                     <div class="flex items-center justify-between">
@@ -361,18 +361,22 @@ const statusColorClass = (status) => {
             </div>
 
             <!-- RIGHT PANEL: CHAT WINDOW -->
-            <div class="flex-1 flex flex-col bg-[#efeae2]/40 relative">
+            <div :class="activeChat ? 'flex-1 flex' : 'hidden md:flex flex-1'" class="flex-col bg-[#efeae2]/40 relative">
                 <!-- If Active Chat Selected -->
                 <template v-if="activeChat">
                     <!-- Chat Header -->
-                    <div class="px-6 py-4 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0">
-                        <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase">
+                    <div class="px-4 md:px-6 py-4 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0">
+                        <div class="flex items-center gap-2 md:gap-3">
+                            <!-- Mobile Back Button -->
+                            <button @click="activeChat = null" class="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-500 font-black text-sm shrink-0" title="Kembali ke Daftar Chat">
+                                ◀
+                            </button>
+                            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase shrink-0">
                                 {{ activeChat.name.substring(0, 2) }}
                             </div>
-                            <div>
-                                <h3 class="text-xs font-black text-slate-900 leading-none">{{ activeChat.name }}</h3>
-                                <p class="text-[9px] text-slate-400 font-bold mt-1">{{ activeChat.phone }} • Proyek {{ activeChat.project }}</p>
+                            <div class="min-w-0">
+                                <h3 class="text-xs font-black text-slate-900 leading-none truncate">{{ activeChat.name }}</h3>
+                                <p class="text-[9px] text-slate-400 font-bold mt-1 truncate">{{ activeChat.phone }} • Proyek {{ activeChat.project }}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
@@ -443,7 +447,7 @@ const statusColorClass = (status) => {
                         </div>
 
                         <!-- KPR Assistant Dialog (Embedded/Interactive Floating) -->
-                        <div v-if="showKprAssistant" class="absolute left-4 bottom-[72px] bg-white border border-slate-200 rounded-3xl p-5 shadow-2xl w-80 space-y-3.5 z-[20] animate-in slide-in-from-bottom-3 duration-250">
+                        <div v-if="showKprAssistant" class="absolute left-4 bottom-[72px] bg-white border border-slate-200 rounded-3xl p-5 shadow-2xl w-[calc(100vw-32px)] md:w-80 space-y-3.5 z-[20] animate-in slide-in-from-bottom-3 duration-250">
                             <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                                 <span class="text-[10px] font-black text-slate-900 uppercase">Kalkulator Simulasi Cicilan</span>
                                 <button @click="showKprAssistant = false" class="text-slate-400 font-bold">&times;</button>
