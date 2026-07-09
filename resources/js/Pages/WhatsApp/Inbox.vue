@@ -8,6 +8,7 @@ const props = defineProps({
     chats: Array,
     activeLeads: Array,
     partnerBanks: Array,
+    availableUnits: Object,
 });
 
 const activeChat = ref(null);
@@ -163,6 +164,27 @@ function insertTemplate(type) {
         text = `📢 *PROMO SPESIAL BULAN INI di ${projectName.toUpperCase()}* 🎉\n\nDapatkan berbagai keuntungan eksklusif untuk pembelian unit pilihan Anda:\n✅ *Diskon DP* atau Subsidi Uang Muka\n✅ *Free Biaya Surat-Surat* (BPHTB, AJB, Balik Nama)\n✅ *Free AC & Canopy Carport*\n✅ *Voucher Belanja Jutaan Rupiah* (S&K Berlaku)\n\nPromo ini terbatas hanya untuk 3 unit pertama bulan ini! Segera amankan unit impian Anda sekarang sebelum kehabisan.`;
     } else if (type === 'share_loc') {
         text = `📍 *LOKASI KANTOR PEMASARAN & PROYEK*\n\nHalo Bapak/Ibu *${customerName}*,\n\nBerikut adalah link peta petunjuk arah Google Maps untuk menuju ke lokasi proyek *${projectName}* kami:\n🔗 https://maps.google.com/?q=${encodeURIComponent(projectName)}\n\nKami buka setiap hari pukul 09.00 - 17.00 WIB. Kabari saya jika Anda sudah di perjalanan agar bisa saya sambut di lokasi gallery pemasaran.`;
+    } else if (type === 'list_stock') {
+        const projectId = activeChat.value.project_id;
+        const units = props.availableUnits && projectId ? props.availableUnits[projectId] : null;
+        
+        text = `🏗️ *DAFTAR STOK UNIT TERSEDIA - ${projectName.toUpperCase()}* 🏡\n` +
+               `-----------------------------------\n` +
+               `Berikut adalah beberapa unit ready/inden terbaik yang masih tersedia:\n\n`;
+        
+        if (units && units.length > 0) {
+            units.slice(0, 8).forEach(u => {
+                text += `• Blok *${u.block || '-'}* No. *${u.number}* (${u.type}) - *${formatCurrency(u.price)}*\n`;
+            });
+            if (units.length > 8) {
+                text += `• ...dan *${units.length - 8} unit lainnya* masih tersedia.\n`;
+            }
+        } else {
+            text += `Saat ini semua unit ter-booking. Hubungi saya untuk informasi unit pembatalan (waiting list). 📲\n`;
+        }
+        
+        text += `\n-----------------------------------\n` +
+                `Unit di atas dapat berubah sewaktu-waktu. Balas pesan ini untuk mem-booking unit pilihan Anda sebelum kehabisan!`;
     }
 
     messageInput.value = text;
@@ -233,21 +255,65 @@ function insertKprSimulation() {
             simulationText += `Skema: *Flat Syariah (Margin ${interestRate}%/thn)*\n` +
                               `Cicilan Bulanan: *${formatCurrency(monthly)}/bulan*\n`;
         } else {
-            // Simple conventional fixed calculations (Annuity formula)
-            const monthlyRate = (interestRate / 100) / 12;
+            // Conventional fixed & floating calculation (Annuity Formula like kana-project)
+            const fixedRate = interestRate / 100 / 12;
             const totalMonths = kprTenor.value * 12;
-            let monthly = 0;
+            let monthlyFixed = 0;
             
-            if (monthlyRate === 0) {
-                monthly = remainingAmount / totalMonths;
+            if (fixedRate === 0) {
+                monthlyFixed = remainingAmount / totalMonths;
             } else {
-                const factor = Math.pow(1 + monthlyRate, totalMonths);
-                monthly = (remainingAmount * monthlyRate * factor) / (factor - 1);
+                const factor = Math.pow(1 + fixedRate, totalMonths);
+                monthlyFixed = (remainingAmount * fixedRate * factor) / (factor - 1);
             }
-            monthly = Math.round(monthly);
+            monthlyFixed = Math.round(monthlyFixed);
 
-            simulationText += `Skema: *Fix & Floating (Asumsi fixed ${interestRate}%/thn)*\n` +
-                              `Cicilan Bulanan (Masa Fixed): *${formatCurrency(monthly)}/bulan*\n`;
+            // Retrieve bank program conventional parameters
+            const floatingRateVal = selectedBank ? Number(selectedBank.interest_rate_floating) : 11.0;
+            const fixedYearsVal = selectedBank ? Number(selectedBank.fixed_duration) : 3;
+
+            if (kprTenor.value > fixedYearsVal) {
+                const fixedMonths = fixedYearsVal * 12;
+                const remainingMonths = totalMonths - fixedMonths;
+
+                // Outstanding principal after fixed period
+                let outstandingPrincipal = remainingAmount;
+                if (fixedRate > 0) {
+                    const p1 = Math.pow(1 + fixedRate, totalMonths);
+                    const p2 = Math.pow(1 + fixedRate, fixedMonths);
+                    outstandingPrincipal = remainingAmount * (p1 - p2) / (p1 - 1);
+                } else {
+                    outstandingPrincipal = remainingAmount * (remainingMonths / totalMonths);
+                }
+
+                // Calculate floating installment
+                const floatingMonthlyRate = (floatingRateVal / 100) / 12;
+                let monthlyFloating = 0;
+                if (floatingMonthlyRate === 0) {
+                    monthlyFloating = outstandingPrincipal / remainingMonths;
+                } else {
+                    const floatFactor = Math.pow(1 + floatingMonthlyRate, remainingMonths);
+                    monthlyFloating = (outstandingPrincipal * floatingMonthlyRate * floatFactor) / (floatFactor - 1);
+                }
+                monthlyFloating = Math.round(monthlyFloating);
+
+                // Calculate Payment Shock Percentage
+                const paymentShock = ((monthlyFloating - monthlyFixed) / monthlyFixed) * 100;
+
+                simulationText += `Skema: *Anuitas Konvensional (Fix & Floating)*\n\n` +
+                                  `🟢 *Masa Fixed (Tahun 1 - ${fixedYearsVal})*:\n` +
+                                  `- Bunga: *${interestRate}% Fixed*\n` +
+                                  `- Cicilan: *${formatCurrency(monthlyFixed)}/bulan*\n\n` +
+                                  `🔴 *Masa Floating (Tahun ${fixedYearsVal + 1} - ${kprTenor.value})*:\n` +
+                                  `- Asumsi Bunga: *${floatingRateVal}% Floating*\n` +
+                                  `- Estimasi Cicilan: *${formatCurrency(monthlyFloating)}/bulan*\n\n` +
+                                  `⚠️ *Payment Shock*: Potensi kenaikan cicilan sebesar *+${paymentShock.toFixed(1)}%* (+${formatCurrency(monthlyFloating - monthlyFixed)}/bulan) setelah masa fixed selesai.\n`;
+            } else {
+                // All fixed installment
+                simulationText += `Skema: *Conventional Fixed (Fix All Tenor)*\n` +
+                                  `Suku Bunga: *${interestRate}% Fixed*\n` +
+                                  `Cicilan Bulanan: *${formatCurrency(monthlyFixed)}/bulan*\n`;
+            }
         }
 
         simulationText += `-----------------------------------\n` +
@@ -475,6 +541,7 @@ const statusColorClass = (status) => {
                                 <option value="kpr_docs">📄 Berkas KPR</option>
                                 <option value="promo">🎁 Promo Spesial</option>
                                 <option value="share_loc">📍 Lokasi Proyek (Google Maps)</option>
+                                <option value="list_stock">🏢 Daftar Stok Unit (Real-Time)</option>
                             </select>
                             
                             <button type="button" @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'" class="px-2 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0">

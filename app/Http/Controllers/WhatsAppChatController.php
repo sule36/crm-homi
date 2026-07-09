@@ -37,6 +37,7 @@ class WhatsAppChatController extends Controller
                     'name' => $lead->name,
                     'phone' => $lead->phone,
                     'project' => $lead->project?->name ?? 'Umum',
+                    'project_id' => $lead->project_id,
                     'agent_name' => $lead->assignedTo?->name ?? 'Belum Ditugaskan',
                     'status' => $lead->status,
                     'last_message' => $lastMsg?->message ?? '',
@@ -60,10 +61,27 @@ class WhatsAppChatController extends Controller
         // Pass partner banks so we can calculate live simulations on the fly in the chat!
         $partnerBanks = \App\Models\PartnerBank::where('is_active', true)->get();
 
+        // Ambil stok unit tersedia dikelompokkan berdasarkan project_id
+        $availableUnits = \App\Models\Unit::where('status', 'available')
+            ->with(['unitType'])
+            ->get()
+            ->groupBy('project_id')
+            ->map(function ($units) {
+                return $units->map(function ($unit) {
+                    return [
+                        'block' => $unit->block,
+                        'number' => $unit->number,
+                        'type' => $unit->unitType?->name ?? 'Tipe Standar',
+                        'price' => $unit->display_price,
+                    ];
+                });
+            });
+
         return Inertia::render('WhatsApp/Inbox', [
             'chats' => $leads,
             'activeLeads' => $activeLeads,
             'partnerBanks' => $partnerBanks,
+            'availableUnits' => $availableUnits,
         ]);
     }
 
