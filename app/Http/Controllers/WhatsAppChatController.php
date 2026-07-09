@@ -40,6 +40,7 @@ class WhatsAppChatController extends Controller
                     'project_id' => $lead->project_id,
                     'agent_name' => $lead->assignedTo?->name ?? 'Belum Ditugaskan',
                     'status' => $lead->status,
+                    'tags' => $lead->preferences['tags'] ?? [],
                     'last_message' => $lastMsg?->message ?? '',
                     'last_message_time' => $lastMsg?->created_at ? $lastMsg->created_at->diffForHumans() : '',
                     'last_message_timestamp' => $lastMsg?->created_at ? $lastMsg->created_at->timestamp : 0,
@@ -77,16 +78,29 @@ class WhatsAppChatController extends Controller
                 });
             });
 
+        // Ambil data proyek untuk lampiran brosur & master plan
+        $projects = \App\Models\Project::select('id', 'name', 'brochure_file', 'master_plan_image')
+            ->get()
+            ->map(function($p) {
+                return [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'brochure_url' => $p->brochure_file ? asset('storage/' . $p->brochure_file) : null,
+                    'master_plan_url' => $p->master_plan_image ? asset('storage/' . $p->master_plan_image) : null,
+                ];
+            });
+
         return Inertia::render('WhatsApp/Inbox', [
             'chats' => $leads,
             'activeLeads' => $activeLeads,
             'partnerBanks' => $partnerBanks,
             'availableUnits' => $availableUnits,
+            'projects' => $projects,
         ]);
     }
 
     /**
-     * Fetch conversation history for a specific phone number
+     * Fetch conversation history and reminders for a specific phone number
      */
     public function getMessages($phone)
     {
@@ -95,7 +109,26 @@ class WhatsAppChatController extends Controller
             ->take(100)
             ->get();
 
-        return response()->json($messages);
+        $lead = Lead::where('phone', $phone)->first();
+        $reminders = [];
+        if ($lead) {
+            $reminders = \App\Models\FollowUpReminder::where('lead_id', $lead->id)
+                ->orderBy('remind_at', 'asc')
+                ->get()
+                ->map(function($r) {
+                    return [
+                        'id' => $r->id,
+                        'remind_at_formatted' => $r->remind_at->format('d M Y H:i'),
+                        'message' => $r->message,
+                        'status' => $r->status
+                    ];
+                });
+        }
+
+        return response()->json([
+            'messages' => $messages,
+            'reminders' => $reminders
+        ]);
     }
 
     /**
@@ -314,6 +347,58 @@ class WhatsAppChatController extends Controller
         return response()->json([
             'status' => 'success',
             'draft' => $aiDraft
+        ]);
+    }
+
+    /**
+     * Update Lead Tags/Labels directly from WhatsApp Inbox
+     */
+    public function updateLeadTags(Request $request, Lead $lead)
+    {
+        $request->validate([
+            'tags' => 'nullable|array'
+        ]);
+
+        $preferences = $lead->preferences ?? [];
+        $preferences['tags'] = $request->tags ?? [];
+
+        $lead->update([
+            'preferences' => $preferences
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Label lead berhasil diperbarui.'
+        ]);
+    }
+
+    /**
+     * Create follow-up reminder from WhatsApp Inbox
+     */
+    public function createReminder(Request $request)
+    {
+        $request->validate([
+            'lead_id' => 'required|exists:leads,id',
+            'remind_at' => 'required|date',
+            'message' => 'required|string',
+        ]);
+
+        $reminder = \App\Models\FollowUpReminder::create([
+            'lead_id' => $request->lead_id,
+            'user_id' => auth()->id(),
+            'remind_at' => \Carbon\Carbon::parse($request->remind_at),
+            'message' => $request->message,
+            'status' => 'pending',
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'reminder' => [
+                'id' => $reminder->id,
+                'remind_at_formatted' => $reminder->remind_at->format('d M Y H:i'),
+                'message' => $reminder->message,
+                'status' => $reminder->status
+            ]
         ]);
     }
 }

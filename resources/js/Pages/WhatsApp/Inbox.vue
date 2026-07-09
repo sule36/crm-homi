@@ -9,6 +9,7 @@ const props = defineProps({
     activeLeads: Array,
     partnerBanks: Array,
     availableUnits: Object,
+    projects: Array,
 });
 
 const activeChat = ref(null);
@@ -29,6 +30,17 @@ const kprPrice = ref(500000000);
 const kprTenor = ref(15);
 const kprDpPercent = ref(10);
 const kprSelectedBankId = ref('');
+
+// Unicorn features states
+const activeReminders = ref([]);
+const showReminderModal = ref(false);
+const reminderTime = ref('');
+const reminderNotes = ref('');
+const savingReminder = ref(false);
+const showTagsDropdown = ref(false);
+const showBrochureDropdown = ref(false);
+
+const availableTags = ['🔥 Hot Lead', '❄️ Cold Lead', '📅 Rencana Kunjungan', '📄 Menunggu Berkas KPR'];
 
 // Filter chats based on search query
 const filteredChats = computed(() => {
@@ -57,11 +69,17 @@ async function selectChat(chat) {
     scrollToBottom();
 }
 
-// Fetch messages from backend
+// Fetch messages and reminders from backend
 async function fetchMessages(phone) {
     try {
         const response = await axios.get(`/whatsapp/chat/${phone}`);
-        messages.value = response.data;
+        if (response.data && response.data.messages !== undefined) {
+            messages.value = response.data.messages;
+            activeReminders.value = response.data.reminders || [];
+        } else {
+            messages.value = response.data;
+            activeReminders.value = [];
+        }
     } catch (error) {
         console.error('Failed to load chat history:', error);
     }
@@ -436,6 +454,83 @@ function insertKprSimulation() {
     showKprAssistant.value = false;
 }
 
+// Toggle Tag for active lead
+async function toggleTag(tag) {
+    if (!activeChat.value) return;
+    let currentTags = [...(activeChat.value.tags || [])];
+    if (currentTags.includes(tag)) {
+        currentTags = currentTags.filter(t => t !== tag);
+    } else {
+        currentTags.push(tag);
+    }
+    activeChat.value.tags = currentTags;
+    
+    // Update live in left panel list
+    const chatItem = props.chats.find(c => c.id === activeChat.value.id);
+    if (chatItem) chatItem.tags = currentTags;
+
+    try {
+        await axios.post(`/whatsapp/leads/${activeChat.value.id}/tags`, {
+            tags: currentTags
+        });
+    } catch (error) {
+        console.error('Failed to update tags:', error);
+    }
+}
+
+// Save Follow-up Reminder
+async function saveReminder() {
+    if (!activeChat.value || !reminderTime.value || !reminderNotes.value) return;
+    savingReminder.value = true;
+    try {
+        const response = await axios.post('/whatsapp/reminders', {
+            lead_id: activeChat.value.id,
+            remind_at: reminderTime.value,
+            message: reminderNotes.value
+        });
+        if (response.data?.status === 'success') {
+            activeReminders.value.push(response.data.reminder);
+            reminderTime.value = '';
+            reminderNotes.value = '';
+            showReminderModal.value = false;
+            alert('Pengingat follow-up berhasil dijadwalkan!');
+        }
+    } catch (error) {
+        alert('Gagal membuat pengingat: ' + (error.response?.data?.message || error.message));
+    } finally {
+        savingReminder.value = false;
+    }
+}
+
+// Insert Brochure Link
+function insertBrochure(type) {
+    if (!activeChat.value) return;
+    const projectId = activeChat.value.project_id;
+    const proj = props.projects.find(p => p.id === projectId);
+    if (!proj) {
+        alert('Proyek untuk prospek ini tidak ditemukan.');
+        return;
+    }
+    
+    let link = '';
+    if (type === 'brochure') {
+        link = proj.brochure_url;
+        if (!link) {
+            alert('Brosur resmi belum diunggah untuk proyek ini.');
+            return;
+        }
+        messageInput.value = `Berikut adalah link Brosur Resmi untuk proyek *${proj.name}*:\n🔗 ${link}`;
+    } else {
+        link = proj.master_plan_url;
+        if (!link) {
+            alert('Master plan belum diunggah untuk proyek ini.');
+            return;
+        }
+        messageInput.value = `Berikut adalah link peta Master Plan untuk proyek *${proj.name}*:\n🔗 ${link}`;
+    }
+    showBrochureDropdown.value = false;
+}
+
 // Start New Chat Action
 function startNewChat() {
     const lead = props.activeLeads.find(l => l.id === Number(selectedLeadIdForNewChat.value));
@@ -557,6 +652,9 @@ const statusColorClass = (status) => {
                                 <h4 class="text-xs font-black text-slate-800 truncate">{{ chat.name }}</h4>
                                 <span class="text-[9px] text-slate-400 font-bold whitespace-nowrap">{{ chat.last_message_time }}</span>
                             </div>
+                            <div class="flex flex-wrap gap-1 mt-0.5 mb-1" v-if="chat.tags && chat.tags.length">
+                                <span v-for="t in chat.tags" :key="t" class="px-1.5 py-0.2 bg-purple-50 text-purple-600 text-[7px] font-black rounded border border-purple-100/50">{{ t }}</span>
+                            </div>
                             <p class="text-[9px] text-blue-600 font-bold uppercase tracking-wider mt-0.5">{{ chat.project }}</p>
                             <p class="text-[10px] text-slate-400 truncate mt-1 leading-snug">{{ chat.last_message }}</p>
                         </div>
@@ -603,7 +701,30 @@ const statusColorClass = (status) => {
                                     <option value="lost">Lost</option>
                                 </select>
                             </div>
+                            <!-- Tags Label Button -->
+                            <div class="relative">
+                                <button @click="showTagsDropdown = !showTagsDropdown" class="px-2 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-600 text-[8px] md:text-[9px] font-black rounded-lg transition-colors flex items-center gap-1 select-none">
+                                    🏷️ <span class="hidden sm:inline">Label</span>
+                                </button>
+                                
+                                <div v-if="showTagsDropdown" class="absolute right-0 top-8 bg-white border border-slate-200 rounded-xl p-3 shadow-xl w-44 z-[50] space-y-2">
+                                    <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-1.5">Tandai Prospek:</span>
+                                    <div class="space-y-1.5">
+                                        <label v-for="tag in availableTags" :key="tag" class="flex items-center gap-2 text-[9px] font-bold text-slate-600 hover:text-slate-800 cursor-pointer select-none">
+                                            <input type="checkbox" :checked="activeChat.tags?.includes(tag)" @change="toggleTag(tag)" class="rounded text-purple-650 border-slate-200 focus:ring-purple-500 w-3.5 h-3.5" />
+                                            <span>{{ tag }}</span>
+                                        </label>
+                                    </div>
+                                    <div class="pt-1.5 border-t border-slate-100 flex justify-end">
+                                        <button @click="showTagsDropdown = false" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-[8px] font-black text-slate-650 rounded-lg">Tutup</button>
+                                    </div>
+                                </div>
+                            </div>
 
+                            <!-- Reminder Schedule Button -->
+                            <button @click="showReminderModal = true" class="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-600 text-[8px] md:text-[9px] font-black rounded-lg transition-colors flex items-center gap-1 select-none">
+                                ⏰ <span class="hidden sm:inline">Follow-up</span><span class="sm:hidden">Ingat</span>
+                            </button>
                             <a :href="`https://wa.me/${activeChat.phone.replace(/^0/, '62')}`" target="_blank" class="px-2 md:px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[8px] md:text-[10px] font-black rounded-lg transition-colors border border-emerald-100/50 flex items-center gap-1 shrink-0">
                                 📱 <span class="hidden sm:inline">Buka di WA</span><span class="sm:hidden">WA</span>
                             </a>
@@ -660,6 +781,25 @@ const statusColorClass = (status) => {
                                 <span v-if="loadingAiDraft" class="animate-spin inline-block">🔄</span>
                                 <span v-else>🤖</span> AI Draft
                             </button>
+                            
+                            <!-- Projects Brochure Dropdown -->
+                            <div class="relative">
+                                <button type="button" @click="showBrochureDropdown = !showBrochureDropdown" class="px-2 py-1 bg-sky-50 text-sky-600 hover:bg-sky-100 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0 select-none">
+                                    📂 Brosur
+                                </button>
+                                
+                                <div v-if="showBrochureDropdown" class="absolute bottom-8 right-0 bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xl w-48 z-[50] space-y-1.5">
+                                    <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-1">Kirim Brosur Proyek:</span>
+                                    <div class="flex flex-col gap-1">
+                                        <button type="button" @click="insertBrochure('brochure')" class="w-full text-left px-2 py-1 hover:bg-slate-50 rounded text-[9px] font-bold text-slate-700">
+                                            📄 Brosur Resmi PDF
+                                        </button>
+                                        <button type="button" @click="insertBrochure('master_plan')" class="w-full text-left px-2 py-1 hover:bg-slate-50 rounded text-[9px] font-bold text-slate-700">
+                                            🗺️ Peta Master Plan
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                             
                             <button type="button" @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'" class="px-2 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0">
                                 🧮 KPR
@@ -762,6 +902,51 @@ const statusColorClass = (status) => {
                         <button type="button" @click="startNewChat" :disabled="!selectedLeadIdForNewChat" class="px-5 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-lg hover:bg-blue-700 disabled:opacity-50">
                             Buka Chat
                         </button>
+            </div>
+
+            <!-- FOLLOW-UP REMINDER MODAL -->
+            <div v-if="showReminderModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showReminderModal = false"></div>
+                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[90vh] flex flex-col">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3 shrink-0">
+                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-tight">Jadwalkan Follow-Up</h2>
+                        <button @click="showReminderModal = false" class="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+                        <!-- Create New Reminder form -->
+                        <form @submit.prevent="saveReminder" class="space-y-3">
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase mb-1">Tanggal & Waktu Pengingat</label>
+                                <input v-model="reminderTime" type="datetime-local" required class="w-full px-4.5 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer" />
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase mb-1">Catatan Tugas / Follow-Up</label>
+                                <textarea v-model="reminderNotes" placeholder="Contoh: Telpon kembali untuk tawarkan brosur cluster baru..." required rows="3" class="w-full px-4.5 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-semibold text-slate-700 focus:ring-1 focus:ring-blue-500"></textarea>
+                            </div>
+                            <div class="flex justify-end pt-1">
+                                <button type="submit" :disabled="savingReminder" class="px-5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-lg hover:bg-indigo-700 disabled:opacity-50">
+                                    {{ savingReminder ? 'Menyimpan...' : 'Simpan Jadwal' }}
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Existing Reminders list -->
+                        <div class="pt-4 border-t border-slate-100 space-y-2">
+                            <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Reminder Aktif Prospek Ini:</h3>
+                            <div class="space-y-2 max-h-40 overflow-y-auto">
+                                <div v-for="rem in activeReminders" :key="rem.id" class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-[9px] font-black text-indigo-600">{{ rem.remind_at_formatted }}</span>
+                                        <span class="px-2 py-0.5 text-[7px] font-black uppercase rounded" :class="rem.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100/50' : 'bg-slate-100 text-slate-500'">{{ rem.status }}</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-600 font-semibold leading-relaxed">{{ rem.message }}</p>
+                                </div>
+                                <div v-if="!activeReminders.length" class="text-center py-6 text-[10px] text-slate-400 italic font-bold">
+                                    Belum ada jadwal pengingat untuk prospek ini.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
