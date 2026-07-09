@@ -257,4 +257,63 @@ class WhatsAppChatController extends Controller
             'message' => $msg
         ]);
     }
+
+    /**
+     * Generate an AI drafted WhatsApp response based on chat history
+     */
+    public function generateAiDraft(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|string'
+        ]);
+
+        $phone = $request->phone;
+        $lead = Lead::where('phone', $phone)->with(['project', 'assignedTo'])->first();
+
+        if (!$lead) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Prospek dengan nomor telepon tersebut tidak ditemukan.'
+            ], 404);
+        }
+
+        // Fetch last 15 messages for history context
+        $messages = ChatMessage::where('phone', $phone)
+            ->orderBy('created_at', 'desc')
+            ->take(15)
+            ->get()
+            ->reverse()
+            ->values()
+            ->map(function ($msg) {
+                return [
+                    'direction' => $msg->direction, // 'incoming' or 'outgoing'
+                    'message' => $msg->message
+                ];
+            })
+            ->toArray();
+
+        // If history is empty, add a dummy welcome prompt context
+        if (empty($messages)) {
+            $messages[] = [
+                'direction' => 'incoming',
+                'message' => 'Halo Homi Developer, saya tertarik dengan proyek propertinya.'
+            ];
+        }
+
+        // Prepare lead info context
+        $leadInfo = [
+            'name' => $lead->name,
+            'project' => $lead->project?->name ?? 'Umum/Semua Proyek',
+            'agent_name' => $lead->assignedTo?->name ?? auth()->user()->name ?? 'Konsultan Marketing'
+        ];
+
+        // Call Gemini Service
+        $gemini = new \App\Services\GeminiService();
+        $aiDraft = $gemini->draftReply($messages, $leadInfo);
+
+        return response()->json([
+            'status' => 'success',
+            'draft' => $aiDraft
+        ]);
+    }
 }

@@ -114,6 +114,27 @@ async function handleSendMessage() {
     }
 }
 
+const loadingAiDraft = ref(false);
+
+async function getAiDraft() {
+    if (!activeChat.value) return;
+    loadingAiDraft.value = true;
+    try {
+        const response = await axios.post('/whatsapp/ai-draft', {
+            phone: activeChat.value.phone
+        });
+        if (response.data?.status === 'success' && response.data?.draft) {
+            messageInput.value = response.data.draft;
+        } else {
+            alert('Gagal menghasilkan draf: Format data tidak dikenal.');
+        }
+    } catch (error) {
+        alert('Gagal mengambil draf AI: ' + (error.response?.data?.message || error.message));
+    } finally {
+        loadingAiDraft.value = false;
+    }
+}
+
 // Send Manual (via wa.me link redirection)
 async function handleSendManual() {
     if (!messageInput.value.trim() || !activeChat.value) return;
@@ -634,6 +655,11 @@ const statusColorClass = (status) => {
                                 <option value="share_loc">📍 Lokasi Proyek (Google Maps)</option>
                                 <option value="list_stock">🏢 Daftar Stok Unit (Real-Time)</option>
                             </select>
+                            
+                            <button type="button" @click="getAiDraft" :disabled="loadingAiDraft" :class="loadingAiDraft ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'" class="px-2 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0">
+                                <span v-if="loadingAiDraft" class="animate-spin inline-block">🔄</span>
+                                <span v-else>🤖</span> AI Draft
+                            </button>
                             
                             <button type="button" @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'" class="px-2 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0">
                                 🧮 KPR
