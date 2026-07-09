@@ -254,6 +254,97 @@ function insertKprSimulation() {
             
             simulationText += `Skema: *Flat Syariah (Margin ${interestRate}%/thn)*\n` +
                               `Cicilan Bulanan: *${formatCurrency(monthly)}/bulan*\n`;
+        } else if (selectedBank && selectedBank.is_tiered && selectedBank.tiered_rates) {
+            // Conventional Tiered (Berjenjang) Annuity calculation (like BCA/Mandiri)
+            let currentPlafon = remainingAmount;
+            let totalMonths = kprTenor.value * 12;
+            let elapsedMonths = 0;
+            let tierInstallments = [];
+            
+            // Safe parse if it comes as string or is already object
+            let rates = typeof selectedBank.tiered_rates === 'string' 
+                ? JSON.parse(selectedBank.tiered_rates) 
+                : selectedBank.tiered_rates;
+
+            simulationText = `*SIMULASI CICILAN KPR BERJENJANG (TIERED)* 🏠\n` +
+                             `-----------------------------------\n` +
+                             `Proyek: *${projectName}*\n` +
+                             `Harga Properti: *${formatCurrency(kprPrice.value)}*\n` +
+                             `Uang Muka (DP ${kprDpPercent.value}%): *${formatCurrency(dpAmount)}*\n` +
+                             `Plafon Pinjaman KPR: *${formatCurrency(remainingAmount)}*\n` +
+                             `-----------------------------------\n` +
+                             `Bank Rekomendasi: *${bankName}*\n` +
+                             `Tenor KPR: *${kprTenor.value} Tahun*\n` +
+                             `Skema: *Bunga Fix Berjenjang & Floating*\n\n`;
+
+            // Calculate each tier
+            for (let i = 0; i < rates.length; i++) {
+                const tier = rates[i];
+                const tierRate = Number(tier.rate);
+                const tierYears = Number(tier.years);
+                const tierMonths = tierYears * 12;
+
+                const remainingMonths = totalMonths - elapsedMonths;
+                if (remainingMonths <= 0) break;
+
+                // Calculate monthly payment for this tier based on remaining tenor
+                const r = (tierRate / 100) / 12;
+                let monthly = 0;
+                if (r === 0) {
+                    monthly = currentPlafon / remainingMonths;
+                } else {
+                    const factor = Math.pow(1 + r, remainingMonths);
+                    monthly = (currentPlafon * r * factor) / (factor - 1);
+                }
+                monthly = Math.round(monthly);
+                tierInstallments.push({
+                    label: `Tahun ${elapsedMonths/12 + 1} - ${elapsedMonths/12 + tierYears}`,
+                    rate: tierRate,
+                    installment: monthly
+                });
+
+                // Calculate outstanding principal at the end of this tier
+                if (remainingMonths > tierMonths) {
+                    if (r > 0) {
+                        const p1 = Math.pow(1 + r, remainingMonths);
+                        const p2 = Math.pow(1 + r, tierMonths);
+                        currentPlafon = currentPlafon * (p1 - p2) / (p1 - 1);
+                    } else {
+                        currentPlafon = currentPlafon * ((remainingMonths - tierMonths) / remainingMonths);
+                    }
+                }
+                elapsedMonths += tierMonths;
+            }
+
+            // Print the tiers
+            tierInstallments.forEach(t => {
+                simulationText += `🟢 *${t.label}*:\n` +
+                                  `- Bunga: *${t.rate}% Fixed*\n` +
+                                  `- Cicilan: *${formatCurrency(t.installment)}/bulan*\n\n`;
+            });
+
+            // Calculate floating if tenor is longer than total fixed tiered years
+            const remainingMonths = totalMonths - elapsedMonths;
+            if (remainingMonths > 0) {
+                const floatRateVal = Number(selectedBank.interest_rate_floating) || 11.0;
+                const rFloat = (floatRateVal / 100) / 12;
+                let monthlyFloating = 0;
+                if (rFloat === 0) {
+                    monthlyFloating = currentPlafon / remainingMonths;
+                } else {
+                    const factor = Math.pow(1 + rFloat, remainingMonths);
+                    monthlyFloating = (currentPlafon * rFloat * factor) / (factor - 1);
+                }
+                monthlyFloating = Math.round(monthlyFloating);
+
+                const lastTierInstallment = tierInstallments[tierInstallments.length - 1].installment;
+                const paymentShock = ((monthlyFloating - lastTierInstallment) / lastTierInstallment) * 100;
+
+                simulationText += `🔴 *Tahun ${elapsedMonths/12 + 1} - ${kprTenor.value} (Floating)*:\n` +
+                                  `- Estimasi Bunga: *${floatRateVal}% Floating*\n` +
+                                  `- Estimasi Cicilan: *${formatCurrency(monthlyFloating)}/bulan*\n\n` +
+                                  `⚠️ *Payment Shock*: Potensi kenaikan cicilan sebesar *+${paymentShock.toFixed(1)}%* (+${formatCurrency(monthlyFloating - lastTierInstallment)}/bulan) saat memasuki masa floating.\n`;
+            }
         } else {
             // Conventional fixed & floating calculation (Annuity Formula like kana-project)
             const fixedRate = interestRate / 100 / 12;
