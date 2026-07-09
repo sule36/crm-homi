@@ -344,9 +344,9 @@ const statusColorClass = (status) => {
             <span class="text-gray-400">Marketing & Sales</span> / WhatsApp Chat
         </template>
 
-        <div class="h-[calc(100vh-140px)] flex bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
+        <div class="h-[calc(100dvh-125px)] md:h-[calc(100vh-140px)] flex bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
             <!-- LEFT PANEL: CHAT LIST -->
-            <div :class="activeChat ? 'hidden md:flex' : 'w-full md:w-[360px] flex'" class="border-r border-slate-100 flex flex-col shrink-0">
+            <div :class="activeChat ? 'hidden md:flex' : 'w-full md:w-[360px] flex'" class="border-r border-slate-100 flex flex-col shrink-0 min-w-0">
                 <!-- Search & New Chat Button -->
                 <div class="p-5 border-b border-slate-50 space-y-3 shrink-0">
                     <div class="flex items-center justify-between">
@@ -391,11 +391,11 @@ const statusColorClass = (status) => {
             </div>
 
             <!-- RIGHT PANEL: CHAT WINDOW -->
-            <div :class="activeChat ? 'flex-1 flex' : 'hidden md:flex flex-1'" class="flex-col bg-[#efeae2]/40 relative">
+            <div :class="activeChat ? 'flex-1 flex' : 'hidden md:flex flex-1'" class="flex-col bg-slate-50 relative min-w-0">
                 <!-- If Active Chat Selected -->
                 <template v-if="activeChat">
                     <!-- Chat Header (Lebih Compact untuk Mobile) -->
-                    <div class="px-3 md:px-6 py-2.5 md:py-4 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0">
+                    <div class="px-3 md:px-6 py-2 md:py-3.5 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0 min-w-0">
                         <div class="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                             <!-- Mobile Back Button -->
                             <button @click="activeChat = null" class="md:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 font-black text-xs shrink-0" title="Kembali ke Daftar Chat">
@@ -443,13 +443,13 @@ const statusColorClass = (status) => {
                                 :class="msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'" 
                                 class="flex w-full">
                                 
-                                <div :class="msg.direction === 'outgoing' ? 'bg-[#d9fdd3] text-slate-800 border-emerald-100 shadow-sm' : 'bg-white text-slate-800 border-slate-100 shadow-sm'"
-                                    class="max-w-[70%] rounded-2xl px-4 py-2.5 border text-xs leading-relaxed relative whitespace-pre-wrap">
+                                <div :class="msg.direction === 'outgoing' ? 'bg-blue-600 text-white rounded-2xl rounded-tr-none shadow-sm' : 'bg-white text-slate-800 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm'"
+                                    class="max-w-[80%] md:max-w-[70%] px-3.5 py-2.5 text-xs leading-relaxed relative whitespace-pre-wrap">
                                     
                                     {{ msg.message }}
                                     
                                     <!-- Timestamp & Status -->
-                                    <div class="text-[8px] text-slate-400 text-right mt-1.5 font-bold flex items-center justify-end gap-1 select-none">
+                                    <div :class="msg.direction === 'outgoing' ? 'text-blue-100' : 'text-slate-400'" class="text-[8px] text-right mt-1.5 font-bold flex items-center justify-end gap-1 select-none">
                                         <span>{{ new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }}</span>
                                         <span v-if="msg.direction === 'outgoing'">
                                             <span v-if="msg.status === 'sending'">⏳</span>
@@ -533,16 +533,16 @@ const statusColorClass = (status) => {
                             </button>
                         </div>
 
-                        <!-- Typing Area and Send Button -->
-                        <form @submit.prevent="handleSendMessage" class="flex gap-1.5 items-center">
-                            <textarea v-model="messageInput" @keydown.enter.prevent="handleSendMessage" placeholder="Ketik pesan..." rows="1" class="flex-1 px-3 py-1.5 bg-slate-50 border-none rounded-xl text-xs font-semibold focus:ring-1 focus:ring-blue-500 resize-none font-sans leading-relaxed"></textarea>
+                        <!-- Typing Area and Send Button (Sleek Capsule Design - No Overflow) -->
+                        <form @submit.prevent="handleSendMessage" class="flex gap-2 items-center bg-slate-50 p-1 rounded-full border border-slate-200/60 pl-4 pr-1">
+                            <input v-model="messageInput" @keydown.enter.prevent="handleSendMessage" placeholder="Tulis pesan..." class="flex-1 bg-transparent border-none text-xs font-semibold focus:ring-0 p-0 focus:outline-none placeholder:text-slate-400 font-sans" />
                             
-                            <!-- WA Manual Send Button (Bypass API for demo/offline usage) -->
-                            <button type="button" @click="handleSendManual" :disabled="!messageInput.trim()" class="h-8 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[9px] font-black rounded-lg flex items-center justify-center gap-0.5 transition-all shrink-0 select-none" title="Kirim via WhatsApp HP/Web Manual">
+                            <!-- WA Manual Send Button -->
+                            <button type="button" @click="handleSendManual" :disabled="!messageInput.trim()" class="h-8 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[9px] font-black rounded-full flex items-center justify-center gap-0.5 transition-all shrink-0 select-none disabled:opacity-40" title="Kirim via WhatsApp HP/Web Manual">
                                 📱 Manual
                             </button>
 
-                            <button type="submit" :disabled="sendingMessage || !messageInput.trim()" class="h-8 w-8 shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center shadow-md disabled:opacity-40 transition-all select-none" title="Kirim via API Meta Resmi">
+                            <button type="submit" :disabled="sendingMessage || !messageInput.trim()" class="h-8 w-8 shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-md disabled:opacity-40 transition-all select-none" title="Kirim via API Meta Resmi">
                                 🚀
                             </button>
                         </form>
