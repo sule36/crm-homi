@@ -196,4 +196,46 @@ class WhatsAppChatController extends Controller
 
         return response()->json(['message' => 'Status lead berhasil diperbarui.']);
     }
+
+    /**
+     * Log a manually sent WhatsApp message to keep history
+     */
+    public function logManualSend(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|string',
+            'message' => 'required|string',
+        ]);
+
+        $phone = $request->phone;
+        $messageText = $request->message;
+
+        $lead = Lead::where('phone', $phone)->first();
+
+        // Log to database
+        $msg = ChatMessage::create([
+            'lead_id' => $lead?->id,
+            'phone' => $phone,
+            'direction' => 'outgoing',
+            'message' => $messageText,
+            'status' => 'delivered', // mark as delivered since user sent it manually
+        ]);
+
+        if ($lead) {
+            $lead->update(['last_contacted_at' => now()]);
+            \App\Models\LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => auth()->id(),
+                'type' => 'whatsapp',
+                'description' => '[Pesan Manual WA] ' . $messageText,
+                'completed_at' => now(),
+            ]);
+            $lead->recalculateScore();
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $msg
+        ]);
+    }
 }

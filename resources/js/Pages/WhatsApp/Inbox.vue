@@ -113,6 +113,36 @@ async function handleSendMessage() {
     }
 }
 
+// Send Manual (via wa.me link redirection)
+async function handleSendManual() {
+    if (!messageInput.value.trim() || !activeChat.value) return;
+
+    const phone = activeChat.value.phone;
+    const textToSend = messageInput.value;
+    const formattedPhone = phone.replace(/^0/, '62');
+
+    // 1. Save to CRM database locally (so it's recorded in the history)
+    try {
+        await axios.post('/whatsapp/log-manual-send', {
+            phone: phone,
+            message: textToSend
+        });
+        
+        // Refresh messages locally
+        await fetchMessages(phone);
+        scrollToBottom();
+    } catch (error) {
+        console.error('Failed to log manual message:', error);
+    }
+
+    // Clear input
+    messageInput.value = '';
+
+    // 2. Open WhatsApp Web or Mobile App with pre-filled message
+    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(textToSend)}`;
+    window.open(url, '_blank');
+}
+
 // Quick Replies & Smart Templates
 function insertTemplate(type) {
     if (!activeChat.value) return;
@@ -500,7 +530,13 @@ const statusColorClass = (status) => {
                         <!-- Typing Area and Send Button -->
                         <form @submit.prevent="handleSendMessage" class="flex gap-2 items-end">
                             <textarea v-model="messageInput" @keydown.enter.prevent="handleSendMessage" placeholder="Ketik pesan WhatsApp..." rows="2" class="flex-1 px-4 py-3 bg-slate-50 border-none rounded-2xl text-xs font-medium focus:ring-1 focus:ring-blue-500 resize-none font-sans leading-relaxed"></textarea>
-                            <button type="submit" :disabled="sendingMessage || !messageInput.trim()" class="h-10 w-10 shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 disabled:opacity-40 transition-all select-none">
+                            
+                            <!-- WA Manual Send Button (Bypass API for demo/offline usage) -->
+                            <button type="button" @click="handleSendManual" :disabled="!messageInput.trim()" class="h-10 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-black rounded-2xl flex items-center justify-center gap-1 transition-all shrink-0 select-none" title="Kirim via WhatsApp HP/Web Manual">
+                                📱 Manual
+                            </button>
+
+                            <button type="submit" :disabled="sendingMessage || !messageInput.trim()" class="h-10 w-10 shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 disabled:opacity-40 transition-all select-none" title="Kirim via API Meta Resmi">
                                 🚀
                             </button>
                         </form>
