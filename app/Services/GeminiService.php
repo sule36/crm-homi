@@ -14,7 +14,8 @@ class GeminiService
 
     public function __construct()
     {
-        $this->apiKey = config('services.gemini.key') ?? env('GEMINI_API_KEY');
+        $dbKey = \App\Models\Setting::where('key', 'gemini_api_key')->value('value');
+        $this->apiKey = !empty($dbKey) ? $dbKey : (config('services.gemini.key') ?? env('GEMINI_API_KEY'));
     }
 
     /**

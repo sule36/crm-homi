@@ -224,6 +224,7 @@ const form = useForm({
     google_ads_webhook_key: props.settings.google_ads_webhook_key || '',
     meta_leadads_verify_token: props.settings.meta_leadads_verify_token || '',
     meta_leadads_access_token: props.settings.meta_leadads_access_token || '',
+    gemini_api_key: props.settings.gemini_api_key || '',
 });
 
 const submit = () => {
@@ -271,11 +272,11 @@ const tabs = [
         </div>
 
         <!-- TABS NAVIGATION -->
-        <div class="flex space-x-1 bg-slate-100 p-1.5 rounded-2xl mb-8 w-fit">
+        <div class="flex overflow-x-auto whitespace-nowrap bg-slate-100 p-1.5 rounded-2xl mb-8 w-full md:w-fit scrollbar-none gap-1">
             <button v-for="tab in tabs" :key="tab.id"
                 @click="activeTab = tab.id"
                 :class="activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-                class="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center space-x-2">
+                class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center space-x-2 shrink-0">
                 <span>{{ tab.icon }}</span>
                 <span>{{ tab.name }}</span>
             </button>
@@ -286,7 +287,7 @@ const tabs = [
                 <!-- TAB: TEMPLATE SPK (Unified) -->
                 <div v-if="activeTab === 'spk'" class="space-y-6">
                     <!-- Section: Identity -->
-                    <div class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                         <h3 class="text-xs font-black uppercase tracking-widest text-blue-600 mb-6">1. Identitas & Alamat (Header SPK)</h3>
                         <div class="space-y-4">
                             <div>
@@ -297,7 +298,7 @@ const tabs = [
                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Alamat Kantor</label>
                                 <textarea v-model="form.company_address" rows="3" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20"></textarea>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Official Email</label>
                                     <input v-model="form.company_email" type="email" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20" />
@@ -311,14 +312,14 @@ const tabs = [
                     </div>
 
                     <!-- Section: Logo -->
-                    <div class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                         <h3 class="text-xs font-black uppercase tracking-widest text-pink-600 mb-6">2. Logo Perusahaan</h3>
-                        <div class="flex items-center space-x-8">
-                            <div class="aspect-video w-48 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden p-4">
+                        <div class="flex flex-col sm:flex-row items-center sm:space-x-8 gap-6 sm:gap-0">
+                            <div class="aspect-video w-48 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden p-4 shrink-0">
                                 <img v-if="settings.company_logo" :src="`/storage/${settings.company_logo}`" class="max-h-16" />
                                 <span v-else class="text-[9px] text-slate-400 font-bold uppercase tracking-widest text-center">Belum ada logo</span>
                             </div>
-                            <div class="flex-1">
+                            <div class="flex-1 text-center sm:text-left">
                                 <input type="file" @change="handleLogoUpload" class="hidden" id="logo-input" accept="image/*" />
                                 <label for="logo-input" class="inline-block px-6 py-3 bg-pink-50 text-pink-600 font-black rounded-xl text-[10px] cursor-pointer hover:bg-pink-100 transition-all uppercase tracking-widest">
                                     UPLOAD LOGO BARU
@@ -330,7 +331,7 @@ const tabs = [
                     </div>
 
                     <!-- Section: Terms -->
-                    <div class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                         <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600 mb-6">3. Syarat & Ketentuan (T&C)</h3>
                         <div>
                             <textarea v-model="form.spk_terms" rows="8" class="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-emerald-600/20 font-mono leading-relaxed" placeholder="Gunakan baris baru untuk setiap poin..."></textarea>
@@ -345,12 +346,12 @@ const tabs = [
                 </div>
 
                 <!-- TAB: API -->
-                <div v-if="activeTab === 'api'" class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                <div v-if="activeTab === 'api'" class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                     <h3 class="text-xs font-black uppercase tracking-widest text-indigo-600 mb-6">Integrasi API Website</h3>
                     <div class="space-y-6">
-                        <div v-if="apiToken" class="p-8 bg-indigo-50 rounded-3xl border border-indigo-100">
+                        <div v-if="apiToken" class="p-4 sm:p-8 bg-indigo-50 rounded-3xl border border-indigo-100">
                             <p class="text-[10px] text-indigo-400 uppercase font-black mb-4 tracking-widest">API TOKEN RAHASIA (BARU):</p>
-                            <div class="flex items-center space-x-4">
+                            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:space-x-4">
                                 <code class="flex-1 bg-white p-4 rounded-xl border border-indigo-100 text-indigo-600 font-mono text-xs break-all shadow-inner">{{ apiToken }}</code>
                                 <button @click="copyToken" class="px-6 py-4 bg-indigo-600 text-white font-black rounded-xl text-xs uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
                                     COPY
@@ -381,7 +382,7 @@ const tabs = [
                 </div>
 
                 <!-- TAB: WHATSAPP META -->
-                <div v-if="activeTab === 'whatsapp'" class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                <div v-if="activeTab === 'whatsapp'" class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                     <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600 mb-6">Konfigurasi WhatsApp Cloud API</h3>
                     
                     <div class="p-6 bg-emerald-50 border border-emerald-100 rounded-2xl mb-6">
@@ -410,6 +411,11 @@ const tabs = [
                             <textarea v-model="form.wa_auto_reply_message" rows="3" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-600/20 leading-relaxed"></textarea>
                             <p class="text-[10px] text-slate-400 mt-1 italic">Gunakan <b>{agent_name}</b> untuk memanggil nama agen yang ditugaskan secara otomatis.</p>
                         </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Gemini API Key (Homi AI Copilot WhatsApp)</label>
+                            <input v-model="form.gemini_api_key" type="password" placeholder="Masukkan Gemini API Key (e.g. AIzaSy...)" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-600/20" />
+                            <p class="text-[10px] text-slate-400 mt-1 italic">Jika kosong, sistem akan menggunakan API Key dari file .env (GEMINI_API_KEY).</p>
+                        </div>
                     </div>
 
                     <div class="pt-4 flex justify-end">
@@ -420,7 +426,7 @@ const tabs = [
                 </div>
 
                 <!-- TAB: GOOGLE ADS -->
-                <div v-if="activeTab === 'google_ads'" class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                <div v-if="activeTab === 'google_ads'" class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                     <h3 class="text-xs font-black uppercase tracking-widest text-red-600 mb-6">Konfigurasi Google Ads Webhook</h3>
                     
                     <div class="p-6 bg-red-50 border border-red-100 rounded-2xl mb-6">
@@ -447,7 +453,7 @@ const tabs = [
                 </div>
 
                 <!-- TAB: META LEAD ADS -->
-                <div v-if="activeTab === 'meta_leads'" class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                <div v-if="activeTab === 'meta_leads'" class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                     <h3 class="text-xs font-black uppercase tracking-widest text-blue-600 mb-6">Konfigurasi Meta Lead Ads</h3>
                     
                     <div class="p-6 bg-blue-50 border border-blue-100 rounded-2xl mb-6">
@@ -477,7 +483,7 @@ const tabs = [
                 </div>
 
                 <!-- TAB: BANKS PARTNER CRUD -->
-                <div v-if="activeTab === 'banks'" class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm space-y-6">
+                <div v-if="activeTab === 'banks'" class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                     <div class="flex justify-between items-center mb-6">
                         <div>
                             <h3 class="text-xs font-black uppercase tracking-widest text-blue-600">Daftar Bank Partner KPR</h3>
@@ -628,7 +634,7 @@ const tabs = [
 
                 <!-- TAB: BROKERS / KANTOR AGEN -->
                 <div v-if="activeTab === 'brokers'" class="space-y-6">
-                    <div class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
+                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm">
                         <div class="flex items-center justify-between mb-6">
                             <div>
                                 <h3 class="text-xs font-black uppercase tracking-widest text-purple-600">🏢 Daftar Kantor Agen / Broker Partner</h3>
@@ -694,7 +700,7 @@ const tabs = [
                                             <input v-model="brokerForm.name" type="text" placeholder="Misal: Ray White Central" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20" required />
                                         </div>
 
-                                        <div class="grid grid-cols-2 gap-4">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <label class="block font-bold text-slate-700 mb-1.5">Contact Person (PIC)</label>
                                                 <input v-model="brokerForm.contact_person" type="text" placeholder="Nama PIC" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20" />
@@ -705,7 +711,7 @@ const tabs = [
                                             </div>
                                         </div>
 
-                                        <div class="grid grid-cols-2 gap-4">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <label class="block font-bold text-slate-700 mb-1.5">Email Kantor</label>
                                                 <input v-model="brokerForm.email" type="email" placeholder="broker@gmail.com" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20" />
@@ -744,7 +750,7 @@ const tabs = [
 
                 <!-- TAB: REKENING KAS / BANK -->
                 <div v-if="activeTab === 'bank_accounts'" class="space-y-6">
-                    <div class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
+                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm">
                         <div class="flex items-center justify-between mb-6">
                             <div>
                                 <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Rekening Kas & Bank</h3>
@@ -808,7 +814,7 @@ const tabs = [
                                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Nama Bank</label>
                                             <input v-model="bankAccountForm.bank_name" type="text" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-500/20" placeholder="Contoh: Bank Central Asia (kosongkan jika Kas Kecil)" />
                                         </div>
-                                        <div class="grid grid-cols-2 gap-4">
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Nomor Rekening</label>
                                                 <input v-model="bankAccountForm.account_number" type="text" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-500/20" placeholder="Opsional" />
@@ -836,7 +842,7 @@ const tabs = [
 
             <!-- SIDE INFO -->
             <div class="space-y-6">
-                <div class="bg-slate-900 rounded-3xl p-8 text-white shadow-xl shadow-slate-200">
+                <div class="bg-slate-900 rounded-3xl p-4 sm:p-8 text-white shadow-xl shadow-slate-200">
                     <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-2xl mb-6">💡</div>
                     <h4 class="font-black mb-2 uppercase tracking-widest text-xs">Informasi</h4>
                     <p class="text-xs text-slate-400 leading-relaxed">
@@ -844,7 +850,7 @@ const tabs = [
                     </p>
                 </div>
 
-                <div class="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+                <div class="bg-white rounded-3xl p-4 sm:p-8 border border-slate-100 shadow-sm">
                     <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-2xl mb-6">🛡️</div>
                     <h4 class="font-black mb-2 uppercase tracking-widest text-xs text-slate-800">Keamanan & Audit</h4>
                     <p class="text-xs text-slate-500 leading-relaxed mb-4">
@@ -855,7 +861,7 @@ const tabs = [
                     </Link>
                 </div>
                 
-                <div v-if="activeTab === 'api'" class="bg-blue-600 rounded-3xl p-8 text-white shadow-xl shadow-blue-200">
+                <div v-if="activeTab === 'api'" class="bg-blue-600 rounded-3xl p-4 sm:p-8 text-white shadow-xl shadow-blue-200">
                     <h4 class="font-black mb-2 uppercase tracking-widest text-xs">Petunjuk IT</h4>
                     <p class="text-[11px] text-blue-100 leading-relaxed mb-4">Gunakan header Authorization berikut saat mengirim data dari website:</p>
                     <code class="block bg-blue-700 p-3 rounded-xl text-[10px] font-mono mb-4 border border-blue-500">Authorization: Bearer [TOKEN]</code>
@@ -865,3 +871,13 @@ const tabs = [
         </div>
     </CrmLayout>
 </template>
+
+<style scoped>
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>
