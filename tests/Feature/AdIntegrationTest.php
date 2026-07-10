@@ -159,4 +159,131 @@ class AdIntegrationTest extends TestCase
 
         $this->assertEquals('completed', $reminder->refresh()->status);
     }
+
+    public function test_meta_messaging_webhook_verification(): void
+    {
+        Setting::updateOrCreate(['key' => 'messenger_verify_token'], ['value' => 'my_msg_verify_token']);
+
+        $response = $this->get('/api/webhooks/meta-messaging?' . http_build_query([
+            'hub_mode' => 'subscribe',
+            'hub_verify_token' => 'my_msg_verify_token',
+            'hub_challenge' => 'challenge_token_123'
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertSee('challenge_token_123');
+    }
+
+    public function test_meta_messaging_webhook_creates_lead_without_autopilot(): void
+    {
+        Setting::updateOrCreate(['key' => 'meta_page_access_token'], ['value' => 'my_page_access_token']);
+        Setting::updateOrCreate(['key' => 'ai_autopilot_facebook'], ['value' => '0']);
+
+        Http::fake([
+            'graph.facebook.com/v19.0/psid_12345*' => Http::response([
+                'first_name' => 'John',
+                'last_name' => 'Doe'
+            ], 200)
+        ]);
+
+        $response = $this->postJson('/api/webhooks/meta-messaging', [
+            'object' => 'page',
+            'entry' => [
+                [
+                    'id' => 'page_id_1',
+                    'messaging' => [
+                        [
+                            'sender' => ['id' => 'psid_12345'],
+                            'recipient' => ['id' => 'page_id_1'],
+                            'message' => [
+                                'text' => 'Halo, saya tertarik dengan proyek properti Homi'
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('leads', [
+            'name' => 'John Doe',
+            'phone' => 'psid_12345',
+            'source' => 'facebook'
+        ]);
+
+        $this->assertDatabaseHas('chat_messages', [
+            'phone' => 'psid_12345',
+            'direction' => 'incoming',
+            'message' => 'Halo, saya tertarik dengan proyek properti Homi',
+            'platform' => 'facebook'
+        ]);
+    }
+
+    public function test_meta_messaging_webhook_handles_autopilot_response(): void
+    {
+        Setting::updateOrCreate(['key' => 'meta_page_access_token'], ['value' => 'my_page_access_token']);
+        Setting::updateOrCreate(['key' => 'ai_autopilot_facebook'], ['value' => '1']);
+        Setting::updateOrCreate(['key' => 'gemini_api_key'], ['value' => 'fake_gemini_key']);
+
+        Http::fake([
+            'graph.facebook.com/v19.0/psid_999*' => Http::response([
+                'first_name' => 'Jane',
+                'last_name' => 'Smith'
+            ], 200),
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [
+                    [
+                        'content' => [
+                            'parts' => [
+                                ['text' => 'Halo Jane Smith! Tentu saja, mau dijadwalkan site visit akhir pekan ini?']
+                            ]
+                        ]
+                    ]
+                ]
+            ], 200),
+            'graph.facebook.com/v19.0/me/messages*' => Http::response([
+                'message_id' => 'mid.12345'
+            ], 200),
+        ]);
+
+        $response = $this->postJson('/api/webhooks/meta-messaging', [
+            'object' => 'page',
+            'entry' => [
+                [
+                    'id' => 'page_id_1',
+                    'messaging' => [
+                        [
+                            'sender' => ['id' => 'psid_999'],
+                            'recipient' => ['id' => 'page_id_1'],
+                            'message' => [
+                                'text' => 'Bisa minta brosur perumahannya?'
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]);
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('leads', [
+            'name' => 'Jane Smith',
+            'phone' => 'psid_999',
+            'source' => 'facebook'
+        ]);
+
+        $this->assertDatabaseHas('chat_messages', [
+            'phone' => 'psid_999',
+            'direction' => 'incoming',
+            'message' => 'Bisa minta brosur perumahannya?',
+            'platform' => 'facebook'
+        ]);
+
+        $this->assertDatabaseHas('chat_messages', [
+            'phone' => 'psid_999',
+            'direction' => 'outgoing',
+            'message' => 'Halo Jane Smith! Tentu saja, mau dijadwalkan site visit akhir pekan ini?',
+            'platform' => 'facebook'
+        ]);
+    }
 }

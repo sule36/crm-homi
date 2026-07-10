@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ChatMessage extends Model
 {
     protected $fillable = [
-        'lead_id', 'phone', 'direction', 'message', 'type', 'status',
+        'lead_id', 'phone', 'direction', 'message', 'type', 'status', 'platform',
     ];
 
     // Relationships

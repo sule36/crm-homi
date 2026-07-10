@@ -102,6 +102,7 @@ async function handleSendMessage() {
     sendingMessage.value = true;
     const phone = activeChat.value.phone;
     const textToSend = messageInput.value;
+    const platform = activeChat.value.platform || 'whatsapp';
 
     // optimistic UI add
     messages.value.push({
@@ -109,7 +110,8 @@ async function handleSendMessage() {
         direction: 'outgoing',
         message: textToSend,
         created_at: new Date().toISOString(),
-        status: 'sending'
+        status: 'sending',
+        platform: platform
     });
     messageInput.value = '';
     scrollToBottom();
@@ -117,7 +119,8 @@ async function handleSendMessage() {
     try {
         const response = await axios.post('/whatsapp/send', {
             phone: phone,
-            message: textToSend
+            message: textToSend,
+            platform: platform
         });
         
         // Refresh messages after successful send
@@ -139,7 +142,8 @@ async function getAiDraft() {
     loadingAiDraft.value = true;
     try {
         const response = await axios.post('/whatsapp/ai-draft', {
-            phone: activeChat.value.phone
+            phone: activeChat.value.phone,
+            platform: activeChat.value.platform || 'whatsapp'
         });
         if (response.data?.status === 'success' && response.data?.draft) {
             messageInput.value = response.data.draft;
@@ -159,13 +163,15 @@ async function handleSendManual() {
 
     const phone = activeChat.value.phone;
     const textToSend = messageInput.value;
+    const platform = activeChat.value.platform || 'whatsapp';
     const formattedPhone = phone.replace(/^0/, '62');
 
     // 1. Save to CRM database locally (so it's recorded in the history)
     try {
         await axios.post('/whatsapp/log-manual-send', {
             phone: phone,
-            message: textToSend
+            message: textToSend,
+            platform: platform
         });
         
         // Refresh messages locally
@@ -179,8 +185,12 @@ async function handleSendManual() {
     messageInput.value = '';
 
     // 2. Open WhatsApp Web or Mobile App with pre-filled message
-    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(textToSend)}`;
-    window.open(url, '_blank');
+    if (platform === 'whatsapp') {
+        const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(textToSend)}`;
+        window.open(url, '_blank');
+    } else {
+        alert('Pesan manual hanya didukung untuk saluran WhatsApp.');
+    }
 }
 
 // Quick Replies & Smart Templates
@@ -611,10 +621,10 @@ const statusColorClass = (status) => {
 </script>
 
 <template>
-    <Head title="WhatsApp Shared Inbox" />
+    <Head title="Omnichannel Shared Inbox" />
     <CrmLayout>
         <template #breadcrumb>
-            <span class="text-gray-400">Marketing & Sales</span> / WhatsApp Chat
+            <span class="text-gray-400">Marketing & Sales</span> / Omnichannel Chat
         </template>
 
         <div class="h-[calc(100dvh-125px)] md:h-[calc(100vh-140px)] flex bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
@@ -623,7 +633,7 @@ const statusColorClass = (status) => {
                 <!-- Search & New Chat Button -->
                 <div class="p-5 border-b border-slate-50 space-y-3 shrink-0">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-base font-black text-slate-900 tracking-tight">WhatsApp Chats</h2>
+                        <h2 class="text-base font-black text-slate-900 tracking-tight">Omnichannel Inbox</h2>
                         <button @click="showNewChatModal = true" class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center justify-center font-bold text-lg" title="Mulai Chat Baru">
                             +
                         </button>
@@ -641,9 +651,16 @@ const statusColorClass = (status) => {
                         :class="activeChat?.phone === chat.phone ? 'bg-blue-50/50 border-l-4 border-blue-600' : 'hover:bg-slate-50/40 border-l-4 border-transparent'"
                         class="p-4 flex gap-3 cursor-pointer transition-all border-b border-slate-50">
                         
-                        <!-- Contact Avatar Initial -->
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-xs flex items-center justify-center uppercase shadow-sm shrink-0">
-                            {{ chat.name.substring(0, 2) }}
+                        <!-- Contact Avatar Initial with Platform Badge -->
+                        <div class="relative shrink-0 select-none">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-xs flex items-center justify-center uppercase shadow-sm">
+                                {{ chat.name.substring(0, 2) }}
+                            </div>
+                            <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-md border border-white"
+                                  :class="chat.platform === 'instagram' ? 'bg-purple-600 text-white' : (chat.platform === 'facebook' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white')"
+                                  :title="chat.platform || 'whatsapp'">
+                                {{ chat.platform === 'instagram' ? '📷' : (chat.platform === 'facebook' ? '👤' : '💬') }}
+                            </span>
                         </div>
                         
                         <!-- Chat Text Details -->
@@ -677,13 +694,19 @@ const statusColorClass = (status) => {
                             <button @click="activeChat = null" class="md:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 font-black text-xs shrink-0" title="Kembali ke Daftar Chat">
                                 ◀
                             </button>
-                            <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase shrink-0 shadow-sm">
-                                {{ activeChat.name.substring(0, 2) }}
+                            <div class="relative shrink-0 select-none">
+                                <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase shadow-sm">
+                                    {{ activeChat.name.substring(0, 2) }}
+                                </div>
+                                <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] shadow-sm border border-white"
+                                      :class="activeChat.platform === 'instagram' ? 'bg-purple-600 text-white' : (activeChat.platform === 'facebook' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white')">
+                                    {{ activeChat.platform === 'instagram' ? '📷' : (activeChat.platform === 'facebook' ? '👤' : '💬') }}
+                                </span>
                             </div>
                             <div class="min-w-0 flex-1">
                                 <h3 class="text-xs font-black text-slate-900 leading-none truncate">{{ activeChat.name }}</h3>
                                 <p class="text-[9px] text-slate-500 font-semibold mt-1 truncate">
-                                    {{ activeChat.phone }} • Proyek: {{ activeChat.project }} • 👤 Agent: <span class="text-blue-600 font-black">{{ activeChat.agent_name || 'Belum Ditugaskan' }}</span>
+                                    {{ activeChat.platform === 'whatsapp' ? activeChat.phone : 'ID: ' + activeChat.phone }} • Proyek: {{ activeChat.project }} • 👤 Agent: <span class="text-blue-600 font-black">{{ activeChat.agent_name || 'Belum Ditugaskan' }}</span>
                                 </p>
                             </div>
                         </div>

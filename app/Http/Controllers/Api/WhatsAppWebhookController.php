@@ -110,11 +110,14 @@ class WhatsAppWebhookController extends Controller
                 'status' => 'new',
             ]);
 
-            // Assign via Smart Auto-Assign
+            // Smart Auto-Assign
             $assignedAgent = LeadAssignmentService::assign($lead, true);
 
-            // Send Auto-Reply if configured
-            if ($assignedAgent) {
+            // Send Auto-Reply if configured and Autopilot is disabled
+            $autopilotEnabled = Setting::where('key', 'ai_autopilot_whatsapp')->value('value');
+            $isAutopilot = $autopilotEnabled === '1' || $autopilotEnabled === 'true' || $autopilotEnabled === true;
+
+            if ($assignedAgent && !$isAutopilot) {
                 $this->sendAutoReply($phone, $assignedAgent->name);
             }
         } else {
@@ -154,7 +157,11 @@ class WhatsAppWebhookController extends Controller
                     $existingLead->notes = 'MENGHUBUNGI KEMBALI: ' . $messageText;
                     LeadAssignmentService::notifyAgent($agent, $existingLead);
                     
-                    $this->sendAutoReply($phone, $agent->name);
+                    $autopilotEnabled = Setting::where('key', 'ai_autopilot_whatsapp')->value('value');
+                    $isAutopilot = $autopilotEnabled === '1' || $autopilotEnabled === 'true' || $autopilotEnabled === true;
+                    if (!$isAutopilot) {
+                        $this->sendAutoReply($phone, $agent->name);
+                    }
                 }
             }
         }
@@ -167,7 +174,92 @@ class WhatsAppWebhookController extends Controller
                 'direction' => 'incoming',
                 'message' => $messageText,
                 'status' => 'received',
+                'platform' => 'whatsapp',
             ]);
+
+            $autopilotEnabled = Setting::where('key', 'ai_autopilot_whatsapp')->value('value');
+            if ($autopilotEnabled === '1' || $autopilotEnabled === 'true' || $autopilotEnabled === true) {
+                $this->sendAutopilotResponse($lead, $phone);
+            }
+        }
+    }
+
+    private function sendAutopilotResponse(Lead $lead, string $phone)
+    {
+        // Fetch last 15 messages for history context
+        $messages = \App\Models\ChatMessage::where('phone', $phone)
+            ->where('platform', 'whatsapp')
+            ->orderBy('created_at', 'desc')
+            ->take(15)
+            ->get()
+            ->reverse()
+            ->values()
+            ->map(function ($msg) {
+                return [
+                    'direction' => $msg->direction,
+                    'message' => $msg->message
+                ];
+            })
+            ->toArray();
+
+        $leadInfo = [
+            'name' => $lead->name,
+            'project' => $lead->project?->name ?? 'Umum/Semua Proyek',
+            'agent_name' => $lead->assignedTo?->name ?? 'Konsultan Marketing'
+        ];
+
+        // Call Gemini Service to get a generated reply
+        $gemini = new \App\Services\GeminiService();
+        $aiReply = $gemini->draftReply($messages, $leadInfo);
+
+        // Send via Meta WhatsApp Cloud API
+        $accessToken = Setting::where('key', 'wa_access_token')->value('value');
+        $phoneNumberId = Setting::where('key', 'wa_phone_number_id')->value('value');
+
+        if (!$accessToken || !$phoneNumberId) {
+            Log::warning('WhatsApp Cloud API tokens are not configured for Autopilot.');
+            return;
+        }
+
+        $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+        $formattedPhone = str_starts_with($cleanPhone, '0') ? '62' . substr($cleanPhone, 1) : $cleanPhone;
+
+        $url = "https://graph.facebook.com/v19.0/{$phoneNumberId}/messages";
+        
+        $response = Http::withToken($accessToken)->post($url, [
+            'messaging_product' => 'whatsapp',
+            'to' => $formattedPhone,
+            'type' => 'text',
+            'text' => [
+                'body' => $aiReply
+            ]
+        ]);
+
+        if ($response->successful()) {
+            // Save outgoing message to database
+            \App\Models\ChatMessage::create([
+                'lead_id' => $lead->id,
+                'phone' => $phone,
+                'direction' => 'outgoing',
+                'message' => $aiReply,
+                'status' => 'sent',
+                'platform' => 'whatsapp',
+            ]);
+
+            // Update lead contacted time
+            $lead->update(['last_contacted_at' => now()]);
+
+            // Log activity
+            \App\Models\LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => $lead->assigned_to,
+                'type' => 'whatsapp',
+                'description' => '[Autopilot AI] ' . $aiReply,
+                'completed_at' => now(),
+            ]);
+            $lead->recalculateScore();
+        } else {
+            Log::error('Failed to send WhatsApp autopilot response: ' . $response->body());
         }
     }
 

@@ -225,6 +225,12 @@ const form = useForm({
     meta_leadads_verify_token: props.settings.meta_leadads_verify_token || '',
     meta_leadads_access_token: props.settings.meta_leadads_access_token || '',
     gemini_api_key: props.settings.gemini_api_key || '',
+    meta_page_access_token: props.settings.meta_page_access_token || '',
+    messenger_verify_token: props.settings.messenger_verify_token || '',
+    instagram_verify_token: props.settings.instagram_verify_token || '',
+    ai_autopilot_whatsapp: props.settings.ai_autopilot_whatsapp === '1' || props.settings.ai_autopilot_whatsapp === true || props.settings.ai_autopilot_whatsapp === 'true',
+    ai_autopilot_messenger: props.settings.ai_autopilot_messenger === '1' || props.settings.ai_autopilot_messenger === true || props.settings.ai_autopilot_messenger === 'true',
+    ai_autopilot_instagram: props.settings.ai_autopilot_instagram === '1' || props.settings.ai_autopilot_instagram === true || props.settings.ai_autopilot_instagram === 'true',
 });
 
 const submit = () => {
@@ -255,6 +261,7 @@ const tabs = [
     { id: 'whatsapp', name: 'WhatsApp Meta', icon: '💬' },
     { id: 'google_ads', name: 'Google Ads', icon: '🔍' },
     { id: 'meta_leads', name: 'Meta Lead Ads', icon: '🎯' },
+    { id: 'omnichannel', name: 'Omnichannel & AI', icon: '🤖' },
     { id: 'banks', name: 'Bank Partner', icon: '🏦' },
     { id: 'brokers', name: 'Kantor Agen', icon: '🏢' },
     { id: 'bank_accounts', name: 'Rekening Kas', icon: '💳' },
@@ -478,6 +485,74 @@ const tabs = [
                     <div class="pt-4 flex justify-end">
                         <button @click="submit" class="px-10 py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl hover:-translate-y-1 transition-all uppercase text-xs tracking-widest hover:bg-blue-700">
                             SIMPAN KONFIGURASI META LEADS
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB: OMNICHANNEL & AI AUTOPILOT -->
+                <div v-if="activeTab === 'omnichannel'" class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-indigo-600 mb-6">Konfigurasi Omnichannel & AI Autopilot</h3>
+                    
+                    <div class="p-6 bg-indigo-50 border border-indigo-100 rounded-2xl mb-6">
+                        <p class="text-xs font-bold text-indigo-800 mb-2">Webhook URL Meta Messaging (FB & IG):</p>
+                        <code class="block bg-white p-3 rounded-xl border border-indigo-200 text-indigo-600 font-mono text-xs shadow-inner">
+                            https://[domain-anda.com]/api/webhooks/meta-messaging
+                        </code>
+                        <p class="text-[10px] text-indigo-600 mt-2">Masukkan URL ini ke bagian Webhooks pada produk Messenger / Instagram di dashboard Meta Developers Anda.</p>
+                    </div>
+
+                    <div class="space-y-6">
+                        <!-- AI Autopilot Switches -->
+                        <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                            <h4 class="font-black text-slate-800 uppercase tracking-widest text-[10px] border-b border-slate-200 pb-2">Pengaturan AI Autopilot (Balasan Otomatis)</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <label class="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                                    <input v-model="form.ai_autopilot_whatsapp" type="checkbox" class="rounded text-indigo-600 border-slate-350 w-4 h-4" />
+                                    <div class="text-left">
+                                        <p class="text-[11px] font-black text-slate-700 leading-none">WhatsApp AI</p>
+                                        <p class="text-[9px] text-slate-450 mt-1">Autopilot WhatsApp</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                                    <input v-model="form.ai_autopilot_messenger" type="checkbox" class="rounded text-indigo-600 border-slate-350 w-4 h-4" />
+                                    <div class="text-left">
+                                        <p class="text-[11px] font-black text-slate-700 leading-none">Messenger AI</p>
+                                        <p class="text-[9px] text-slate-450 mt-1">Autopilot FB Messenger</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                                    <input v-model="form.ai_autopilot_instagram" type="checkbox" class="rounded text-indigo-600 border-slate-350 w-4 h-4" />
+                                    <div class="text-left">
+                                        <p class="text-[11px] font-black text-slate-700 leading-none">Instagram AI</p>
+                                        <p class="text-[9px] text-slate-450 mt-1">Autopilot IG Direct</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Access Tokens & Verification Tokens -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Meta Page Access Token (FB & IG Messaging)</label>
+                                <textarea v-model="form.meta_page_access_token" rows="3" placeholder="Masukkan Token Akses Halaman Meta..." class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-600/20 font-mono text-xs"></textarea>
+                                <p class="text-[9px] text-slate-400 mt-1 italic">Token akses halaman Facebook dengan izin pages_messaging dan instagram_manage_messages.</p>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Facebook Verify Token (Webhook)</label>
+                                    <input v-model="form.messenger_verify_token" type="text" placeholder="Verify Token Messenger..." class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-600/20" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Instagram Verify Token (Webhook)</label>
+                                    <input v-model="form.instagram_verify_token" type="text" placeholder="Verify Token Instagram..." class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-600/20" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex justify-end">
+                        <button @click="submit" class="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:-translate-y-1 transition-all uppercase text-xs tracking-widest hover:bg-indigo-700">
+                            SIMPAN KONFIGURASI OMNICHANNEL
                         </button>
                     </div>
                 </div>

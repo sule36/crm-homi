@@ -44,6 +44,7 @@ class WhatsAppChatController extends Controller
                     'last_message' => $lastMsg?->message ?? '',
                     'last_message_time' => $lastMsg?->created_at ? $lastMsg->created_at->diffForHumans() : '',
                     'last_message_timestamp' => $lastMsg?->created_at ? $lastMsg->created_at->timestamp : 0,
+                    'platform' => $lastMsg?->platform ?? $lead->source ?? 'whatsapp',
                 ];
             })
             ->sortByDesc('last_message_timestamp')
@@ -139,45 +140,81 @@ class WhatsAppChatController extends Controller
         $request->validate([
             'phone' => 'required|string',
             'message' => 'required|string',
+            'platform' => 'nullable|string',
         ]);
 
         $phone = $request->phone;
         $messageText = $request->message;
-
-        $accessToken = Setting::where('key', 'wa_access_token')->value('value');
-        $phoneNumberId = Setting::where('key', 'wa_phone_number_id')->value('value');
-
-        if (!$accessToken || !$phoneNumberId) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'WhatsApp API credentials are not configured in Settings.'
-            ], 422);
-        }
-
-        $formattedPhone = $this->formatPhoneNumber($phone);
-
-        // Send via Meta Graph API
-        $url = "https://graph.facebook.com/v19.0/{$phoneNumberId}/messages";
-        
-        $response = Http::withToken($accessToken)->post($url, [
-            'messaging_product' => 'whatsapp',
-            'to' => $formattedPhone,
-            'type' => 'text',
-            'text' => [
-                'body' => $messageText
-            ]
-        ]);
-
-        if ($response->failed()) {
-            Log::error('WhatsApp Chat: Failed to send message: ' . $response->body());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Meta API Error: ' . ($response->json('error.message') ?? 'Unknown error occurred.')
-            ], 500);
-        }
+        $platform = $request->platform;
 
         // Find matching lead
         $lead = Lead::where('phone', $phone)->first();
+        if (!$platform && $lead) {
+            $platform = $lead->source;
+        }
+        $platform = in_array($platform, ['facebook', 'instagram']) ? $platform : 'whatsapp';
+
+        if (in_array($platform, ['facebook', 'instagram'])) {
+            $accessToken = Setting::where('key', 'meta_page_access_token')->value('value');
+            if (!$accessToken) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Meta Page Access Token is not configured in Settings.'
+                ], 422);
+            }
+
+            $url = "https://graph.facebook.com/v19.0/me/messages";
+            
+            $response = Http::withToken($accessToken)->post($url, [
+                'recipient' => [
+                    'id' => $phone
+                ],
+                'messaging_type' => 'RESPONSE',
+                'message' => [
+                    'text' => $messageText
+                ]
+            ]);
+
+            if ($response->failed()) {
+                Log::error("Failed to send Meta outgoing message to {$platform}: " . $response->body());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Meta API Error: ' . ($response->json('error.message') ?? 'Unknown error occurred.')
+                ], 500);
+            }
+        } else {
+            $accessToken = Setting::where('key', 'wa_access_token')->value('value');
+            $phoneNumberId = Setting::where('key', 'wa_phone_number_id')->value('value');
+
+            if (!$accessToken || !$phoneNumberId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'WhatsApp API credentials are not configured in Settings.'
+                ], 422);
+            }
+
+            $formattedPhone = $this->formatPhoneNumber($phone);
+
+            // Send via Meta Graph API
+            $url = "https://graph.facebook.com/v19.0/{$phoneNumberId}/messages";
+            
+            $response = Http::withToken($accessToken)->post($url, [
+                'messaging_product' => 'whatsapp',
+                'to' => $formattedPhone,
+                'type' => 'text',
+                'text' => [
+                    'body' => $messageText
+                ]
+            ]);
+
+            if ($response->failed()) {
+                Log::error('WhatsApp Chat: Failed to send message: ' . $response->body());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Meta API Error: ' . ($response->json('error.message') ?? 'Unknown error occurred.')
+                ], 500);
+            }
+        }
 
         // Log to database
         $msg = ChatMessage::create([
@@ -186,6 +223,7 @@ class WhatsAppChatController extends Controller
             'direction' => 'outgoing',
             'message' => $messageText,
             'status' => 'sent',
+            'platform' => $platform,
         ]);
 
         // Recalculate lead score and update last contacted
@@ -195,7 +233,7 @@ class WhatsAppChatController extends Controller
             \App\Models\LeadActivity::create([
                 'lead_id' => $lead->id,
                 'user_id' => auth()->id(),
-                'type' => 'whatsapp',
+                'type' => in_array($platform, ['call', 'whatsapp', 'email', 'visit', 'meeting', 'note', 'status_change']) ? $platform : 'note',
                 'description' => '[Pesan Keluar CRM] ' . $messageText,
                 'completed_at' => now(),
             ]);
@@ -249,20 +287,20 @@ class WhatsAppChatController extends Controller
         return response()->json(['message' => 'Status lead berhasil diperbarui.']);
     }
 
-    /**
-     * Log a manually sent WhatsApp message to keep history
-     */
     public function logManualSend(Request $request)
     {
         $request->validate([
             'phone' => 'required|string',
             'message' => 'required|string',
+            'platform' => 'nullable|string',
         ]);
 
         $phone = $request->phone;
         $messageText = $request->message;
 
         $lead = Lead::where('phone', $phone)->first();
+        $platform = $request->platform ?? ($lead?->source ?? 'whatsapp');
+        $platform = in_array($platform, ['facebook', 'instagram']) ? $platform : 'whatsapp';
 
         // Log to database
         $msg = ChatMessage::create([
@@ -271,6 +309,7 @@ class WhatsAppChatController extends Controller
             'direction' => 'outgoing',
             'message' => $messageText,
             'status' => 'delivered', // mark as delivered since user sent it manually
+            'platform' => $platform,
         ]);
 
         if ($lead) {
@@ -278,8 +317,8 @@ class WhatsAppChatController extends Controller
             \App\Models\LeadActivity::create([
                 'lead_id' => $lead->id,
                 'user_id' => auth()->id(),
-                'type' => 'whatsapp',
-                'description' => '[Pesan Manual WA] ' . $messageText,
+                'type' => in_array($platform, ['call', 'whatsapp', 'email', 'visit', 'meeting', 'note', 'status_change']) ? $platform : 'note',
+                'description' => '[Pesan Manual] ' . $messageText,
                 'completed_at' => now(),
             ]);
             $lead->recalculateScore();
@@ -297,7 +336,8 @@ class WhatsAppChatController extends Controller
     public function generateAiDraft(Request $request)
     {
         $request->validate([
-            'phone' => 'required|string'
+            'phone' => 'required|string',
+            'platform' => 'nullable|string',
         ]);
 
         $phone = $request->phone;
@@ -310,8 +350,12 @@ class WhatsAppChatController extends Controller
             ], 404);
         }
 
+        $platform = $request->platform ?? ($lead->source ?? 'whatsapp');
+        $platform = in_array($platform, ['facebook', 'instagram']) ? $platform : 'whatsapp';
+
         // Fetch last 15 messages for history context
         $messages = ChatMessage::where('phone', $phone)
+            ->where('platform', $platform)
             ->orderBy('created_at', 'desc')
             ->take(15)
             ->get()
@@ -337,7 +381,8 @@ class WhatsAppChatController extends Controller
         $leadInfo = [
             'name' => $lead->name,
             'project' => $lead->project?->name ?? 'Umum/Semua Proyek',
-            'agent_name' => $lead->assignedTo?->name ?? auth()->user()->name ?? 'Konsultan Marketing'
+            'agent_name' => $lead->assignedTo?->name ?? auth()->user()->name ?? 'Konsultan Marketing',
+            'platform' => ucfirst($platform)
         ];
 
         // Call Gemini Service
