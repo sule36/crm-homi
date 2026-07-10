@@ -295,7 +295,7 @@ const tabs = [
         </div>
 
         <!-- Desktop Selector Row -->
-        <div class="hidden md:flex overflow-x-auto whitespace-nowrap bg-slate-100 p-1.5 rounded-2xl mb-8 w-full md:w-fit scrollbar-none gap-1 select-none">
+        <div class="hidden md:flex overflow-x-auto whitespace-nowrap bg-slate-100 p-1.5 rounded-2xl mb-8 w-full max-w-full scrollbar-none gap-1 select-none">
             <button v-for="tab in tabs" :key="tab.id"
                 @click="activeTab = tab.id"
                 :class="activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"

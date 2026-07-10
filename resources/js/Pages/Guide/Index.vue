@@ -79,7 +79,7 @@ const copyToClipboard = (text) => {
         </div>
 
         <!-- Desktop (Horizontal Row) -->
-        <div class="hidden md:flex overflow-x-auto bg-slate-100 p-1.5 rounded-2xl mb-8 w-full md:w-fit gap-1 select-none shadow-inner border border-slate-200/40">
+        <div class="hidden md:flex overflow-x-auto whitespace-nowrap bg-slate-100 p-1.5 rounded-2xl mb-8 w-full max-w-full gap-1 select-none shadow-inner border border-slate-200/40">
             <button v-for="tab in tabs" :key="tab.id"
                 @click="activeTab = tab.id"
                 :class="activeTab === tab.id ? 'bg-white text-slate-900 shadow-md font-bold' : 'text-slate-500 hover:text-slate-700 font-semibold'"
