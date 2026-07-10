@@ -164,6 +164,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return \Inertia\Inertia::render('Guide/Index');
     })->name('guide.index');
 
+    // Temporary Secret Migration Route (Hapus setelah selesai)
+    Route::get('/run-migration-secret', function () {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+            return 'Migration run successfully: <br><pre>' . \Illuminate\Support\Facades\Artisan::output() . '</pre>';
+        } catch (\Exception $e) {
+            return 'Migration failed: ' . $e->getMessage();
+        }
+    });
+
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
