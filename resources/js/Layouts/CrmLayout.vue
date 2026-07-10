@@ -114,6 +114,7 @@ const navigationGroups = [
 ];
 
 const bottomNav = [
+    { name: 'Panduan Penggunaan', href: '/guide', icon: '📖', active: route().current('guide.index') },
     { name: 'Audit Log', href: '/settings/audit-logs', icon: '🕵️', active: route().current('settings.auditLogs') },
     { name: 'Pengaturan', href: '/settings', icon: '⚙️', active: route().current('settings.index') },
 ];

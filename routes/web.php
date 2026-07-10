@@ -159,6 +159,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/settings/bank-accounts/{bankAccount}', [\App\Http\Controllers\BankAccountController::class, 'update'])->name('settings.bankAccounts.update');
     Route::delete('/settings/bank-accounts/{bankAccount}', [\App\Http\Controllers\BankAccountController::class, 'destroy'])->name('settings.bankAccounts.destroy');
 
+    // User Guide / Manual
+    Route::get('/guide', function () {
+        return \Inertia\Inertia::render('Guide/Index');
+    })->name('guide.index');
+
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

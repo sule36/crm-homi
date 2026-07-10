@@ -37,6 +37,7 @@ const showReminderModal = ref(false);
 const reminderTime = ref('');
 const reminderNotes = ref('');
 const savingReminder = ref(false);
+const showMobileActions = ref(false);
 const showTagsDropdown = ref(false);
 const showBrochureDropdown = ref(false);
 
@@ -61,6 +62,7 @@ const formatCurrency = (val) => {
 // Select a chat to view messages
 async function selectChat(chat) {
     activeChat.value = chat;
+    showMobileActions.value = false;
     messages.value = [];
     loadingMessages.value = true;
     
@@ -627,9 +629,9 @@ const statusColorClass = (status) => {
             <span class="text-gray-400">Marketing & Sales</span> / Omnichannel Chat
         </template>
 
-        <div class="h-[calc(100dvh-125px)] md:h-[calc(100vh-140px)] flex bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
+        <div class="h-[calc(100dvh-96px)] md:h-[calc(100vh-112px)] flex bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xl">
             <!-- LEFT PANEL: CHAT LIST -->
-            <div :class="activeChat ? 'hidden md:flex' : 'w-full md:w-[360px] flex'" class="border-r border-slate-100 flex flex-col shrink-0 min-w-0">
+            <div :class="[activeChat ? 'hidden md:flex' : 'flex w-full']" class="md:w-[380px] md:shrink-0 md:border-r md:border-slate-100 flex-col min-w-0 bg-white">
                 <!-- Search & New Chat Button -->
                 <div class="p-5 border-b border-slate-50 space-y-3 shrink-0">
                     <div class="flex items-center justify-between">
@@ -657,7 +659,7 @@ const statusColorClass = (status) => {
                                 {{ chat.name.substring(0, 2) }}
                             </div>
                             <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-md border border-white"
-                                  :class="chat.platform === 'instagram' ? 'bg-purple-600 text-white' : (chat.platform === 'facebook' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white')"
+                                  :class="chat.platform === 'instagram' ? 'bg-purple-650 text-white' : (chat.platform === 'facebook' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white')"
                                   :title="chat.platform || 'whatsapp'">
                                 {{ chat.platform === 'instagram' ? '📷' : (chat.platform === 'facebook' ? '👤' : '💬') }}
                             </span>
@@ -684,53 +686,62 @@ const statusColorClass = (status) => {
             </div>
 
             <!-- RIGHT PANEL: CHAT WINDOW -->
-            <div :class="activeChat ? 'flex-1 flex' : 'hidden md:flex flex-1'" class="flex-col bg-slate-50 relative min-w-0">
+            <div :class="[activeChat ? 'flex' : 'hidden md:flex']" class="flex-1 flex-col bg-slate-50 relative min-w-0 h-full">
                 <!-- If Active Chat Selected -->
                 <template v-if="activeChat">
-                    <!-- Chat Header (Lebih Compact untuk Mobile) -->
-                    <div class="px-3 md:px-6 py-2 md:py-3.5 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0 min-w-0">
-                        <div class="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                    <!-- Chat Header (Lebih Compact & Responsif) -->
+                    <div class="px-4 py-3 bg-white border-b border-slate-100 flex justify-between items-center z-10 shrink-0 min-w-0">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
                             <!-- Mobile Back Button -->
-                            <button @click="activeChat = null" class="md:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 font-black text-xs shrink-0" title="Kembali ke Daftar Chat">
-                                ◀
+                            <button @click="activeChat = null" class="md:hidden p-1.5 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 transition-colors shrink-0" title="Kembali ke Daftar Chat">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
                             </button>
                             <div class="relative shrink-0 select-none">
-                                <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center uppercase shadow-sm">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-xs flex items-center justify-center uppercase shadow-sm">
                                     {{ activeChat.name.substring(0, 2) }}
                                 </div>
-                                <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] shadow-sm border border-white"
-                                      :class="activeChat.platform === 'instagram' ? 'bg-purple-600 text-white' : (activeChat.platform === 'facebook' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white')">
+                                <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-md border-2 border-white"
+                                      :class="activeChat.platform === 'instagram' ? 'bg-purple-650 text-white' : (activeChat.platform === 'facebook' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white')">
                                     {{ activeChat.platform === 'instagram' ? '📷' : (activeChat.platform === 'facebook' ? '👤' : '💬') }}
                                 </span>
                             </div>
                             <div class="min-w-0 flex-1">
-                                <h3 class="text-xs font-black text-slate-900 leading-none truncate">{{ activeChat.name }}</h3>
-                                <p class="text-[9px] text-slate-500 font-semibold mt-1 truncate">
-                                    {{ activeChat.platform === 'whatsapp' ? activeChat.phone : 'ID: ' + activeChat.phone }} • Proyek: {{ activeChat.project }} • 👤 Agent: <span class="text-blue-600 font-black">{{ activeChat.agent_name || 'Belum Ditugaskan' }}</span>
+                                <div class="flex items-center gap-1.5">
+                                    <h3 class="text-xs font-black text-slate-900 truncate leading-none">{{ activeChat.name }}</h3>
+                                    <!-- Mobile Status Badge -->
+                                    <span :class="statusColorClass(activeChat.status)" class="md:hidden px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
+                                        {{ activeChat.status }}
+                                    </span>
+                                </div>
+                                <p class="text-[9px] text-slate-550 font-semibold mt-1.5 truncate leading-none">
+                                    {{ activeChat.platform === 'whatsapp' ? activeChat.phone : 'Meta ID: ' + activeChat.phone }} <span class="hidden sm:inline">• Proyek: {{ activeChat.project }} • Agent: {{ activeChat.agent_name || 'Belum Ditugaskan' }}</span>
                                 </p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1.5 md:gap-3 shrink-0">
+                        
+                        <!-- Desktop Actions (Inline Row) -->
+                        <div class="hidden md:flex items-center gap-2 shrink-0">
                             <!-- Status Dropdown -->
-                            <div class="flex items-center gap-1 bg-slate-50 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-lg border border-slate-100/50 select-none">
-                                <span class="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-wider hidden sm:inline">Status:</span>
-                                <select v-model="activeChat.status" @change="updateStatus(activeChat.id, activeChat.status)" :class="statusColorClass(activeChat.status)" class="text-[8px] md:text-[9px] font-black py-0.5 px-1 md:px-2 border-none rounded focus:ring-0 focus:outline-none cursor-pointer">
-                                    <option value="new">Baru</option>
-                                    <option value="contacted">Dihubungi</option>
-                                    <option value="visited">Kunjungan</option>
-                                    <option value="negotiation">Negosiasi</option>
-                                    <option value="booking">Booking UTJ</option>
-                                    <option value="won">Closing (Won)</option>
-                                    <option value="lost">Lost</option>
+                            <div class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100 select-none">
+                                <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Status:</span>
+                                <select v-model="activeChat.status" @change="updateStatus(activeChat.id, activeChat.status)" :class="statusColorClass(activeChat.status)" class="text-[9px] font-black py-0.5 px-2 border-none rounded-lg focus:ring-0 focus:outline-none cursor-pointer">
+                                    <option value="new">🆕 Baru</option>
+                                    <option value="contacted">📞 Dihubungi</option>
+                                    <option value="visited">🏠 Kunjungan</option>
+                                    <option value="negotiation">🤝 Negosiasi</option>
+                                    <option value="booking">🧾 Booking UTJ</option>
+                                    <option value="won">🎉 Closing (Won)</option>
+                                    <option value="lost">❌ Lost</option>
                                 </select>
                             </div>
+
                             <!-- Tags Label Button -->
                             <div class="relative">
-                                <button @click="showTagsDropdown = !showTagsDropdown" class="px-2 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-600 text-[8px] md:text-[9px] font-black rounded-lg transition-colors flex items-center gap-1 select-none">
-                                    🏷️ <span class="hidden sm:inline">Label</span>
+                                <button @click="showTagsDropdown = !showTagsDropdown" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-600 text-[10px] font-black rounded-xl transition-colors flex items-center gap-1 select-none">
+                                    🏷️ Label
                                 </button>
                                 
-                                <div v-if="showTagsDropdown" class="absolute right-0 top-8 bg-white border border-slate-200 rounded-xl p-3 shadow-xl w-44 z-[50] space-y-2">
+                                <div v-if="showTagsDropdown" class="absolute right-0 top-9 bg-white border border-slate-200 rounded-xl p-3 shadow-xl w-44 z-[50] space-y-2">
                                     <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-1.5">Tandai Prospek:</span>
                                     <div class="space-y-1.5">
                                         <label v-for="tag in availableTags" :key="tag" class="flex items-center gap-2 text-[9px] font-bold text-slate-600 hover:text-slate-800 cursor-pointer select-none">
@@ -745,12 +756,47 @@ const statusColorClass = (status) => {
                             </div>
 
                             <!-- Reminder Schedule Button -->
-                            <button @click="showReminderModal = true" class="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-600 text-[8px] md:text-[9px] font-black rounded-lg transition-colors flex items-center gap-1 select-none">
-                                ⏰ <span class="hidden sm:inline">Follow-up</span><span class="sm:hidden">Ingat</span>
+                            <button @click="showReminderModal = true" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-600 text-[10px] font-black rounded-xl transition-colors flex items-center gap-1 select-none">
+                                ⏰ Follow-up
                             </button>
-                            <a :href="`https://wa.me/${activeChat.phone.replace(/^0/, '62')}`" target="_blank" class="px-2 md:px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[8px] md:text-[10px] font-black rounded-lg transition-colors border border-emerald-100/50 flex items-center gap-1 shrink-0">
-                                📱 <span class="hidden sm:inline">Buka di WA</span><span class="sm:hidden">WA</span>
+                            <a :href="`https://wa.me/${activeChat.phone.replace(/^0/, '62')}`" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-black rounded-xl transition-colors border border-emerald-100/50 flex items-center gap-1 shrink-0">
+                                📱 Buka WA
                             </a>
+                        </div>
+
+                        <!-- Mobile Actions Dropdown Menu -->
+                        <div class="relative md:hidden shrink-0">
+                            <button @click="showMobileActions = !showMobileActions" class="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-650 flex items-center justify-center transition-all">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 5v.01M12 12v.01M12 19v.01"/></svg>
+                            </button>
+                            <div v-if="showMobileActions" class="absolute right-0 top-10 bg-white border border-slate-200 rounded-2xl p-4 shadow-2xl w-56 z-[60] space-y-3.5">
+                                <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-1.5">Tindakan Prospek:</span>
+                                
+                                <div class="space-y-1">
+                                    <span class="block text-[8px] font-black text-slate-400 uppercase">Ubah Status:</span>
+                                    <select v-model="activeChat.status" @change="updateStatus(activeChat.id, activeChat.status); showMobileActions = false;" :class="statusColorClass(activeChat.status)" class="w-full text-[10px] font-black py-1.5 px-2 border border-slate-200 rounded-lg focus:ring-0 focus:outline-none cursor-pointer">
+                                        <option value="new">🆕 Baru</option>
+                                        <option value="contacted">📞 Dihubungi</option>
+                                        <option value="visited">🏠 Kunjungan</option>
+                                        <option value="negotiation">🤝 Negosiasi</option>
+                                        <option value="booking">🧾 Booking UTJ</option>
+                                        <option value="won">🎉 Closing (Won)</option>
+                                        <option value="lost">❌ Lost</option>
+                                    </select>
+                                </div>
+
+                                <button @click="showTagsDropdown = true; showMobileActions = false;" class="w-full py-2 bg-purple-50 hover:bg-purple-100 border border-purple-100 text-purple-600 text-[10px] font-black rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                                    🏷️ Kelola Label/Tags
+                                </button>
+
+                                <button @click="showReminderModal = true; showMobileActions = false;" class="w-full py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-600 text-[10px] font-black rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                                    ⏰ Jadwal Follow-Up
+                                </button>
+
+                                <a :href="`https://wa.me/${activeChat.phone.replace(/^0/, '62')}`" target="_blank" @click="showMobileActions = false" class="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-black rounded-lg transition-colors border border-emerald-100/50 flex items-center justify-center gap-1.5">
+                                    📱 Buka di WhatsApp
+                                </a>
+                            </div>
                         </div>
                     </div>
 
@@ -766,7 +812,7 @@ const statusColorClass = (status) => {
                                 class="flex w-full">
                                 
                                 <div :class="msg.direction === 'outgoing' ? 'bg-blue-600 text-white rounded-2xl rounded-tr-none shadow-sm' : 'bg-white text-slate-800 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm'"
-                                    class="max-w-[80%] md:max-w-[70%] px-3.5 py-2.5 text-xs leading-relaxed relative whitespace-pre-wrap">
+                                    class="max-w-[85%] md:max-w-[70%] px-3.5 py-2.5 text-xs leading-relaxed relative whitespace-pre-wrap">
                                     
                                     {{ msg.message }}
                                     
@@ -784,53 +830,58 @@ const statusColorClass = (status) => {
                         </template>
                     </div>
 
-                    <!-- Input Bar & Smart Templates Panel (Lebih Ringkas & Dropdown Ke Bawah) -->
-                    <div class="p-2 md:p-3 bg-white border-t border-slate-100 shrink-0 space-y-1.5 z-10 relative">
-                        <!-- Smart Templates Selector - Dropdown List Vertikal -->
-                        <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-                            <span class="text-[8px] md:text-[9px] font-black text-slate-500 uppercase tracking-wider shrink-0 select-none">Balas Cepat:</span>
-                            <select @change="(e) => { if (e.target.value) { insertTemplate(e.target.value); e.target.value = ''; } }" class="flex-1 py-0.5 px-2 bg-white border border-slate-200 rounded-lg text-[9px] md:text-[10px] font-bold focus:ring-1 focus:ring-blue-500 cursor-pointer">
-                                <option value="">📋 Pilih Template Pesan...</option>
-                                <option value="welcome">👋 Sapaan Awal</option>
-                                <option value="visit">🏠 Jadwal Visit</option>
-                                <option value="booking">🧾 Booking UTJ</option>
-                                <option value="kpr_docs">📄 Berkas KPR</option>
-                                <option value="promo">🎁 Promo Spesial</option>
-                                <option value="share_loc">📍 Lokasi Proyek (Google Maps)</option>
-                                <option value="list_stock">🏢 Daftar Stok Unit (Real-Time)</option>
-                            </select>
+                    <!-- Input Bar & Actions (Horizontal Scrollable Assistant Bar) -->
+                    <div class="p-3 bg-white border-t border-slate-100 shrink-0 space-y-2.5 z-10 relative">
+                        <!-- Helper Actions (Horizontally Scrollable on Mobile) -->
+                        <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-none pb-0.5">
+                            <!-- Balas Cepat Dropdown -->
+                            <div class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-150 shrink-0">
+                                <span class="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider select-none">Balas Cepat:</span>
+                                <select @change="(e) => { if (e.target.value) { insertTemplate(e.target.value); e.target.value = ''; } }" class="py-0.5 px-2 bg-white border border-slate-200 rounded-lg text-[9px] md:text-[10px] font-bold focus:ring-1 focus:ring-blue-500 cursor-pointer w-28 md:w-36">
+                                    <option value="">📋 Pilih...</option>
+                                    <option value="welcome">👋 Sapaan Awal</option>
+                                    <option value="visit">🏠 Jadwal Visit</option>
+                                    <option value="booking">🧾 Booking UTJ</option>
+                                    <option value="kpr_docs">📄 Berkas KPR</option>
+                                    <option value="promo">🎁 Promo Spesial</option>
+                                    <option value="share_loc">📍 Lokasi Proyek</option>
+                                    <option value="list_stock">🏢 Daftar Stok</option>
+                                </select>
+                            </div>
                             
-                            <button type="button" @click="getAiDraft" :disabled="loadingAiDraft" :class="loadingAiDraft ? 'bg-purple-100 text-purple-400' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'" class="px-2 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0">
+                            <!-- AI Draft Button -->
+                            <button type="button" @click="getAiDraft" :disabled="loadingAiDraft" :class="loadingAiDraft ? 'bg-purple-100 text-purple-400' : 'bg-purple-55 text-purple-650 hover:bg-purple-100 border border-purple-100'" class="px-3 py-1.5 text-[9px] md:text-[10px] font-black rounded-xl transition-all flex items-center gap-1 shrink-0">
                                 <span v-if="loadingAiDraft" class="animate-spin inline-block">🔄</span>
                                 <span v-else>🤖</span> AI Draft
                             </button>
                             
                             <!-- Projects Brochure Dropdown -->
-                            <div class="relative">
-                                <button type="button" @click="showBrochureDropdown = !showBrochureDropdown" class="px-2 py-1 bg-sky-50 text-sky-600 hover:bg-sky-100 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0 select-none">
+                            <div class="relative shrink-0">
+                                <button type="button" @click="showBrochureDropdown = !showBrochureDropdown" class="px-3 py-1.5 bg-sky-55 text-sky-650 hover:bg-sky-100 border border-sky-100 text-[9px] md:text-[10px] font-black rounded-xl transition-all flex items-center gap-1 select-none">
                                     📂 Brosur
                                 </button>
                                 
-                                <div v-if="showBrochureDropdown" class="absolute bottom-8 right-0 bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xl w-48 z-[50] space-y-1.5">
+                                <div v-if="showBrochureDropdown" class="absolute bottom-9 left-0 bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xl w-48 z-[50] space-y-1.5">
                                     <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-1">Kirim Brosur Proyek:</span>
                                     <div class="flex flex-col gap-1">
-                                        <button type="button" @click="insertBrochure('brochure')" class="w-full text-left px-2 py-1 hover:bg-slate-50 rounded text-[9px] font-bold text-slate-700">
+                                        <button type="button" @click="insertBrochure('brochure'); showBrochureDropdown = false;" class="w-full text-left px-2 py-1 hover:bg-slate-50 rounded text-[9px] font-bold text-slate-700">
                                             📄 Brosur Resmi PDF
                                         </button>
-                                        <button type="button" @click="insertBrochure('master_plan')" class="w-full text-left px-2 py-1 hover:bg-slate-50 rounded text-[9px] font-bold text-slate-700">
+                                        <button type="button" @click="insertBrochure('master_plan'); showBrochureDropdown = false;" class="w-full text-left px-2 py-1 hover:bg-slate-50 rounded text-[9px] font-bold text-slate-700">
                                             🗺️ Peta Master Plan
                                         </button>
                                     </div>
                                 </div>
                             </div>
                             
-                            <button type="button" @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'" class="px-2 py-1 text-[9px] font-black rounded-lg transition-all flex items-center gap-1 shrink-0">
-                                🧮 KPR
+                            <!-- KPR Assistant Dialog Button -->
+                            <button type="button" @click="showKprAssistant = !showKprAssistant" :class="showKprAssistant ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10 border border-blue-600' : 'bg-blue-55 text-blue-650 hover:bg-blue-100 border border-blue-100'" class="px-3 py-1.5 text-[9px] md:text-[10px] font-black rounded-xl transition-all flex items-center gap-1 shrink-0">
+                                🧮 Kalkulator KPR
                             </button>
                         </div>
 
                         <!-- KPR Assistant Dialog (Embedded/Interactive Floating) -->
-                        <div v-if="showKprAssistant" class="absolute left-4 bottom-[72px] bg-white border border-slate-200 rounded-3xl p-5 shadow-2xl w-[calc(100vw-32px)] md:w-80 space-y-3.5 z-[20] animate-in slide-in-from-bottom-3 duration-250">
+                        <div v-if="showKprAssistant" class="absolute left-4 bottom-[76px] bg-white border border-slate-200 rounded-3xl p-5 shadow-2xl w-[calc(100vw-32px)] md:w-80 space-y-3.5 z-[20] animate-in slide-in-from-bottom-3 duration-250">
                             <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                                 <span class="text-[10px] font-black text-slate-900 uppercase">Kalkulator Simulasi Cicilan</span>
                                 <button @click="showKprAssistant = false" class="text-slate-400 font-bold">&times;</button>
@@ -884,7 +935,7 @@ const statusColorClass = (status) => {
                         <form @submit.prevent="handleSendMessage" class="flex gap-2 items-center bg-slate-50 p-1 rounded-full border border-slate-200/60 pl-4 pr-1">
                             <input v-model="messageInput" @keydown.enter.prevent="handleSendMessage" placeholder="Tulis pesan..." class="flex-1 bg-transparent border-none text-xs font-semibold focus:ring-0 p-0 focus:outline-none placeholder:text-slate-400 font-sans" />
                             
-                            <!-- WA Manual Send Button -->
+                            <!-- Manual Send Button -->
                             <button type="button" @click="handleSendManual" :disabled="!messageInput.trim()" class="h-8 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[9px] font-black rounded-full flex items-center justify-center gap-0.5 transition-all shrink-0 select-none disabled:opacity-40" title="Kirim via WhatsApp HP/Web Manual">
                                 📱 Manual
                             </button>
@@ -897,10 +948,10 @@ const statusColorClass = (status) => {
                 </template>
 
                 <!-- If No Chat Active -->
-                <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center bg-slate-50/20">
-                    <div class="text-5xl mb-4">💬</div>
-                    <h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">WhatsApp Shared Inbox</h3>
-                    <p class="text-[10px] text-slate-400 max-w-xs mt-1 leading-relaxed">Pilih percakapan di kolom kiri untuk mulai membaca dan membalas pesan WhatsApp prospek secara langsung dari CRM Homi.</p>
+                <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-450 p-8 text-center bg-slate-50/20">
+                    <div class="text-6xl mb-5 select-none">💬</div>
+                    <h3 class="text-sm font-black uppercase text-slate-700 tracking-wider">Omnichannel Shared Inbox</h3>
+                    <p class="text-xs text-slate-400 max-w-sm mt-2 leading-relaxed">Pilih percakapan di kolom kiri untuk mulai membaca dan membalas pesan prospek secara langsung dari saluran WhatsApp, Facebook Messenger, atau Instagram.</p>
                 </div>
             </div>
         </div>

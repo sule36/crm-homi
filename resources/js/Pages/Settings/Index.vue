@@ -279,7 +279,23 @@ const tabs = [
         </div>
 
         <!-- TABS NAVIGATION -->
-        <div class="flex overflow-x-auto whitespace-nowrap bg-slate-100 p-1.5 rounded-2xl mb-8 w-full md:w-fit scrollbar-none gap-1">
+        <!-- Mobile Selector Dropdown -->
+        <div class="block md:hidden mb-6">
+            <label class="block text-[10px] font-black text-slate-450 uppercase mb-2">Pilih Kategori Pengaturan:</label>
+            <div class="relative">
+                <select v-model="activeTab" class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider focus:ring-2 focus:ring-blue-500/20 cursor-pointer appearance-none pr-10">
+                    <option v-for="tab in tabs" :key="tab.id" :value="tab.id">
+                        {{ tab.icon }} &nbsp;&nbsp; {{ tab.name }}
+                    </option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                    <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Selector Row -->
+        <div class="hidden md:flex overflow-x-auto whitespace-nowrap bg-slate-100 p-1.5 rounded-2xl mb-8 w-full md:w-fit scrollbar-none gap-1 select-none">
             <button v-for="tab in tabs" :key="tab.id"
                 @click="activeTab = tab.id"
                 :class="activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
