@@ -178,11 +178,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/view-logs-secret', function () {
         $path = storage_path('logs/laravel.log');
         if (!file_exists($path)) {
-            return 'Log file does not exist.';
+            return 'Log file does not exist. Try visiting /test-log-secret to generate one!';
         }
         $lines = file($path);
         $lastLines = array_slice($lines, -100);
         return 'Last 100 lines of laravel.log:<br><pre>' . implode("", $lastLines) . '</pre>';
+    });
+
+    // Temporary Secret Test Log Route (Hapus setelah selesai)
+    Route::get('/test-log-secret', function () {
+        try {
+            \Illuminate\Support\Facades\Log::info("Test Log Triggered Successfully at " . now());
+            return 'Test log written successfully! Now visit <a href="/view-logs-secret">/view-logs-secret</a> to verify.';
+        } catch (\Exception $e) {
+            return 'Failed to write log: ' . $e->getMessage();
+        }
     });
 
     // Profile
