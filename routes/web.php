@@ -247,6 +247,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ];
     });
 
+    // Temporary Secret Token Permission Route (Hapus setelah selesai)
+    Route::get('/view-token-permissions-secret', function () {
+        $token = \App\Models\Setting::where('key', 'meta_page_access_token')->value('value');
+        if (!$token) {
+            return 'No token stored in settings.';
+        }
+        
+        $response = \Illuminate\Support\Facades\Http::get("https://graph.facebook.com/v19.0/me/permissions", [
+            'access_token' => $token,
+        ]);
+        
+        return $response->json();
+    });
+
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
