@@ -42,7 +42,10 @@ class MetaMessagingWebhookController extends Controller
     {
         $body = $request->all();
         Log::info("Meta Webhook Received: " . json_encode($body));
-
+        
+        // Write directly to file for reliable production logging
+        file_put_contents(storage_path('logs/meta_webhook.log'), "[" . now() . "] Webhook body: " . json_encode($body) . "\n", FILE_APPEND);
+ 
         if (isset($body['object']) && in_array($body['object'], ['page', 'instagram'])) {
             $platform = $body['object'] === 'instagram' ? 'instagram' : 'facebook';
 

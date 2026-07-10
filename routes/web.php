@@ -200,10 +200,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Temporary Secret Test Log Route (Hapus setelah selesai)
     Route::get('/test-log-secret', function () {
         try {
+            // Test standard Laravel logging
             \Illuminate\Support\Facades\Log::info("Test Log Triggered Successfully at " . now());
+            
+            // Test direct file writing
+            $directPath = storage_path('logs/direct_test.log');
+            file_put_contents($directPath, "Direct File Write Success at " . now() . "\n", FILE_APPEND);
+            
             return 'Test log written successfully! Now visit <a href="/view-logs-secret">/view-logs-secret</a> to verify.';
         } catch (\Exception $e) {
             return 'Failed to write log: ' . $e->getMessage();
+        }
+    });
+
+    // Temporary Secret Cache Clear Route (Hapus setelah selesai)
+    Route::get('/clear-cache-secret', function () {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('config:clear');
+            \Illuminate\Support\Facades\Artisan::call('route:clear');
+            \Illuminate\Support\Facades\Artisan::call('cache:clear');
+            \Illuminate\Support\Facades\Artisan::call('view:clear');
+            return 'All caches cleared successfully!';
+        } catch (\Exception $e) {
+            return 'Failed to clear cache: ' . $e->getMessage();
         }
     });
 
