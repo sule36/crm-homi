@@ -174,6 +174,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
     });
 
+    // Temporary Secret Log Viewer Route (Hapus setelah selesai)
+    Route::get('/view-logs-secret', function () {
+        $path = storage_path('logs/laravel.log');
+        if (!file_exists($path)) {
+            return 'Log file does not exist.';
+        }
+        $lines = file($path);
+        $lastLines = array_slice($lines, -100);
+        return 'Last 100 lines of laravel.log:<br><pre>' . implode("", $lastLines) . '</pre>';
+    });
+
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

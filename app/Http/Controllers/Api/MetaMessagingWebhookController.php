@@ -41,6 +41,7 @@ class MetaMessagingWebhookController extends Controller
     public function handle(Request $request)
     {
         $body = $request->all();
+        Log::info("Meta Webhook Received: " . json_encode($body));
 
         if (isset($body['object']) && in_array($body['object'], ['page', 'instagram'])) {
             $platform = $body['object'] === 'instagram' ? 'instagram' : 'facebook';
