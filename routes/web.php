@@ -195,6 +195,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
     });
 
+    // Temporary Secret Env Debug Route (Hapus setelah selesai)
+    Route::get('/view-env-secret', function () {
+        return [
+            'app_env' => config('app.env'),
+            'log_default_channel' => config('logging.default'),
+            'log_path' => storage_path('logs/laravel.log'),
+            'log_file_exists' => file_exists(storage_path('logs/laravel.log')),
+            'storage_dir_writable' => is_writable(storage_path()),
+            'logs_dir_writable' => is_writable(storage_path('logs')),
+        ];
+    });
+
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
