@@ -254,11 +254,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
             return 'No token stored in settings.';
         }
         
+        $tokenLength = strlen($token);
+        $start = substr($token, 0, 15);
+        $end = substr($token, -15);
+        
         $response = \Illuminate\Support\Facades\Http::get("https://graph.facebook.com/v19.0/me/permissions", [
             'access_token' => $token,
         ]);
         
-        return $response->json();
+        return [
+            'length' => $tokenLength,
+            'preview' => $start . '...' . $end,
+            'api_response' => $response->json(),
+        ];
     });
 
     // Profile
