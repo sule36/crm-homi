@@ -176,13 +176,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Temporary Secret Log Viewer Route (Hapus setelah selesai)
     Route::get('/view-logs-secret', function () {
-        $path = storage_path('logs/laravel.log');
-        if (!file_exists($path)) {
-            return 'Log file does not exist. Try visiting /test-log-secret to generate one!';
+        $dir = storage_path('logs');
+        if (!is_dir($dir)) {
+            return 'Logs directory does not exist.';
         }
-        $lines = file($path);
+        $files = glob($dir . '/*.log');
+        if (empty($files)) {
+            return 'No log files found in directory. Try visiting /test-log-secret to generate one!';
+        }
+        
+        // Sort files by modification time (most recent first)
+        usort($files, function ($a, $b) {
+            return filemtime($b) - filemtime($a);
+        });
+        
+        $latestFile = $files[0];
+        $lines = file($latestFile);
         $lastLines = array_slice($lines, -100);
-        return 'Last 100 lines of laravel.log:<br><pre>' . implode("", $lastLines) . '</pre>';
+        
+        return 'Showing last 100 lines of latest log file (' . basename($latestFile) . '):<br><pre>' . implode("", $lastLines) . '</pre>';
     });
 
     // Temporary Secret Test Log Route (Hapus setelah selesai)
