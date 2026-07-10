@@ -18,14 +18,15 @@ class MetaMessagingWebhookController extends Controller
      */
     public function verify(Request $request)
     {
-        $verifyToken = Setting::where('key', 'messenger_verify_token')->value('value');
+        $messengerVerifyToken = Setting::where('key', 'messenger_verify_token')->value('value');
+        $instagramVerifyToken = Setting::where('key', 'instagram_verify_token')->value('value');
         
         $mode = $request->query('hub_mode');
         $token = $request->query('hub_verify_token');
         $challenge = $request->query('hub_challenge');
 
         if ($mode && $token) {
-            if ($mode === 'subscribe' && $token === $verifyToken) {
+            if ($mode === 'subscribe' && ($token === $messengerVerifyToken || $token === $instagramVerifyToken)) {
                 return response($challenge, 200);
             }
             return response('Forbidden', 403);
