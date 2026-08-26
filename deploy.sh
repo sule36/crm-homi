@@ -22,11 +22,19 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# 4. Run migrasi database
-echo "🗄️ Running database migrations..."
+# 4. Run migrasi database & seeder
+echo "🗄️ Running database migrations & seeders..."
 php artisan migrate --force
+php artisan db:seed --force
 
-# 5. Link storage
+# 5. Clear and recreate caches
+echo "🧹 Clearing old caches..."
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+php artisan cache:clear
+
+# 6. Link storage
 echo "🔗 Linking storage..."
 php artisan storage:link
 
