@@ -21,7 +21,7 @@ class BrokerCompanyController extends Controller
         $agents = User::with(['brokerCompany', 'roles'])
             ->when($request->agent_type, fn($q, $type) => $q->where('agent_type', $type))
             ->when($request->search_agent, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
-            ->whereHas('roles', fn($q) => $q->whereIn('name', ['sales_agent', 'broker', 'sales_manager']))
+            ->role(['sales_agent', 'broker', 'sales_manager'])
             ->latest()
             ->paginate(20, ['*'], 'agents_page');
 
