@@ -12,6 +12,7 @@ class PartnerBank extends Model
         'interest_rate_fixed',
         'interest_rate_floating',
         'fixed_duration',
+        'fixed_programs',
         'is_active',
         'is_syariah',
         'syariah_margin_rate',
@@ -26,6 +27,7 @@ class PartnerBank extends Model
         'is_syariah' => 'boolean',
         'is_tiered' => 'boolean',
         'tiered_rates' => 'array',
+        'fixed_programs' => 'array',
         'show_on_homepage' => 'boolean',
         'show_in_calculator' => 'boolean',
     ];

@@ -20,6 +20,7 @@ class PartnerBankController extends Controller
             'syariah_margin_rate' => 'required|numeric|min:0|max:100',
             'is_tiered' => 'boolean',
             'tiered_rates' => 'nullable|array',
+            'fixed_programs' => 'nullable|array',
         ]);
 
         PartnerBank::create($validated);
@@ -40,6 +41,7 @@ class PartnerBankController extends Controller
             'syariah_margin_rate' => 'required|numeric|min:0|max:100',
             'is_tiered' => 'boolean',
             'tiered_rates' => 'nullable|array',
+            'fixed_programs' => 'nullable|array',
         ]);
 
         $partnerBank->update($validated);

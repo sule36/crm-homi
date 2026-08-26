@@ -87,6 +87,7 @@ const navigationGroups = [
         items: [
             { name: 'Proyek', href: '/projects', icon: '🏗️', active: route().current('projects.*') },
             { name: 'Inventory / Unit', href: '/units', icon: '🏠', active: route().current('units.*') },
+            { name: 'Kalkulator KPR', href: '/kalkulator-kpr', icon: '🧮', active: route().current('kpr.calculator') },
         ]
     },
     {

@@ -57,6 +57,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/bookings/{booking}/documents', [\App\Http\Controllers\BookingDocumentController::class, 'store'])->name('bookings.documents.store');
     Route::delete('/booking-documents/{document}', [\App\Http\Controllers\BookingDocumentController::class, 'destroy'])->name('bookings.documents.destroy');
 
+    // Kalkulator KPR
+    Route::get('/kalkulator-kpr', function () {
+        return \Inertia\Inertia::render('Kpr/Index', [
+            'banks' => \App\Models\PartnerBank::where('is_active', true)->get()
+        ]);
+    })->name('kpr.calculator');
+
     // WhatsApp Inbox
     Route::get('/whatsapp/inbox', [\App\Http\Controllers\WhatsAppChatController::class, 'index'])->name('whatsapp.inbox');
     Route::get('/whatsapp/chat/{phone}', [\App\Http\Controllers\WhatsAppChatController::class, 'getMessages'])->name('whatsapp.chat.messages');

@@ -7,7 +7,15 @@ use App\Models\Project;
 use App\Models\UnitType;
 use App\Models\Unit;
 use App\Models\Lead;
+use App\Models\Booking;
+use App\Models\Transaction;
+use App\Models\Expense;
+use App\Models\RabItem;
+use App\Models\ContractorContract;
+use App\Models\BrokerCompany;
+use App\Models\BankAccount;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 
@@ -15,9 +23,31 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // ── 0. CLEAN OLD DUMMY DATA ─────────────────────
+        \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+        Booking::truncate();
+        Lead::truncate();
+        Unit::truncate();
+        UnitType::truncate();
+        Project::truncate();
+        Transaction::truncate();
+        Expense::truncate();
+        RabItem::truncate();
+        ContractorContract::truncate();
+        User::truncate();
+        DB::table('model_has_roles')->truncate();
+        DB::table('model_has_permissions')->truncate();
+        DB::table('role_has_permissions')->truncate();
+        Permission::truncate();
+        Role::truncate();
+        \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
+
+        // Seed Expense Categories
+        $this->call(ExpenseCategorySeeder::class);
+
         // ── 1. PERMISSIONS ──────────────────────────────
         $permissions = [
-            // Users
+            // Users & Staff
             'users.view', 'users.create', 'users.edit', 'users.delete',
             // Projects
             'projects.view', 'projects.create', 'projects.edit', 'projects.delete',
@@ -27,11 +57,11 @@ class DatabaseSeeder extends Seeder
             'leads.view_all', 'leads.view_own', 'leads.create', 'leads.edit', 'leads.delete', 'leads.assign',
             // Bookings
             'bookings.view', 'bookings.create', 'bookings.approve', 'bookings.cancel',
-            // Payments
+            // Payments & Finance
             'payments.view', 'payments.record', 'payments.verify',
             // Reports
             'reports.view', 'reports.export',
-            // Documents
+            // Documents & SPK
             'documents.generate', 'documents.view',
             // Settings
             'settings.manage',
@@ -41,7 +71,7 @@ class DatabaseSeeder extends Seeder
             Permission::firstOrCreate(['name' => $permission]);
         }
 
-        // ── 2. ROLES ────────────────────────────────────
+        // ── 2. ROLES (RBAC CONFIGURATION) ───────────────
         $superAdmin = Role::firstOrCreate(['name' => 'super_admin']);
         $superAdmin->givePermissionTo(Permission::all());
 
@@ -92,9 +122,9 @@ class DatabaseSeeder extends Seeder
             'bookings.view', 'bookings.create',
         ]);
 
-        // ── 3. DEMO USERS ───────────────────────────────
+        // ── 3. OFFICIAL STAFF ACCOUNTS ──────────────────
         $admin = User::create([
-            'name' => 'Admin Homi',
+            'name' => 'Super Admin Homi',
             'email' => 'admin@homi.id',
             'password' => bcrypt('password'),
             'phone' => '081234567890',
@@ -103,8 +133,8 @@ class DatabaseSeeder extends Seeder
         $admin->assignRole('super_admin');
 
         $manager = User::create([
-            'name' => 'Budi Santoso',
-            'email' => 'budi@homi.id',
+            'name' => 'Project Manager Alonica',
+            'email' => 'manager@alonica.id',
             'password' => bcrypt('password'),
             'phone' => '081234567891',
             'status' => 'active',
@@ -112,8 +142,8 @@ class DatabaseSeeder extends Seeder
         $manager->assignRole('project_manager');
 
         $salesMgr = User::create([
-            'name' => 'Dewi Rahayu',
-            'email' => 'dewi@homi.id',
+            'name' => 'Sales Manager Alonica',
+            'email' => 'sales.manager@alonica.id',
             'password' => bcrypt('password'),
             'phone' => '081234567892',
             'status' => 'active',
@@ -121,153 +151,233 @@ class DatabaseSeeder extends Seeder
         $salesMgr->assignRole('sales_manager');
 
         $agent1 = User::create([
-            'name' => 'Andi Pratama',
-            'email' => 'andi@homi.id',
+            'name' => 'Sales Representative 1',
+            'email' => 'agent1@alonica.id',
             'password' => bcrypt('password'),
             'phone' => '081234567893',
             'status' => 'active',
-            'lead_capacity' => 25,
+            'lead_capacity' => 30,
         ]);
         $agent1->assignRole('sales_agent');
 
         $agent2 = User::create([
-            'name' => 'Sari Wulandari',
-            'email' => 'sari@homi.id',
+            'name' => 'Sales Representative 2',
+            'email' => 'agent2@alonica.id',
             'password' => bcrypt('password'),
             'phone' => '081234567894',
             'status' => 'active',
-            'lead_capacity' => 20,
+            'lead_capacity' => 30,
         ]);
         $agent2->assignRole('sales_agent');
 
         $financeUser = User::create([
-            'name' => 'Rini Finansia',
-            'email' => 'rini@homi.id',
+            'name' => 'Finance & Accounting',
+            'email' => 'finance@alonica.id',
             'password' => bcrypt('password'),
             'phone' => '081234567895',
             'status' => 'active',
         ]);
         $financeUser->assignRole('finance');
 
-        // ── 4. DEMO PROJECT ─────────────────────────────
+        // ── 4. REAL PROJECT: ALONICA HILLS ─────────────
         $project = Project::create([
-            'name' => 'Citraland Grand View',
-            'code' => 'CGV',
-            'description' => 'Hunian mewah berkonsep smart home di kawasan premium Jakarta Selatan.',
-            'location' => 'Jakarta Selatan',
-            'address' => 'Jl. TB Simatupang No. 88, Cilandak',
+            'name' => 'Alonica Hills',
+            'code' => 'ALN',
+            'description' => 'Residential cluster di kawasan strategis Cilandak Timur, Jakarta Selatan. Dirancang dengan konsep Modern Living & Timeless Design berkualitas tinggi.',
+            'location' => 'Cilandak Timur, Jakarta Selatan',
+            'address' => 'Jl. Cilandak KKO / Jl. Margasatwa, Cilandak Timur, Pasar Minggu, Jakarta Selatan',
             'status' => 'active',
-            'amenities' => ['Kolam Renang', 'Gym Center', 'Jogging Track', 'Club House', 'Taman Bermain'],
+            'amenities' => [
+                'Exclusive Community',
+                'Natural Surroundings',
+                'Wide ROW Road 9 Meters',
+                'Secure Gated Access (One Gate)',
+                'Modern Living Timeless Design',
+                'Underground Cable Network',
+                'Jogging Track',
+                'Public Lighting & Closed Drainage',
+                'Smart Home System'
+            ],
         ]);
 
-        // Assign manager & agents to project
+        // Assign users to Alonica Hills project
         $manager->update(['project_id' => $project->id]);
+        $salesMgr->update(['project_id' => $project->id]);
         $agent1->update(['project_id' => $project->id]);
         $agent2->update(['project_id' => $project->id]);
 
-        // ── 5. DEMO UNIT TYPES ──────────────────────────
-        $type36 = UnitType::create([
+        // ── 5. REAL ALONICA HILLS UNIT TYPES ────────────
+        $typeStandard = UnitType::create([
             'project_id' => $project->id,
-            'name' => 'Type 36/72',
-            'code' => 'T36',
-            'building_area' => 36,
-            'land_area' => 72,
-            'bedrooms' => 2,
-            'bathrooms' => 1,
-            'floors' => 1,
-            'base_price' => 850000000,
-            'current_price' => 895000000,
-            'specs' => ['pondasi' => 'Batu Kali', 'dinding' => 'Bata Merah', 'atap' => 'Baja Ringan'],
+            'name' => 'Alonica Standard (LB 198 / LT 105)',
+            'code' => 'STD-105',
+            'building_area' => 198,
+            'land_area' => 105,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 3840921600,
+            'current_price' => 3990957600,
+            'specs' => [
+                'pondasi' => 'Bored Pile',
+                'dinding' => 'Bata Merah & Cat Weathershield',
+                'atap' => 'Struktur Rangka Baja Ringan & Kaca Tempered Laminated',
+                'pintu_jendela' => 'Kusen Alumunium',
+                'lantai' => 'Homogenous Tile / Ceramic Tile (Kamar Mandi)',
+                'instalasi_air' => 'Sumur Bor + Pompa Air + Tangki Air',
+                'septictank' => 'Biofill',
+                'listrik' => '4.400 Watt',
+                'fitur_tambahan' => 'Rooftop Cabin, 2 Carports, Smart Home'
+            ],
         ]);
 
-        $type45 = UnitType::create([
+        $typeHookFront = UnitType::create([
             'project_id' => $project->id,
-            'name' => 'Type 45/90',
-            'code' => 'T45',
-            'building_area' => 45,
-            'land_area' => 90,
-            'bedrooms' => 2,
-            'bathrooms' => 1,
-            'floors' => 1,
-            'base_price' => 1200000000,
-            'current_price' => 1275000000,
-            'specs' => ['pondasi' => 'Batu Kali', 'dinding' => 'Bata Merah', 'atap' => 'Genteng Beton'],
+            'name' => 'Alonica Hook Front (LB 198 / LT 105)',
+            'code' => 'HOOK-105',
+            'building_area' => 198,
+            'land_area' => 105,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 3990957600,
+            'current_price' => 4140993600,
+            'specs' => $typeStandard->specs,
         ]);
 
-        $type70 = UnitType::create([
+        $typeLt136 = UnitType::create([
             'project_id' => $project->id,
-            'name' => 'Type 70/120',
-            'code' => 'T70',
-            'building_area' => 70,
-            'land_area' => 120,
-            'bedrooms' => 3,
-            'bathrooms' => 2,
-            'floors' => 2,
-            'base_price' => 1800000000,
-            'current_price' => 1950000000,
-            'specs' => ['pondasi' => 'Tiang Pancang', 'dinding' => 'Bata Ringan', 'atap' => 'Genteng Keramik'],
+            'name' => 'Alonica Large Garden (LB 198 / LT 136)',
+            'code' => 'GRD-136',
+            'building_area' => 198,
+            'land_area' => 136,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 4691867600,
+            'current_price' => 4868253600,
+            'specs' => $typeStandard->specs,
         ]);
 
-        // ── 6. DEMO UNITS ───────────────────────────────
-        $unitStatuses = ['available', 'available', 'available', 'booked', 'sold'];
+        $typeLt141 = UnitType::create([
+            'project_id' => $project->id,
+            'name' => 'Alonica Large Garden (LB 198 / LT 141)',
+            'code' => 'GRD-141',
+            'building_area' => 198,
+            'land_area' => 141,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 4804917600,
+            'current_price' => 4985553600,
+            'specs' => $typeStandard->specs,
+        ]);
 
-        foreach (['A', 'B', 'C'] as $block) {
-            for ($i = 1; $i <= 8; $i++) {
-                $type = match (true) {
-                    $i <= 3 => $type36,
-                    $i <= 6 => $type45,
-                    default => $type70,
-                };
+        $typeLt147 = UnitType::create([
+            'project_id' => $project->id,
+            'name' => 'Alonica Large Corner (LB 198 / LT 147)',
+            'code' => 'CNR-147',
+            'building_area' => 198,
+            'land_area' => 147,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 4940577600,
+            'current_price' => 5126313600,
+            'specs' => $typeStandard->specs,
+        ]);
 
-                $status = $unitStatuses[array_rand($unitStatuses)];
+        $typeLt170 = UnitType::create([
+            'project_id' => $project->id,
+            'name' => 'Alonica Premium Corner (LB 198 / LT 170)',
+            'code' => 'CNR-170',
+            'building_area' => 198,
+            'land_area' => 170,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 5460607600,
+            'current_price' => 5665893600,
+            'specs' => $typeStandard->specs,
+        ]);
 
-                Unit::create([
-                    'project_id' => $project->id,
-                    'unit_type_id' => $type->id,
-                    'block' => $block,
-                    'number' => str_pad($i, 2, '0', STR_PAD_LEFT),
-                    'status' => $status,
-                    'facing_direction' => ['Utara', 'Selatan', 'Timur', 'Barat'][array_rand(['Utara', 'Selatan', 'Timur', 'Barat'])],
-                    'final_price' => $type->current_price + ($i === 1 || $i === 8 ? 50000000 : 0), // corner premium
-                    'premium_charge' => $i === 1 || $i === 8 ? 50000000 : 0,
-                ]);
-            }
-        }
+        $typeLt253 = UnitType::create([
+            'project_id' => $project->id,
+            'name' => 'Alonica Grand Villa Corner (LB 198 / LT 253)',
+            'code' => 'VIL-253',
+            'building_area' => 198,
+            'land_area' => 253,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 7337237600,
+            'current_price' => 7613073600,
+            'specs' => $typeStandard->specs,
+        ]);
 
-        // Update project counts
-        $project->recalculateUnits();
+        // ── 6. SEED ALL 37 REAL ALONICA HILLS UNITS ──────
+        // Price list matrix from PT. Serangkai Roden Development
+        $unitInventory = [
+            // BLOK A
+            ['block' => 'A', 'number' => '1', 'type' => $typeHookFront, 'status' => 'available', 'price' => 4140993600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '8', 'type' => $typeStandard,  'status' => 'hold',      'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '9', 'type' => $typeStandard,  'status' => 'hold',      'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '10', 'type' => $typeLt141,    'status' => 'hold',      'price' => 4985553600, 'facing' => 'Utara'],
 
-        // ── 7. DEMO LEADS ───────────────────────────────
-        $leadNames = [
-            ['Rina Maharani', '081300000001', 'new'],
-            ['Hendra Wijaya', '081300000002', 'contacted'],
-            ['Putri Ayu', '081300000003', 'visited'],
-            ['Bambang Suryadi', '081300000004', 'negotiation'],
-            ['Lina Permata', '081300000005', 'booking'],
-            ['Tono Setiawan', '081300000006', 'new'],
-            ['Maya Sari', '081300000007', 'contacted'],
-            ['Joko Purnomo', '081300000008', 'lost'],
+            // BLOK B
+            ['block' => 'B', 'number' => '1', 'type' => $typeHookFront, 'status' => 'sold',      'price' => 4140993600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '10', 'type' => $typeStandard, 'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '11', 'type' => $typeLt136,    'status' => 'available', 'price' => 4868253600, 'facing' => 'Selatan'],
+
+            // BLOK C
+            ['block' => 'C', 'number' => '1', 'type' => $typeHookFront, 'status' => 'available', 'price' => 4140993600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '10', 'type' => $typeLt253,    'status' => 'available', 'price' => 7613073600, 'facing' => 'Timur'],
+
+            // BLOK D
+            ['block' => 'D', 'number' => '1', 'type' => $typeLt147,    'status' => 'available', 'price' => 5126313600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '10', 'type' => $typeLt170,    'status' => 'available', 'price' => 5665893600, 'facing' => 'Barat'],
         ];
 
-        foreach ($leadNames as [$name, $phone, $status]) {
-            Lead::create([
+        foreach ($unitInventory as $uData) {
+            Unit::create([
                 'project_id' => $project->id,
-                'assigned_to' => [$agent1->id, $agent2->id][array_rand([$agent1->id, $agent2->id])],
-                'name' => $name,
-                'phone' => $phone,
-                'source' => ['facebook', 'instagram', 'walk_in', 'referral', 'website'][array_rand(['facebook', 'instagram', 'walk_in', 'referral', 'website'])],
-                'status' => $status,
-                'score' => match ($status) {
-                    'new' => 5,
-                    'contacted' => 20,
-                    'visited' => 45,
-                    'negotiation' => 65,
-                    'booking' => 85,
-                    'lost' => 0,
-                    default => 10,
-                },
-                'lost_reason' => $status === 'lost' ? 'Budget tidak mencukupi' : null,
+                'unit_type_id' => $uData['type']->id,
+                'block' => $uData['block'],
+                'number' => $uData['number'],
+                'status' => $uData['status'],
+                'facing_direction' => $uData['facing'],
+                'final_price' => $uData['price'],
+                'premium_charge' => 0,
             ]);
         }
+
+        // Recalculate project totals
+        $project->recalculateUnits();
     }
 }
