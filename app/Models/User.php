@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'phone', 'avatar', 'project_id', 'broker_company_id', 'status', 'is_accepting_leads', 'lead_capacity', 'settings', 'last_login_at', 'commission_rate', 'bank_name', 'bank_account_number', 'bank_account_name'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'avatar', 'project_id', 'broker_company_id', 'agent_type', 'status', 'is_accepting_leads', 'lead_capacity', 'settings', 'last_login_at', 'commission_rate', 'custom_bonus', 'bank_name', 'bank_account_number', 'bank_account_name'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -59,5 +59,25 @@ class User extends Authenticatable
     public function hasCapacity(): bool
     {
         return $this->active_leads_count < $this->lead_capacity;
+    }
+
+    public function getEffectiveCommissionRateAttribute(): float
+    {
+        if ($this->commission_rate !== null && (float)$this->commission_rate > 0) {
+            return (float)$this->commission_rate;
+        }
+
+        if ($this->brokerCompany && $this->brokerCompany->commission_rate > 0) {
+            return (float)$this->brokerCompany->commission_rate;
+        }
+
+        $defaultRates = Setting::get('default_commission_rates', [
+            'inhouse' => 2.5,
+            'agency' => 3.0,
+            'independent' => 3.0,
+        ]);
+
+        $type = $this->agent_type ?? 'inhouse';
+        return (float)($defaultRates[$type] ?? 2.5);
     }
 }

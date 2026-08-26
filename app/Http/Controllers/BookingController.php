@@ -62,8 +62,10 @@ class BookingController extends Controller
             $unit = Unit::findOrFail($validated['unit_id']);
             $agent = \App\Models\User::findOrFail($validated['booked_by']);
             $agent->load('brokerCompany');
-            $rate = $agent->brokerCompany ? $agent->brokerCompany->commission_rate : ($agent->commission_rate ?? 1);
-            $commissionAmount = $validated['final_price'] * ($rate / 100);
+            $rate = $agent->effective_commission_rate;
+            $baseCommission = $validated['final_price'] * ($rate / 100);
+            $promoBonus = (float)($agent->custom_bonus ?? 0);
+            $commissionAmount = $baseCommission + $promoBonus;
             
             // 1. Create Booking
             $booking = Booking::create([
@@ -115,22 +117,31 @@ class BookingController extends Controller
                 'approved_by' => auth()->id(),
             ]);
 
-            // Generate Commission (null-safe rate, default 1%)
+            // Generate Commission using hierarchy (Agent Rate > Office Rate > Default) + Promo Bonus
             $agent = $booking->bookedBy;
             $agent->load('brokerCompany');
-            $rate = $agent->brokerCompany ? $agent->brokerCompany->commission_rate : ($agent->commission_rate ?? 1);
-            $commissionAmount = $booking->base_price * ($rate / 100);
+            $rate = $agent->effective_commission_rate;
+            $baseCommission = $booking->final_price * ($rate / 100);
+            $promoBonus = (float)($agent->custom_bonus ?? 0);
+            $totalCommission = $baseCommission + $promoBonus;
             
-            \App\Models\Commission::create([
-                'user_id' => $agent->id,
-                'booking_id' => $booking->id,
-                'amount' => $commissionAmount,
-                'status' => 'pending',
-                'notes' => "Komisi {$rate}% dari Booking #{$booking->spk_number}",
-            ]);
+            \App\Models\Commission::firstOrCreate(
+                ['booking_id' => $booking->id],
+                [
+                    'user_id' => $agent->id,
+                    'broker_company_id' => $agent->broker_company_id,
+                    'amount' => $totalCommission,
+                    'base_commission' => $baseCommission,
+                    'promo_bonus' => $promoBonus,
+                    'rate_used' => $rate,
+                    'payout_recipient' => $agent->broker_company_id ? 'agency' : 'agent',
+                    'status' => 'pending',
+                    'notes' => "Komisi {$rate}% (Rp " . number_format($baseCommission, 0, ',', '.') . ")" . ($promoBonus > 0 ? " + Promo Bonus Rp " . number_format($promoBonus, 0, ',', '.') : "") . " untuk SPK #{$booking->spk_number}",
+                ]
+            );
 
             // Update commission on booking record
-            $booking->update(['commission_amount' => $commissionAmount]);
+            $booking->update(['commission_amount' => $totalCommission]);
 
             $booking->unit->update(['status' => 'booked']);
             $booking->lead->update(['status' => 'won']);

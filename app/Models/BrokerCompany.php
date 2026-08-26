@@ -6,7 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class BrokerCompany extends Model
 {
-    protected $fillable = ['name', 'contact_person', 'phone', 'email', 'address', 'commission_rate', 'status'];
+    protected $fillable = [
+        'name', 'code', 'contact_person', 'phone', 'email', 'address',
+        'commission_rate', 'status', 'bank_name', 'bank_account_number',
+        'bank_account_name', 'notes'
+    ];
 
     public function leads() { return $this->hasMany(Lead::class); }
+    public function agents() { return $this->hasMany(User::class, 'broker_company_id'); }
+    public function commissions() { return $this->hasMany(Commission::class, 'broker_company_id'); }
 }

@@ -35,8 +35,10 @@ class UserController extends Controller
             'role' => 'required|exists:roles,name',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
+            'agent_type' => 'nullable|in:inhouse,agency_agent,independent',
             'phone' => 'nullable|string|max:20',
             'commission_rate' => 'nullable|numeric|min:0|max:100',
+            'custom_bonus' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string',
             'bank_account_number' => 'nullable|string',
             'bank_account_name' => 'nullable|string',
@@ -49,7 +51,9 @@ class UserController extends Controller
             'phone' => $request->phone,
             'project_id' => $request->project_id,
             'broker_company_id' => $request->broker_company_id,
-            'commission_rate' => $request->commission_rate ?? 1.00,
+            'agent_type' => $request->agent_type ?? ($request->broker_company_id ? 'agency_agent' : 'inhouse'),
+            'commission_rate' => $request->commission_rate,
+            'custom_bonus' => $request->custom_bonus ?? 0,
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
@@ -68,18 +72,20 @@ class UserController extends Controller
             'role' => 'required|exists:roles,name',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
+            'agent_type' => 'nullable|in:inhouse,agency_agent,independent',
             'phone' => 'nullable|string|max:20',
             'status' => 'required|in:active,inactive',
             'password' => ['nullable', Rules\Password::defaults()],
             'commission_rate' => 'nullable|numeric|min:0|max:100',
+            'custom_bonus' => 'nullable|numeric|min:0',
             'bank_name' => 'nullable|string',
             'bank_account_number' => 'nullable|string',
             'bank_account_name' => 'nullable|string',
         ]);
 
         $data = $request->only([
-            'name', 'phone', 'project_id', 'broker_company_id', 'status', 
-            'commission_rate', 'bank_name', 'bank_account_number', 'bank_account_name'
+            'name', 'phone', 'project_id', 'broker_company_id', 'agent_type', 'status', 
+            'commission_rate', 'custom_bonus', 'bank_name', 'bank_account_number', 'bank_account_name'
         ]);
 
         if ($request->filled('password')) {

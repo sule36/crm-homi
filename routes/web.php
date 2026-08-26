@@ -137,7 +137,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Commissions
     Route::get('/commissions', [\App\Http\Controllers\CommissionController::class, 'index'])->name('commissions.index');
+    Route::post('/commissions/parameters', [\App\Http\Controllers\CommissionController::class, 'updateParameters'])->name('commissions.updateParameters');
     Route::post('/commissions/{commission}/pay', [\App\Http\Controllers\CommissionController::class, 'pay'])->name('commissions.pay');
+
+    // Agents & Agency Office Management
+    Route::get('/agents', [\App\Http\Controllers\BrokerCompanyController::class, 'index'])->name('agents.index');
+    Route::post('/settings/brokers', [\App\Http\Controllers\BrokerCompanyController::class, 'store'])->name('settings.brokers.store');
+    Route::put('/settings/brokers/{broker}', [\App\Http\Controllers\BrokerCompanyController::class, 'update'])->name('settings.brokers.update');
+    Route::delete('/settings/brokers/{broker}', [\App\Http\Controllers\BrokerCompanyController::class, 'destroy'])->name('settings.brokers.destroy');
 
     // KPI / Performance
     Route::get('/kpi', [\App\Http\Controllers\KPIController::class, 'index'])->name('kpi.index');
@@ -155,11 +162,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/settings/partner-banks', [\App\Http\Controllers\PartnerBankController::class, 'store'])->name('settings.partnerBanks.store');
     Route::put('/settings/partner-banks/{partnerBank}', [\App\Http\Controllers\PartnerBankController::class, 'update'])->name('settings.partnerBanks.update');
     Route::delete('/settings/partner-banks/{partnerBank}', [\App\Http\Controllers\PartnerBankController::class, 'destroy'])->name('settings.partnerBanks.destroy');
-    
-    // Broker Companies
-    Route::post('/settings/brokers', [\App\Http\Controllers\BrokerCompanyController::class, 'store'])->name('settings.brokers.store');
-    Route::put('/settings/brokers/{broker}', [\App\Http\Controllers\BrokerCompanyController::class, 'update'])->name('settings.brokers.update');
-    Route::delete('/settings/brokers/{broker}', [\App\Http\Controllers\BrokerCompanyController::class, 'destroy'])->name('settings.brokers.destroy');
 
     // Bank Accounts
     Route::post('/settings/bank-accounts', [\App\Http\Controllers\BankAccountController::class, 'store'])->name('settings.bankAccounts.store');

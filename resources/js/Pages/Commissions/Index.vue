@@ -6,8 +6,23 @@ import { ref, computed } from 'vue';
 const props = defineProps({
     commissions: Object,
     stats: Object,
+    brokerCompanies: Array,
+    defaultRates: Object,
     filters: Object,
 });
+
+const showParamModal = ref(false);
+const paramForm = useForm({
+    inhouse_rate: props.defaultRates?.inhouse || 2.5,
+    agency_rate: props.defaultRates?.agency || 3.0,
+    independent_rate: props.defaultRates?.independent || 3.0,
+});
+
+function submitParameters() {
+    paramForm.post(route('commissions.updateParameters'), {
+        onSuccess: () => { showParamModal.value = false; }
+    });
+}
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
@@ -96,9 +111,41 @@ const simNetCommission = computed(() => {
     <CrmLayout>
         <template #breadcrumb>Komisi Sales</template>
 
-        <div class="mb-8">
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Elite Commission Dashboard</h1>
-            <p class="text-sm text-slate-500 mt-1">Kelola dan pantau pembayaran insentif tim sales Anda.</p>
+        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Elite Commission & Fee Dashboard</h1>
+                <p class="text-sm text-slate-500 mt-1">Kelola dan pantau pembayaran komisi Inhouse Agent, Kantor Agency, & Freelance Independen.</p>
+            </div>
+            <button @click="showParamModal = true" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2">
+                <span>⚙️</span>
+                <span>Set Parameter Komisi Bawaan</span>
+            </button>
+        </div>
+
+        <!-- MODAL PARAMETER SETTINGS -->
+        <div v-if="showParamModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 space-y-4 text-slate-900">
+                <h3 class="text-lg font-black tracking-tight">Pengaturan Parameter Komisi Bawaan</h3>
+                <p class="text-xs text-slate-500">Tentukan persentase fee komisi standar sistem saat agen tidak memiliki override khusus.</p>
+                <form @submit.prevent="submitParameters" class="space-y-4 text-xs font-bold">
+                    <div>
+                        <label class="block uppercase tracking-wider text-slate-400 mb-1">In-House Agent Default Fee (%)</label>
+                        <input v-model.number="paramForm.inhouse_rate" type="number" step="0.1" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+                    </div>
+                    <div>
+                        <label class="block uppercase tracking-wider text-slate-400 mb-1">Kantor Agency (Broker) Default Fee (%)</label>
+                        <input v-model.number="paramForm.agency_rate" type="number" step="0.1" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+                    </div>
+                    <div>
+                        <label class="block uppercase tracking-wider text-slate-400 mb-1">Freelance / Independen Default Fee (%)</label>
+                        <input v-model.number="paramForm.independent_rate" type="number" step="0.1" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="showParamModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl">Batal</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-xl">Simpan Parameter</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <!-- STATS -->
