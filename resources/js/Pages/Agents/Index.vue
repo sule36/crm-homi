@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -12,6 +12,9 @@ const props = defineProps({
 });
 
 const activeTab = ref('agencies'); // 'agencies' | 'agents'
+const agentFilterType = ref('all'); // 'all' | 'agency_agent' | 'independent' | 'inhouse'
+const searchAgentQuery = ref('');
+const agencySearchQuery = ref('');
 
 // Modal Detail Kantor Agency & Agen
 const showDetailModal = ref(false);
@@ -87,13 +90,16 @@ function deleteAgency(broker) {
     }
 }
 
-// Modal Agent Custom Fee & Bonus
+// Modal Agent (Create & Edit)
 const showAgentModal = ref(false);
 const editingAgent = ref(null);
 
 const agentForm = useForm({
     name: '',
-    agent_type: 'inhouse',
+    phone: '',
+    email: '',
+    role: 'sales_agent',
+    agent_type: 'agency_agent',
     broker_company_id: null,
     commission_rate: '',
     custom_bonus: 0,
@@ -102,24 +108,67 @@ const agentForm = useForm({
     bank_account_name: '',
 });
 
-function openAgentModal(agent) {
+function openAgentModal(agent = null, defaultBrokerCompanyId = null) {
     editingAgent.value = agent;
-    agentForm.name = agent.name;
-    agentForm.agent_type = agent.agent_type || (agent.broker_company_id ? 'agency_agent' : 'inhouse');
-    agentForm.broker_company_id = agent.broker_company_id || null;
-    agentForm.commission_rate = agent.commission_rate || '';
-    agentForm.custom_bonus = agent.custom_bonus || 0;
-    agentForm.bank_name = agent.bank_name || '';
-    agentForm.bank_account_number = agent.bank_account_number || '';
-    agentForm.bank_account_name = agent.bank_account_name || '';
+    agencySearchQuery.value = '';
+    
+    if (agent) {
+        agentForm.name = agent.name;
+        agentForm.phone = agent.phone || '';
+        agentForm.email = agent.email || '';
+        agentForm.agent_type = agent.agent_type || (agent.broker_company_id ? 'agency_agent' : 'inhouse');
+        agentForm.broker_company_id = agent.broker_company_id || null;
+        agentForm.commission_rate = agent.commission_rate || '';
+        agentForm.custom_bonus = agent.custom_bonus || 0;
+        agentForm.bank_name = agent.bank_name || '';
+        agentForm.bank_account_number = agent.bank_account_number || '';
+        agentForm.bank_account_name = agent.bank_account_name || '';
+    } else {
+        agentForm.reset();
+        agentForm.agent_type = defaultBrokerCompanyId ? 'agency_agent' : 'agency_agent';
+        agentForm.broker_company_id = defaultBrokerCompanyId || (props.brokerList?.[0]?.id || null);
+    }
     showAgentModal.value = true;
 }
 
 function submitAgent() {
-    agentForm.put(route('users.update', editingAgent.value.id), {
-        onSuccess: () => { showAgentModal.value = false; }
-    });
+    if (editingAgent.value) {
+        agentForm.put(route('users.update', editingAgent.value.id), {
+            onSuccess: () => { showAgentModal.value = false; }
+        });
+    } else {
+        agentForm.post(route('users.store'), {
+            onSuccess: () => { showAgentModal.value = false; }
+        });
+    }
 }
+
+// Filtered LOV for Broker Companies
+const filteredBrokerList = computed(() => {
+    if (!agencySearchQuery.value) return props.brokerList || [];
+    const q = agencySearchQuery.value.toLowerCase();
+    return (props.brokerList || []).filter(b => 
+        b.name.toLowerCase().includes(q) || (b.code && b.code.toLowerCase().includes(q))
+    );
+});
+
+// Filtered Agents in Tab 2
+const filteredAgentsData = computed(() => {
+    let list = props.agents?.data || [];
+    if (agentFilterType.value !== 'all') {
+        list = list.filter(a => a.agent_type === agentFilterType.value);
+    }
+    if (searchAgentQuery.value) {
+        const q = searchAgentQuery.value.toLowerCase();
+        list = list.filter(a => 
+            a.name.toLowerCase().includes(q) || 
+            (a.email && a.email.toLowerCase().includes(q)) || 
+            (a.phone && a.phone.includes(q)) ||
+            (a.broker_company && a.broker_company.name.toLowerCase().includes(q))
+        );
+    }
+    return list;
+});
 </script>
 
 <template>
@@ -135,16 +184,23 @@ function submitAgent() {
                         <span>Manajemen Agen & Kantor Agency</span>
                     </h1>
                     <p class="text-sm text-slate-400 mt-1">
-                        Kelola Kantor Broker Agency, Agen Inhouse, Agency Agent, dan Freelance Independen beserta parameter fee & insentif promo.
+                        Kelola Kantor Broker Agency, Sub-Agent bernaung, Agent Freelance Independen, dan Tim Sales In-House.
                     </p>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                     <button 
                         @click="openAgencyModal()" 
-                        class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-xl text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                        class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
                     >
-                        <span>➕</span>
-                        <span>Daftarkan Kantor Agency</span>
+                        <span>🏢</span>
+                        <span>Daftarkan Kantor Agency Baru</span>
+                    </button>
+                    <button 
+                        @click="openAgentModal()" 
+                        class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                    >
+                        <span>👤</span>
+                        <span>Daftarkan Agen / Sub-Agent Baru</span>
                     </button>
                 </div>
             </div>
@@ -189,7 +245,7 @@ function submitAgent() {
                     :class="activeTab === 'agents' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-200'"
                     class="py-3 px-1 border-b-2 font-medium text-sm transition-all flex items-center gap-2"
                 >
-                    <span>👥 Direktori Agen (Inhouse & Eksternal)</span>
+                    <span>👥 Direktori Agen (Inhouse, Agency, Independen)</span>
                     <span class="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-slate-300">{{ agents.total }}</span>
                 </button>
             </div>
@@ -202,7 +258,7 @@ function submitAgent() {
                             <tr>
                                 <th class="p-4">Kode & Nama Kantor Agency</th>
                                 <th class="p-4">PIC / Kontak</th>
-                                <th class="p-4">Tim Agen & Sales</th>
+                                <th class="p-4">Tim Agen & Sub-Agent</th>
                                 <th class="p-4">Akumulasi Komisi Kantor</th>
                                 <th class="p-4">Rate Fee (%)</th>
                                 <th class="p-4">Rekening Pencairan</th>
@@ -223,10 +279,14 @@ function submitAgent() {
                                     <div class="text-xs text-slate-500">{{ b.email || '-' }}</div>
                                 </td>
                                 <td class="p-4">
-                                    <button @click="openDetailModal(b)" class="px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-semibold hover:bg-blue-500/20 transition-all flex items-center gap-1.5">
-                                        <span>👥 {{ b.agents_count }} Agen</span>
-                                        <span class="text-[10px] text-slate-400">({{ b.commissions_count }} Closing)</span>
-                                    </button>
+                                    <div class="flex items-center gap-2">
+                                        <button @click="openDetailModal(b)" class="px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-semibold hover:bg-blue-500/20 transition-all flex items-center gap-1.5">
+                                            <span>👥 {{ b.agents_count }} Sub-Agent</span>
+                                        </button>
+                                        <button @click="openAgentModal(null, b.id)" class="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold hover:bg-emerald-500/20" title="+ Tambah Sub-Agent Baru ke Kantor Ini">
+                                            ➕ Add
+                                        </button>
+                                    </div>
                                 </td>
                                 <td class="p-4">
                                     <div class="font-bold text-emerald-400 text-sm">
@@ -259,41 +319,101 @@ function submitAgent() {
                                 </td>
                             </tr>
                             <tr v-if="brokers.data.length === 0">
-                                <td colspan="8" class="p-8 text-center text-slate-500">Belum ada kantor agency yang terdaftar. Klik "Daftarkan Kantor Agency" di atas.</td>
+                                <td colspan="8" class="p-8 text-center text-slate-500">Belum ada kantor agency yang terdaftar. Klik "Daftarkan Kantor Agency Baru" di atas.</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- TAB 2: DIREKTORI AGEN -->
+            <!-- TAB 2: DIREKTORI AGEN (3 KATEGORI) -->
             <div v-if="activeTab === 'agents'" class="space-y-4">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/40 p-4 rounded-2xl border border-slate-800">
+                    <div class="flex flex-wrap gap-2">
+                        <button 
+                            @click="agentFilterType = 'all'"
+                            :class="agentFilterType === 'all' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+                            class="px-3.5 py-1.5 rounded-xl text-xs transition-all"
+                        >
+                            Semua Agen ({{ agents.total }})
+                        </button>
+                        <button 
+                            @click="agentFilterType = 'agency_agent'"
+                            :class="agentFilterType === 'agency_agent' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+                            class="px-3.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5"
+                        >
+                            <span>🏢 Sub-Agent Kantor Agency</span>
+                        </button>
+                        <button 
+                            @click="agentFilterType = 'independent'"
+                            :class="agentFilterType === 'independent' ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+                            class="px-3.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5"
+                        >
+                            <span>💼 Freelance Independen</span>
+                        </button>
+                        <button 
+                            @click="agentFilterType = 'inhouse'"
+                            :class="agentFilterType === 'inhouse' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+                            class="px-3.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5"
+                        >
+                            <span>🏠 Agent In-House</span>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <input 
+                            v-model="searchAgentQuery"
+                            type="text" 
+                            placeholder="Cari agen / kantor..."
+                            class="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 w-full sm:w-64"
+                        />
+                        <button 
+                            @click="openAgentModal()" 
+                            class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shrink-0"
+                        >
+                            ➕ Tambah Agen
+                        </button>
+                    </div>
+                </div>
+
                 <div class="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
                     <table class="w-full text-left text-sm text-slate-300">
                         <thead class="bg-slate-800/80 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-700">
                             <tr>
                                 <th class="p-4">Nama Agen</th>
                                 <th class="p-4">Tipe Agen</th>
-                                <th class="p-4">Kantor Agency Naungan</th>
+                                <th class="p-4">Kantor Agency Naungan (LOV)</th>
                                 <th class="p-4">Rate Komisi Efektif</th>
                                 <th class="p-4">Promo Bonus (Rp)</th>
                                 <th class="p-4 text-right">Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-800/60">
-                            <tr v-for="a in agents.data" :key="a.id" class="hover:bg-slate-800/40 transition-colors">
+                            <tr v-for="a in filteredAgentsData" :key="a.id" class="hover:bg-slate-800/40 transition-colors">
                                 <td class="p-4">
                                     <div class="font-bold text-white">{{ a.name }}</div>
                                     <div class="text-xs text-slate-400">{{ a.email }} • {{ a.phone || '-' }}</div>
                                 </td>
                                 <td class="p-4">
-                                    <span v-if="a.agent_type === 'inhouse'" class="px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-xs font-semibold">🏠 In-House Agent</span>
-                                    <span v-else-if="a.agent_type === 'agency_agent'" class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-xs font-semibold">🏢 Agency Agent</span>
-                                    <span v-else class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-semibold">💼 Freelance Independen</span>
+                                    <span v-if="a.agent_type === 'agency_agent'" class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-xs font-semibold">
+                                        🏢 Sub-Agent Agency
+                                    </span>
+                                    <span v-else-if="a.agent_type === 'independent'" class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-semibold">
+                                        💼 Freelance Independen
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-xs font-semibold">
+                                        🏠 In-House Agent
+                                    </span>
                                 </td>
                                 <td class="p-4">
-                                    <div v-if="a.broker_company" class="font-medium text-slate-200">{{ a.broker_company.name }}</div>
-                                    <div v-else class="text-xs text-slate-500 italic">Tanpa Kantor (Direct / Inhouse)</div>
+                                    <div v-if="a.broker_company" class="font-bold text-slate-200 flex items-center gap-1.5">
+                                        <span>🏢</span>
+                                        <span>{{ a.broker_company.name }}</span>
+                                        <span class="text-[10px] text-amber-400 font-mono">({{ a.broker_company.code || 'NO-CODE' }})</span>
+                                    </div>
+                                    <div v-else class="text-xs text-slate-500 italic">
+                                        {{ a.agent_type === 'independent' ? 'Independen (Tanpa Kantor)' : 'Inhouse Direct' }}
+                                    </div>
                                 </td>
                                 <td class="p-4">
                                     <span class="text-amber-400 font-bold">
@@ -305,8 +425,13 @@ function submitAgent() {
                                     <span v-else class="text-xs text-slate-500">-</span>
                                 </td>
                                 <td class="p-4 text-right">
-                                    <button @click="openAgentModal(a)" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-lg text-xs font-semibold">Set Fee & Promo</button>
+                                    <button @click="openAgentModal(a)" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-lg text-xs font-semibold">
+                                        Edit & Parameter
+                                    </button>
                                 </td>
+                            </tr>
+                            <tr v-if="filteredAgentsData.length === 0">
+                                <td colspan="6" class="p-8 text-center text-slate-500">Tidak ada agen yang sesuai kriteria pencarian.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -314,7 +439,7 @@ function submitAgent() {
             </div>
         </div>
 
-        <!-- MODAL AGENCY -->
+        <!-- MODAL KANTOR AGENCY (CREATE & EDIT) -->
         <div v-if="showAgencyModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
                 <h3 class="text-lg font-bold text-white">{{ editingAgency ? 'Edit Kantor Agency' : 'Daftarkan Kantor Agency Baru' }}</h3>
@@ -362,45 +487,101 @@ function submitAgent() {
                     </div>
                     <div class="flex justify-end gap-3 pt-3">
                         <button type="button" @click="showAgencyModal = false" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl">Batal</button>
-                        <button type="submit" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl">Simpan</button>
+                        <button type="submit" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl">Simpan Kantor</button>
                     </div>
                 </form>
             </div>
         </div>
 
-        <!-- MODAL AGENT SET FEE & PROMO -->
+        <!-- MODAL DAFTARKAN / EDIT AGEN (LOV SEARCH KANTOR AGENCY) -->
         <div v-if="showAgentModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
-                <h3 class="text-lg font-bold text-white">Atur Parameter Fee & Promo: {{ agentForm.name }}</h3>
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <span>👤</span>
+                        <span>{{ editingAgent ? 'Edit / Set Parameter Agen' : 'Daftarkan Agen / Sub-Agent Baru' }}</span>
+                    </h3>
+                    <button @click="showAgentModal = false" class="text-slate-400 hover:text-white font-bold">&times;</button>
+                </div>
+
                 <form @submit.prevent="submitAgent" class="space-y-4 text-sm">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Nama Lengkap Agen *</label>
+                            <input v-model="agentForm.name" required type="text" placeholder="misal: Ahmad Dahlan" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">No. HP / WhatsApp</label>
+                            <input v-model="agentForm.phone" type="text" placeholder="0812..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white" />
+                        </div>
+                    </div>
+
+                    <div v-if="!editingAgent">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Email Agen (Opsional)</label>
+                        <input v-model="agentForm.email" type="email" placeholder="Bisa dikosongkan (auto-generate)" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white" />
+                    </div>
+
                     <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1">Tipe Agen</label>
-                        <select v-model="agentForm.agent_type" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white">
-                            <option value="inhouse">🏠 In-House Agent (Internal)</option>
-                            <option value="agency_agent">🏢 Agency Agent (Bernaung di Kantor Agency)</option>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Tipe Agen *</label>
+                        <select v-model="agentForm.agent_type" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold">
+                            <option value="agency_agent">🏢 Agency Sub-Agent (Bernaung di Kantor Agency)</option>
                             <option value="independent">💼 Freelance / Agen Independen</option>
+                            <option value="inhouse">🏠 In-House Agent (Internal Perusahaan)</option>
                         </select>
                     </div>
-                    <div v-if="agentForm.agent_type === 'agency_agent'">
-                        <label class="block text-xs font-semibold text-slate-300 mb-1">Pilih Kantor Agency</label>
-                        <select v-model="agentForm.broker_company_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white">
-                            <option :value="null">-- Pilih Kantor Agency --</option>
-                            <option v-for="b in brokerList" :key="b.id" :value="b.id">{{ b.name }} ({{ b.commission_rate }}%)</option>
+
+                    <!-- LOV SEARCH KANTOR AGENCY (Hanya Tampil Jika Agency Sub-Agent) -->
+                    <div v-if="agentForm.agent_type === 'agency_agent'" class="p-3 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-amber-400">Pilih Kantor Agency Naungan (LOV) *</label>
+                            <span class="text-[10px] text-slate-400">Sub-agent akan masuk ke akumulasi kantor ini</span>
+                        </div>
+
+                        <!-- Live Search LOV Input -->
+                        <div class="relative">
+                            <input 
+                                v-model="agencySearchQuery"
+                                type="text"
+                                placeholder="🔍 Ketik untuk cari nama/kode kantor agency..."
+                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-500 mb-1.5"
+                            />
+                        </div>
+
+                        <!-- Select LOV Dropdown -->
+                        <select v-model="agentForm.broker_company_id" required class="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-white font-bold text-xs cursor-pointer">
+                            <option :value="null" disabled>-- Pilih Kantor Agency --</option>
+                            <option v-for="b in filteredBrokerList" :key="b.id" :value="b.id">
+                                🏢 [{{ b.code || 'NO-CODE' }}] {{ b.name }} (Rate Fee: {{ b.commission_rate || 3.0 }}%)
+                            </option>
                         </select>
+                        <p v-if="filteredBrokerList.length === 0" class="text-[10px] text-rose-400 italic">Kantor agency tidak ditemukan. Daftarkan kantor agency baru terlebih dahulu.</p>
                     </div>
+
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">Custom Fee Rate (%)</label>
-                            <input v-model="agentForm.commission_rate" type="number" step="0.1" placeholder="Kosongkan jika ikuti rate kantor/default" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold text-amber-400" />
+                            <input v-model="agentForm.commission_rate" type="number" step="0.1" placeholder="Ikuti rate kantor/default" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold text-amber-400" />
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">Promo Cash Bonus (Rp)</label>
                             <input v-model="agentForm.custom_bonus" type="number" step="100000" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold text-emerald-400" />
                         </div>
                     </div>
+
+                    <div class="border-t border-slate-800 pt-3">
+                        <label class="block text-xs font-semibold text-blue-400 mb-2">Rekening Bank Agen (Pencairan Komisi)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <input v-model="agentForm.bank_name" type="text" placeholder="Bank (BCA/BSI)" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs" />
+                            <input v-model="agentForm.bank_account_number" type="text" placeholder="No. Rekening" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs" />
+                            <input v-model="agentForm.bank_account_name" type="text" placeholder="Atas Nama" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs" />
+                        </div>
+                    </div>
+
                     <div class="flex justify-end gap-3 pt-3">
                         <button type="button" @click="showAgentModal = false" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl">Batal</button>
-                        <button type="submit" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl">Simpan Parameter</button>
+                        <button type="submit" :disabled="agentForm.processing" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20">
+                            {{ agentForm.processing ? 'Menyimpan...' : (editingAgent ? 'Simpan Parameter' : 'Daftarkan Agen') }}
+                        </button>
                     </div>
                 </form>
             </div>
@@ -447,17 +628,22 @@ function submitAgent() {
 
                 <!-- Daftar Agen Terdaftar Under This Agency -->
                 <div>
-                    <h4 class="text-sm font-bold text-white mb-3 flex items-center justify-between">
-                        <span>👥 Daftar Agen Terdaftar di Kantor Ini ({{ selectedBroker.agents?.length || 0 }} Agen)</span>
-                    </h4>
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>👥 Daftar Sub-Agent di Kantor Ini ({{ selectedBroker.agents?.length || 0 }} Agen)</span>
+                        </h4>
+                        <button @click="openAgentModal(null, selectedBroker.id); showDetailModal = false" class="px-3 py-1.5 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 flex items-center gap-1">
+                            <span>➕</span> <span>Tambah Sub-Agent ke Kantor Ini</span>
+                        </button>
+                    </div>
                     <div class="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden">
                         <table class="w-full text-left text-xs text-slate-300">
                             <thead class="bg-slate-800/80 uppercase tracking-wider text-slate-400 border-b border-slate-800">
                                 <tr>
-                                    <th class="p-3">Nama Agen</th>
+                                    <th class="p-3">Nama Sub-Agent</th>
                                     <th class="p-3">Kontak & Email</th>
-                                    <th class="p-3">Rate Agen</th>
-                                    <th class="p-3 text-right">Akumulasi Komisi Agen</th>
+                                    <th class="p-3">Rate Komisi Agent</th>
+                                    <th class="p-3 text-right">Akumulasi Komisi Agent</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800/60">
@@ -468,7 +654,7 @@ function submitAgent() {
                                     <td class="p-3 text-right font-bold text-emerald-400">{{ formatCurrency(agent.commissions_sum_amount) }}</td>
                                 </tr>
                                 <tr v-if="!selectedBroker.agents || selectedBroker.agents.length === 0">
-                                    <td colspan="4" class="p-6 text-center text-slate-500">Belum ada agen yang terdaftar di kantor agency ini.</td>
+                                    <td colspan="4" class="p-6 text-center text-slate-500">Belum ada agen yang terdaftar di kantor agency ini. Klik "Tambah Sub-Agent ke Kantor Ini" di atas.</td>
                                 </tr>
                             </tbody>
                         </table>

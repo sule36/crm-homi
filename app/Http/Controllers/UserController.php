@@ -30,9 +30,9 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
-            'password' => ['required', Rules\Password::defaults()],
-            'role' => 'required|exists:roles,name',
+            'email' => 'nullable|string|lowercase|email|max:255|unique:'.User::class,
+            'password' => ['nullable'],
+            'role' => 'nullable|exists:roles,name',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'agent_type' => 'nullable|in:inhouse,agency_agent,independent',
@@ -44,14 +44,19 @@ class UserController extends Controller
             'bank_account_name' => 'nullable|string',
         ]);
 
+        $email = $request->email ?: 'agent_' . time() . '_' . rand(100, 999) . '@homi.id';
+        $password = $request->filled('password') ? Hash::make($request->password) : Hash::make('password123');
+        $role = $request->role ?: 'sales_agent';
+        $agentType = $request->agent_type ?: ($request->broker_company_id ? 'agency_agent' : 'inhouse');
+
         $user = User::create([
             'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'email' => $email,
+            'password' => $password,
             'phone' => $request->phone,
             'project_id' => $request->project_id,
             'broker_company_id' => $request->broker_company_id,
-            'agent_type' => $request->agent_type ?? ($request->broker_company_id ? 'agency_agent' : 'inhouse'),
+            'agent_type' => $agentType,
             'commission_rate' => $request->commission_rate,
             'custom_bonus' => $request->custom_bonus ?? 0,
             'bank_name' => $request->bank_name,
@@ -60,9 +65,9 @@ class UserController extends Controller
             'status' => 'active',
         ]);
 
-        $user->assignRole($request->role);
+        $user->assignRole($role);
 
-        return back()->with('success', 'User berhasil ditambahkan.');
+        return back()->with('success', 'Agen / Staff baru berhasil mendaftar.');
     }
 
     public function update(Request $request, User $user)
