@@ -62,6 +62,29 @@ function updateLead() {
     editForm.put(`/leads/${props.lead.id}`, { preserveScroll: true });
 }
 
+const agentSearchQuery = ref('');
+
+const matchingLeadBrokerAgents = computed(() => {
+    if (!props.lead.broker_company_id) return [];
+    return (props.agents || []).filter(a => a.broker_company_id === props.lead.broker_company_id);
+});
+
+const filteredAgentsList = computed(() => {
+    let list = props.agents || [];
+    if (agentSearchQuery.value) {
+        const q = agentSearchQuery.value.toLowerCase().trim();
+        list = list.filter(a => 
+            a.name.toLowerCase().includes(q) || 
+            (a.broker_company && a.broker_company.name.toLowerCase().includes(q))
+        );
+    }
+    return list;
+});
+
+const currentAssignedAgent = computed(() => {
+    return (props.agents || []).find(a => a.id === editForm.assigned_to) || props.lead.assigned_to_user;
+});
+
 const activityIcons = {
     call: '📞', whatsapp: '💬', email: '📧', visit: '🏠', meeting: '🤝', note: '📝', status_change: '🔄',
 };
@@ -188,13 +211,84 @@ function scoreColor(s) {
                     </div>
                 </div>
 
-                <!-- Assign Agent -->
-                <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-                    <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider mb-3">Agen</h2>
-                    <select v-model="editForm.assigned_to" @change="updateLead()" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-                        <option value="">Belum di-assign</option>
-                        <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+                <!-- Assign Agent Card -->
+                <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>👤</span>
+                            <span>Sales PIC / Agen</span>
+                        </h2>
+                        <span v-if="lead.broker_company" class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full">
+                            🏢 {{ lead.broker_company.code || lead.broker_company.name }}
+                        </span>
+                    </div>
+
+                    <!-- Search Input -->
+                    <div class="relative">
+                        <input 
+                            v-model="agentSearchQuery" 
+                            type="text" 
+                            placeholder="🔍 Cari nama agen / kantor..." 
+                            class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20" 
+                        />
+                    </div>
+
+                    <!-- Categorized Select Dropdown -->
+                    <select v-model="editForm.assigned_to" @change="updateLead()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+                        <option :value="null">-- Belum di-assign --</option>
+
+                        <!-- Priority Group: Sub-agents from Lead's Broker Company -->
+                        <optgroup v-if="matchingLeadBrokerAgents.length" :label="`⭐ SUB-AGENT KANTOR LEAD (${lead.broker_company?.name})`">
+                            <option v-for="a in matchingLeadBrokerAgents" :key="'match-' + a.id" :value="a.id">
+                                ⭐ {{ a.name }} ({{ a.broker_company ? a.broker_company.name : 'Agency' }})
+                            </option>
+                        </optgroup>
+
+                        <!-- Group: All Agency Sub-Agents -->
+                        <optgroup label="🏢 SUB-AGENT KANTOR AGENCY (BROKER)">
+                            <option v-for="a in filteredAgentsList.filter(x => x.broker_company_id || x.agent_type === 'agency_agent')" :key="'agency-' + a.id" :value="a.id">
+                                🏢 {{ a.name }} ({{ a.broker_company ? a.broker_company.name : 'Agency' }})
+                            </option>
+                        </optgroup>
+
+                        <!-- Group: Independent Freelance Agents -->
+                        <optgroup label="💼 AGEN FREELANCE INDEPENDEN">
+                            <option v-for="a in filteredAgentsList.filter(x => x.agent_type === 'independent')" :key="'indep-' + a.id" :value="a.id">
+                                💼 {{ a.name }} (Freelance)
+                            </option>
+                        </optgroup>
+
+                        <!-- Group: In-House Sales Team -->
+                        <optgroup label="🏠 TIM SALES IN-HOUSE">
+                            <option v-for="a in filteredAgentsList.filter(x => !x.broker_company_id && x.agent_type === 'inhouse')" :key="'inhouse-' + a.id" :value="a.id">
+                                🏠 {{ a.name }} (In-House)
+                            </option>
+                        </optgroup>
                     </select>
+
+                    <!-- Assigned Agent Card Detail Summary -->
+                    <div v-if="currentAssignedAgent" class="p-3 rounded-xl border text-xs space-y-1.5 transition-all"
+                        :class="currentAssignedAgent.broker_company_id ? 'bg-amber-50/70 border-amber-200' : 'bg-blue-50/70 border-blue-200'">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-900">{{ currentAssignedAgent.name }}</span>
+                            <span v-if="currentAssignedAgent.broker_company_id" class="px-2 py-0.5 bg-amber-200 text-amber-900 text-[9px] font-extrabold rounded-md">
+                                Sub-Agent
+                            </span>
+                            <span v-else-if="currentAssignedAgent.agent_type === 'independent'" class="px-2 py-0.5 bg-emerald-200 text-emerald-900 text-[9px] font-extrabold rounded-md">
+                                Independen
+                            </span>
+                            <span v-else class="px-2 py-0.5 bg-blue-200 text-blue-900 text-[9px] font-extrabold rounded-md">
+                                Sales In-House
+                            </span>
+                        </div>
+                        <div v-if="currentAssignedAgent.broker_company || lead.broker_company" class="text-[11px] text-amber-800 font-semibold flex items-center gap-1">
+                            <span>🏢 Kantor:</span>
+                            <span>{{ currentAssignedAgent.broker_company?.name || lead.broker_company?.name }}</span>
+                        </div>
+                        <p v-if="currentAssignedAgent.broker_company_id || lead.broker_company_id" class="text-[9.5px] text-amber-900 italic font-medium pt-0.5 border-t border-amber-200/60">
+                            🔒 Komisi & pencairan mengacu ke Rekening Kantor Agency.
+                        </p>
+                    </div>
                 </div>
 
                 <!-- Notes -->

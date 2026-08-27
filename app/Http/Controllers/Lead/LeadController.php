@@ -123,7 +123,9 @@ class LeadController extends Controller
 
         return Inertia::render('Leads/Show', [
             'lead' => $lead,
-            'agents' => User::role(['sales_agent', 'sales_manager'])->select('id', 'name')->get(),
+            'agents' => User::with('brokerCompany:id,name,code')
+                ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id')
+                ->get(),
         ]);
     }
 
