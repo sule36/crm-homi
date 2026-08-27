@@ -33,6 +33,10 @@ class Booking extends Model
         'kpr_status', 'kpr_bank_name', 'kpr_plafon_amount', 'kpr_sp3k_date', 'kpr_akad_date', 'kpr_notes',
         // Customer Portal
         'tracking_token',
+        // Consumer Full Details & Secondary Buyer
+        'buyer_nik', 'buyer_npwp', 'buyer_address', 'buyer_job',
+        'secondary_name', 'secondary_nik', 'secondary_phone', 'secondary_relationship',
+        'special_bonus_items', 'special_package_items',
     ];
 
     protected function casts(): array
@@ -53,6 +57,8 @@ class Booking extends Model
             'kpr_plafon_amount' => 'float',
             'kpr_sp3k_date' => 'date',
             'kpr_akad_date' => 'date',
+            'special_bonus_items' => 'array',
+            'special_package_items' => 'array',
         ];
     }
 

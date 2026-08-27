@@ -18,6 +18,7 @@ const form = useForm({
     unit_id: props.unit?.id || '',
     lead_id: props.lead?.id || '',
     booked_by: props.lead?.assigned_to || page.props.auth.user.id || '',
+    booking_date: new Date().toISOString().substring(0, 10),
     booking_fee: '',
     base_price: props.unit?.final_price || '',
     free_ppn: false,
@@ -28,6 +29,15 @@ const form = useForm({
     other_legal_fees: 0,
     final_price: props.unit?.final_price || '',
     payment_scheme: 'kpr',
+    buyer_nik: props.lead?.identity_number || '',
+    buyer_npwp: props.lead?.npwp || '',
+    buyer_address: props.lead?.address || '',
+    buyer_job: props.lead?.job || '',
+    has_secondary_buyer: false,
+    secondary_name: '',
+    secondary_nik: '',
+    secondary_phone: '',
+    secondary_relationship: 'Orang Tua',
     notes: '',
 });
 
@@ -56,8 +66,14 @@ const calculateTaxes = () => {
 
 const handleLeadChange = () => {
     const selectedLead = props.leads.find(l => l.id === form.lead_id);
-    if (selectedLead && selectedLead.assigned_to) {
-        form.booked_by = selectedLead.assigned_to;
+    if (selectedLead) {
+        if (selectedLead.assigned_to) {
+            form.booked_by = selectedLead.assigned_to;
+        }
+        if (selectedLead.identity_number) form.buyer_nik = selectedLead.identity_number;
+        if (selectedLead.npwp) form.buyer_npwp = selectedLead.npwp;
+        if (selectedLead.address) form.buyer_address = selectedLead.address;
+        if (selectedLead.job) form.buyer_job = selectedLead.job;
     }
 };
 
@@ -126,13 +142,79 @@ const formatCurrency = (value) => {
                         </h2>
 
                         <div class="space-y-4">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Konsumen (Lead) <span class="text-rose-500">*</span></label>
-                                <select v-model="form.lead_id" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-                                    <option value="">Pilih Lead...</option>
-                                    <option v-for="l in leads" :key="l.id" :value="l.id">{{ l.name }} ({{ l.phone }})</option>
-                                </select>
-                                <p v-if="form.errors.lead_id" class="text-xs text-rose-500 mt-1">{{ form.errors.lead_id }}</p>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Konsumen (Lead) <span class="text-rose-500">*</span></label>
+                                    <select v-model="form.lead_id" @change="handleLeadChange" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+                                        <option value="">Pilih Lead...</option>
+                                        <option v-for="l in leads" :key="l.id" :value="l.id">{{ l.name }} ({{ l.phone }})</option>
+                                    </select>
+                                    <p v-if="form.errors.lead_id" class="text-xs text-rose-500 mt-1">{{ form.errors.lead_id }}</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Tanggal Booking (Backdate Support) <span class="text-rose-500">*</span></label>
+                                    <input v-model="form.booking_date" type="date" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20" />
+                                    <p v-if="form.errors.booking_date" class="text-xs text-rose-500 mt-1">{{ form.errors.booking_date }}</p>
+                                </div>
+                            </div>
+
+                            <!-- KELENGKAPAN DATA KONSUMEN (SPR REQUIREMENTS) -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+                                <h3 class="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+                                    <span>👤</span> <span>Kelengkapan Data Konsumen (Ter-cetak di SPR)</span>
+                                </h3>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">NIK (No. KTP)</label>
+                                        <input v-model="form.buyer_nik" type="text" placeholder="3171xxxxxxxxxxxx" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">NPWP</label>
+                                        <input v-model="form.buyer_npwp" type="text" placeholder="09.xxx.xxx.x-xxx.xxx" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pekerjaan</label>
+                                        <input v-model="form.buyer_job" type="text" placeholder="Karyawan / Wiraswasta" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Alamat KTP</label>
+                                        <input v-model="form.buyer_address" type="text" placeholder="Jl. Raya No. XX..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PEMESAN TAMBAHAN / PENANGGUNG JAWAB PEMBAYARAN -->
+                            <div class="p-4 bg-amber-50/50 rounded-2xl border border-amber-200/60 space-y-3">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input v-model="form.has_secondary_buyer" type="checkbox" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500" />
+                                    <span class="text-xs font-bold text-slate-800">➕ Tambahkan Pemesan 2 / Penanggung Jawab Pembayaran (e.g. Orang Tua / Pasangan / Anak)</span>
+                                </label>
+
+                                <div v-if="form.has_secondary_buyer" class="grid grid-cols-2 gap-3 pt-2">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">Nama Pemesan 2 / Penanggung Jawab</label>
+                                        <input v-model="form.secondary_name" type="text" placeholder="Nama Lengkap Penanggung Jawab" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">Hubungan</label>
+                                        <select v-model="form.secondary_relationship" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20">
+                                            <option value="Orang Tua">Orang Tua</option>
+                                            <option value="Anak">Anak</option>
+                                            <option value="Suami">Suami</option>
+                                            <option value="Istri">Istri</option>
+                                            <option value="Pasangan">Pasangan</option>
+                                            <option value="Kerabat">Kerabat / Rekan</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">NIK Pemesan 2</label>
+                                        <input v-model="form.secondary_nik" type="text" placeholder="NIK KTP Penanggung Jawab" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">No. HP / WA Pemesan 2</label>
+                                        <input v-model="form.secondary_phone" type="text" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20" />
+                                    </div>
+                                </div>
                             </div>
 
                             <div>

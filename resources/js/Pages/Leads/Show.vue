@@ -103,6 +103,7 @@ function scoreColor(s) {
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                <Link :href="`/bookings/create?lead_id=${lead.id}`" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">💳 Buat Booking</Link>
                 <Link href="/kpr-scoring" class="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors flex items-center gap-1.5">
                     <span>📊</span> <span>Analisis Neraca Client</span>
                 </Link>

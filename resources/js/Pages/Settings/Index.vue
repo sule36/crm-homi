@@ -241,15 +241,39 @@ const form = useForm({
         sig2_title: 'Direktur',
         sig2_name: 'Luhur Wira Pramudya',
         sig2_image: null,
-        sig3_title: 'Pembeli',
+        sig3_title: 'Pemesan Utama',
+        sig4_title: 'Penanggung Jawab / Pemesan 2',
+        sig4_name: '',
+        sig4_image: null,
     },
     spr_bank_info: props.settings.spr_bank_info || {
         bank_name: 'BCA / BSI',
         account_number: '542-539-2929 / 732-694-3422',
         account_holder: 'PT. Serangkai Roden Development',
     },
+    spr_special_offer: props.settings.spr_special_offer || {
+        enabled: true,
+        title: 'Special Offer & Benefit Umala Andara',
+        bonus_furniture: [
+            'Kitchen Set',
+            'Kitchen Island',
+            'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
+            'Bench',
+            'Wall Cabinet TV',
+        ],
+        grand_launching_package: [
+            'Free BPHTB ((khusus aset perolehan pertama)',
+            'Free AJB',
+            'Free Balik Nama',
+            'Free Biaya Notaris',
+            'Extra Cashback 50 Juta',
+        ],
+        promo_valid_until: '30 September 2024',
+    },
     signature_image1: null,
     signature_image2: null,
+    signature_image3: null,
+    signature_image4: null,
 
     wa_verify_token: props.settings.wa_verify_token || '',
     wa_access_token: props.settings.wa_access_token || '',
@@ -277,6 +301,24 @@ const removeTerm = (index) => {
     }
 };
 
+const addBonusItem = () => {
+    if (!form.spr_special_offer.bonus_furniture) form.spr_special_offer.bonus_furniture = [];
+    form.spr_special_offer.bonus_furniture.push('Bonus baru...');
+};
+
+const removeBonusItem = (index) => {
+    form.spr_special_offer.bonus_furniture.splice(index, 1);
+};
+
+const addPackageItem = () => {
+    if (!form.spr_special_offer.grand_launching_package) form.spr_special_offer.grand_launching_package = [];
+    form.spr_special_offer.grand_launching_package.push('Paket promo baru...');
+};
+
+const removePackageItem = (index) => {
+    form.spr_special_offer.grand_launching_package.splice(index, 1);
+};
+
 const submit = () => {
     form.post('/settings', {
         forceFormData: true,
@@ -299,13 +341,10 @@ const handleLogoUpload = (e) => {
     form.company_logo = e.target.files[0];
 };
 
-const handleSig1Upload = (e) => {
-    form.signature_image1 = e.target.files[0];
-};
-
-const handleSig2Upload = (e) => {
-    form.signature_image2 = e.target.files[0];
-};
+const handleSig1Upload = (e) => { form.signature_image1 = e.target.files[0]; };
+const handleSig2Upload = (e) => { form.signature_image2 = e.target.files[0]; };
+const handleSig3Upload = (e) => { form.signature_image3 = e.target.files[0]; };
+const handleSig4Upload = (e) => { form.signature_image4 = e.target.files[0]; };
 
 const tabs = [
     { id: 'spk', name: 'Template SPR & TTD', icon: '📜' },
@@ -414,44 +453,69 @@ const tabs = [
                             <input v-model="form.spr_signatures.city" type="text" placeholder="misal: Jakarta Selatan" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-                            <!-- TTD 1 (Sales Manager) -->
-                            <div class="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                                <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider">✒️ Kolom Tanda Tangan 1</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
+                            <!-- TTD 1 (Sales Manager / Staff) -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 1 (Staff / Agent)</h4>
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Jabatan 1</label>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
                                     <input v-model="form.spr_signatures.sig1_title" type="text" placeholder="Sales Manager" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nama Pejabat 1</label>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat</label>
                                     <input v-model="form.spr_signatures.sig1_name" type="text" placeholder="Dhany Nur" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Scan Gambar TTD Digital 1 (PNG Transparan)</label>
-                                    <input type="file" @change="handleSig1Upload" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Scan TTD Digital (PNG Transparan)</label>
+                                    <input type="file" @change="handleSig1Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
                                     <div v-if="form.spr_signatures.sig1_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
-                                        <img :src="`/storage/${form.spr_signatures.sig1_image}`" class="h-12 max-w-full inline-block object-contain" />
+                                        <img :src="`/storage/${form.spr_signatures.sig1_image}`" class="h-10 max-w-full inline-block object-contain" />
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- TTD 2 (Direktur) -->
-                            <div class="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                                <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider">✒️ Kolom Tanda Tangan 2</h4>
+                            <!-- TTD 2 (Direktur / Management) -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 2 (Direktur / Mgt)</h4>
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Jabatan 2</label>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
                                     <input v-model="form.spr_signatures.sig2_title" type="text" placeholder="Direktur" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nama Pejabat 2</label>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat</label>
                                     <input v-model="form.spr_signatures.sig2_name" type="text" placeholder="Luhur Wira Pramudya" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Scan Gambar TTD Digital 2 (PNG Transparan)</label>
-                                    <input type="file" @change="handleSig2Upload" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Scan TTD Digital (PNG Transparan)</label>
+                                    <input type="file" @change="handleSig2Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
                                     <div v-if="form.spr_signatures.sig2_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
-                                        <img :src="`/storage/${form.spr_signatures.sig2_image}`" class="h-12 max-w-full inline-block object-contain" />
+                                        <img :src="`/storage/${form.spr_signatures.sig2_image}`" class="h-10 max-w-full inline-block object-contain" />
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- TTD 3 (Pemesan Utama) -->
+                            <div class="p-4 bg-blue-50/50 rounded-2xl border border-blue-200/60 space-y-3">
+                                <h4 class="text-[11px] font-black text-blue-900 uppercase tracking-wider">✒️ Slot TTD 3 (Pemesan Utama)</h4>
+                                <div>
+                                    <label class="block text-[9px] font-black text-blue-400 uppercase mb-1">Judul</label>
+                                    <input v-model="form.spr_signatures.sig3_title" type="text" placeholder="Pemesan Utama" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                </div>
+                                <div class="p-2 bg-white rounded-lg border text-[10px] text-slate-500 italic">
+                                    Otomatis diisi Nama Konsumen / Pembeli dari data Booking.
+                                </div>
+                            </div>
+
+                            <!-- TTD 4 (Penanggung Jawab / Pemesan 2 / Saksi) -->
+                            <div class="p-4 bg-amber-50/50 rounded-2xl border border-amber-200/60 space-y-3">
+                                <h4 class="text-[11px] font-black text-amber-900 uppercase tracking-wider">✒️ Slot TTD 4 (Penanggung Jawab)</h4>
+                                <div>
+                                    <label class="block text-[9px] font-black text-amber-600 uppercase mb-1">Judul Default</label>
+                                    <input v-model="form.spr_signatures.sig4_title" type="text" placeholder="Penanggung Jawab / Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-black text-amber-600 uppercase mb-1">Nama Default (Opsional)</label>
+                                    <input v-model="form.spr_signatures.sig4_name" type="text" placeholder="Akan terisi otomatis jika ada Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
                             </div>
                         </div>
@@ -482,21 +546,63 @@ const tabs = [
                         </div>
                     </div>
 
-                    <!-- Section 5: Informasi Bank Tujuan Pembayaran SPR -->
-                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-4">
-                        <h3 class="text-xs font-black uppercase tracking-widest text-purple-600 mb-2">5. Rekening Tujuan Pembayaran di Dokumen SPR</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Section 6: Special Offer & Benefit (Lampiran Halaman 2 SPR) -->
+                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
+                        <div class="flex items-center justify-between">
                             <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nama Bank</label>
-                                <input v-model="form.spr_bank_info.bank_name" type="text" placeholder="BRI / BCA / BSI" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                                <h3 class="text-xs font-black uppercase tracking-widest text-indigo-600">6. Lampiran Halaman 2 (Special Offer & Benefit)</h3>
+                                <p class="text-[10px] text-slate-400 mt-0.5">Pengaturan promo khusus dan daftar bonus furniture yang tercetak di Halaman 2 PDF SPR.</p>
                             </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nomor Rekening</label>
-                                <input v-model="form.spr_bank_info.account_number" type="text" placeholder="020601014443301" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input v-model="form.spr_special_offer.enabled" type="checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                                <span class="text-xs font-bold text-slate-800">Aktifkan Halaman 2</span>
+                            </label>
+                        </div>
+
+                        <div v-if="form.spr_special_offer.enabled" class="space-y-6 pt-2">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Judul Dokumen Special Offer</label>
+                                    <input v-model="form.spr_special_offer.title" type="text" placeholder="Special Offer & Benefit Umala Andara" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Promo Berlaku Hingga</label>
+                                    <input v-model="form.spr_special_offer.promo_valid_until" type="text" placeholder="30 September 2024" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
                             </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nama Pemilik Rekening (A/N)</label>
-                                <input v-model="form.spr_bank_info.account_holder" type="text" placeholder="PT. Serangkai Roden Development" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+
+                            <!-- Special Bonus Furniture -->
+                            <div class="p-4 bg-indigo-50/40 rounded-2xl border border-indigo-100 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-xs font-black text-indigo-900 uppercase">🛋️ Special Bonus Furniture List</h4>
+                                    <button type="button" @click="addBonusItem()" class="px-3 py-1 bg-indigo-100 text-indigo-700 font-bold rounded-lg text-[10px] hover:bg-indigo-200 transition-all">
+                                        ➕ Tambah Bonus
+                                    </button>
+                                </div>
+                                <div class="space-y-2">
+                                    <div v-for="(item, idx) in form.spr_special_offer.bonus_furniture" :key="idx" class="flex items-center gap-2">
+                                        <span class="text-xs text-indigo-500 font-bold">•</span>
+                                        <input v-model="form.spr_special_offer.bonus_furniture[idx]" type="text" class="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                        <button type="button" @click="removeBonusItem(idx)" class="text-slate-400 hover:text-rose-600 text-xs px-2">🗑️</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Special Grand Launching Package -->
+                            <div class="p-4 bg-emerald-50/40 rounded-2xl border border-emerald-100 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-xs font-black text-emerald-900 uppercase">🚀 Special Grand Launching Package List</h4>
+                                    <button type="button" @click="addPackageItem()" class="px-3 py-1 bg-emerald-100 text-emerald-700 font-bold rounded-lg text-[10px] hover:bg-emerald-200 transition-all">
+                                        ➕ Tambah Paket Promo
+                                    </button>
+                                </div>
+                                <div class="space-y-2">
+                                    <div v-for="(pkg, idx) in form.spr_special_offer.grand_launching_package" :key="idx" class="flex items-center gap-2">
+                                        <span class="text-xs text-emerald-500 font-bold">•</span>
+                                        <input v-model="form.spr_special_offer.grand_launching_package[idx]" type="text" class="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                        <button type="button" @click="removePackageItem(idx)" class="text-slate-400 hover:text-rose-600 text-xs px-2">🗑️</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

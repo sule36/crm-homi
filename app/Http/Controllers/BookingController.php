@@ -58,6 +58,15 @@ class BookingController extends Controller
             'installment_months' => 'nullable|integer|min:1|max:360',
             'dp_amount' => 'nullable|numeric|min:0',
             'dp_installment_months' => 'nullable|integer|min:0|max:60',
+            'booking_date' => 'nullable|date',
+            'buyer_nik' => 'nullable|string|max:50',
+            'buyer_npwp' => 'nullable|string|max:50',
+            'buyer_address' => 'nullable|string',
+            'buyer_job' => 'nullable|string|max:100',
+            'secondary_name' => 'nullable|string|max:255',
+            'secondary_nik' => 'nullable|string|max:50',
+            'secondary_phone' => 'nullable|string|max:20',
+            'secondary_relationship' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
         ]);
 
@@ -89,11 +98,30 @@ class BookingController extends Controller
                 'installment_months' => $validated['installment_months'] ?? 12,
                 'dp_amount' => $validated['dp_amount'] ?? 0,
                 'dp_installment_months' => $validated['dp_installment_months'] ?? 0,
-                'booking_date' => now(),
+                'booking_date' => $validated['booking_date'] ?? now()->format('Y-m-d'),
+                'buyer_nik' => $validated['buyer_nik'] ?? null,
+                'buyer_npwp' => $validated['buyer_npwp'] ?? null,
+                'buyer_address' => $validated['buyer_address'] ?? null,
+                'buyer_job' => $validated['buyer_job'] ?? null,
+                'secondary_name' => $validated['secondary_name'] ?? null,
+                'secondary_nik' => $validated['secondary_nik'] ?? null,
+                'secondary_phone' => $validated['secondary_phone'] ?? null,
+                'secondary_relationship' => $validated['secondary_relationship'] ?? null,
                 'status' => 'pending',
                 'notes' => $validated['notes'],
                 'commission_amount' => $commissionAmount,
             ]);
+
+            // Update Lead info
+            $lead = \App\Models\Lead::find($validated['lead_id']);
+            if ($lead) {
+                $lead->update(array_filter([
+                    'identity_number' => $validated['buyer_nik'] ?? $lead->identity_number,
+                    'npwp' => $validated['buyer_npwp'] ?? $lead->npwp,
+                    'address' => $validated['buyer_address'] ?? $lead->address,
+                    'job' => $validated['buyer_job'] ?? $lead->job,
+                ]));
+            }
 
             // 2. Update Unit Status to 'hold'
             $unit->update(['status' => 'hold', 'held_by' => $validated['booked_by'], 'held_until' => now()->addDays(2)]);
@@ -135,7 +163,7 @@ class BookingController extends Controller
 
             // Recalculate commission rate and bonus
             $agent = \App\Models\User::find($booking->booked_by);
-            $effectiveRate = 3.0;
+            $effectiveRate = 2.5;
             $promoBonus = 0;
             if ($agent) {
                 $agent->load('brokerCompany');
@@ -181,6 +209,7 @@ class BookingController extends Controller
     {
         $basePrice = $booking->base_price ?: $booking->final_price;
         $taxLegalTotal = ($booking->ppn_amount ?? 0) + ($booking->bphtb_amount ?? 0) + ($booking->ajb_bbn_amount ?? 0) + ($booking->other_legal_fees ?? 0);
+        $bookingDate = \Carbon\Carbon::parse($booking->booking_date ?? now());
 
         // 1. Booking Fee (UTJ) - Installment 0
         $utjSchedule = $booking->paymentSchedules()->where('installment_number', 0)->first();
@@ -189,7 +218,7 @@ class BookingController extends Controller
                 'installment_number' => 0,
                 'label' => 'Booking Fee (UTJ)',
                 'amount' => $booking->booking_fee,
-                'due_date' => $booking->booking_date,
+                'due_date' => $bookingDate->format('Y-m-d'),
                 'status' => 'paid',
             ]);
 
@@ -211,12 +240,12 @@ class BookingController extends Controller
                 'installment_number' => 99,
                 'label' => 'Pajak & Biaya Legal (PPN, BPHTB, AJB)',
                 'amount' => $taxLegalTotal,
-                'due_date' => now()->addDays(30),
+                'due_date' => $bookingDate->copy()->addDays(30)->format('Y-m-d'),
                 'status' => 'upcoming',
             ]);
         }
 
-        // 3. Unit price installments
+        // 3. Unit price installments (DP starts 1 month AFTER booking_date)
         $remaining = $basePrice - $booking->booking_fee;
 
         if ($booking->payment_scheme === 'kpr') {
@@ -230,7 +259,7 @@ class BookingController extends Controller
                     'installment_number' => $i,
                     'label' => "DP Ke-$i",
                     'amount' => $amount,
-                    'due_date' => now()->addMonths($i),
+                    'due_date' => $bookingDate->copy()->addMonths($i)->format('Y-m-d'),
                     'status' => 'upcoming',
                 ]);
             }
@@ -240,7 +269,7 @@ class BookingController extends Controller
                 'installment_number' => $dpTenor + 1,
                 'label' => 'Pencairan KPR (Bank)',
                 'amount' => max(0, $bankAmount),
-                'due_date' => now()->addMonths($dpTenor + 1),
+                'due_date' => $bookingDate->copy()->addMonths($dpTenor + 1)->format('Y-m-d'),
                 'status' => 'upcoming',
             ]);
         } elseif ($booking->payment_scheme === 'cash') {
@@ -248,11 +277,11 @@ class BookingController extends Controller
                 'installment_number' => 1,
                 'label' => 'Pelunasan Cash Keras',
                 'amount' => max(0, $remaining),
-                'due_date' => now()->addDays(14),
+                'due_date' => $bookingDate->copy()->addDays(14)->format('Y-m-d'),
                 'status' => 'upcoming',
             ]);
         } else {
-            // Cash Installment / In-House (supports 6, 12, 24, 36, 48, 60 months / 5 years, etc.)
+            // Cash Installment / In-House
             $dpTotal = $booking->dp_amount > 0 ? $booking->dp_amount : 0;
             $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 0;
             $offsetMonths = 0;
@@ -265,7 +294,7 @@ class BookingController extends Controller
                         'installment_number' => $d,
                         'label' => "DP Ke-$d",
                         'amount' => $amountDp,
-                        'due_date' => now()->addMonths($d),
+                        'due_date' => $bookingDate->copy()->addMonths($d)->format('Y-m-d'),
                         'status' => 'upcoming',
                     ]);
                 }
@@ -283,7 +312,7 @@ class BookingController extends Controller
                     'installment_number' => $num,
                     'label' => "Cicilan Ke-$i (dari $tenor Bulan)",
                     'amount' => $amount,
-                    'due_date' => now()->addMonths($num),
+                    'due_date' => $bookingDate->copy()->addMonths($num)->format('Y-m-d'),
                     'status' => 'upcoming',
                 ]);
             }

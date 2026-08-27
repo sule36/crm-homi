@@ -312,19 +312,37 @@ const docTypeLabels = {
 
                         <!-- Customer Info -->
                         <div class="space-y-4">
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data Konsumen</p>
-                            <div class="space-y-3">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data Konsumen Utama</p>
+                            <div class="space-y-2 text-xs">
                                 <div>
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase">Nama Lengkap</p>
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase">Nama Pemesan</p>
                                     <p class="text-sm font-bold text-slate-900">{{ booking.lead?.name }}</p>
                                 </div>
-                                <div>
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase">Telepon / WhatsApp</p>
-                                    <p class="text-sm font-bold text-slate-900">{{ booking.lead?.phone }}</p>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase">NIK KTP</p>
+                                        <p class="font-bold text-slate-800">{{ booking.buyer_nik || booking.lead?.identity_number || '-' }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase">NPWP</p>
+                                        <p class="font-bold text-slate-800">{{ booking.buyer_npwp || booking.lead?.npwp || '-' }}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase">Skema Pembayaran</p>
-                                    <span class="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-black uppercase mt-1">{{ booking.payment_scheme }}</span>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase">Pekerjaan</p>
+                                        <p class="font-bold text-slate-800">{{ booking.buyer_job || booking.lead?.job || '-' }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase">No. HP / WA</p>
+                                        <p class="font-bold text-slate-800">{{ booking.lead?.phone }}</p>
+                                    </div>
+                                </div>
+
+                                <div v-if="booking.secondary_name" class="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200/70 space-y-1">
+                                    <p class="text-[9px] font-black text-amber-700 uppercase tracking-wider">Pemesan 2 / Penanggung Jawab Pembayaran</p>
+                                    <p class="text-xs font-bold text-slate-900">{{ booking.secondary_name }} ({{ booking.secondary_relationship || 'Penanggung Jawab' }})</p>
+                                    <p class="text-[10px] text-slate-600">NIK: {{ booking.secondary_nik || '-' }} • Telp: {{ booking.secondary_phone || '-' }}</p>
                                 </div>
                             </div>
                         </div>

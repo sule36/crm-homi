@@ -24,7 +24,11 @@ class SPKController extends Controller
         $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']);
         $settings = $this->getSettings();
 
-        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'));
+        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'))
+            ->setPaper('a4', 'portrait')
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('chroot', [public_path(), storage_path()]);
         
         return $pdf->download("SPR-{$booking->spk_number}.pdf");
     }
@@ -38,8 +42,18 @@ class SPKController extends Controller
             return view('pdf.spr', compact('booking', 'settings'));
         }
 
-        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'));
+        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'))
+            ->setPaper('a4', 'portrait')
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('chroot', [public_path(), storage_path()]);
         
-        return $pdf->stream("SPR-{$booking->spk_number}.pdf");
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"SPR-{$booking->spk_number}.pdf\"",
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 }

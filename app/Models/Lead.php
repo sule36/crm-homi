@@ -12,7 +12,7 @@ class Lead extends Model
 
     protected $fillable = [
         'project_id', 'assigned_to', 'name', 'phone', 'email',
-        'identity_number', 'source', 'campaign_id', 'utm_campaign', 'broker_company_id',
+        'identity_number', 'npwp', 'address', 'job', 'source', 'campaign_id', 'utm_campaign', 'broker_company_id',
         'status', 'score', 'lost_reason', 'notes', 'preferences',
         'last_contacted_at',
     ];

@@ -56,6 +56,28 @@ class SettingController extends Controller
             ];
         }
 
+        if (!isset($settings['spr_special_offer']) || !is_array($settings['spr_special_offer'])) {
+            $settings['spr_special_offer'] = [
+                'enabled' => true,
+                'title' => 'Special Offer & Benefit Umala Andara',
+                'bonus_furniture' => [
+                    'Kitchen Set',
+                    'Kitchen Island',
+                    'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
+                    'Bench',
+                    'Wall Cabinet TV',
+                ],
+                'grand_launching_package' => [
+                    'Free BPHTB ((khusus aset perolehan pertama)',
+                    'Free AJB',
+                    'Free Balik Nama',
+                    'Free Biaya Notaris',
+                    'Extra Cashback 50 Juta',
+                ],
+                'promo_valid_until' => '30 September 2024',
+            ];
+        }
+
         return Inertia::render('Settings/Index', [
             'settings' => $settings,
             'tokens' => $request->user()->tokens,
@@ -79,6 +101,8 @@ class SettingController extends Controller
             'company_logo' => 'nullable|image|max:2048',
             'signature_image1' => 'nullable|image|max:2048',
             'signature_image2' => 'nullable|image|max:2048',
+            'signature_image3' => 'nullable|image|max:2048',
+            'signature_image4' => 'nullable|image|max:2048',
         ]);
 
         // 1. Company Logo Upload
@@ -113,16 +137,14 @@ class SettingController extends Controller
 
         $mergedSigs = array_merge($existingSigs, $inputSig);
 
-        if ($request->hasFile('signature_image1')) {
-            $mergedSigs['sig1_image'] = $request->file('signature_image1')->store('settings/signatures', 'public');
-        } elseif (!empty($existingSigs['sig1_image'])) {
-            $mergedSigs['sig1_image'] = $existingSigs['sig1_image'];
-        }
-
-        if ($request->hasFile('signature_image2')) {
-            $mergedSigs['sig2_image'] = $request->file('signature_image2')->store('settings/signatures', 'public');
-        } elseif (!empty($existingSigs['sig2_image'])) {
-            $mergedSigs['sig2_image'] = $existingSigs['sig2_image'];
+        foreach ([1, 2, 3, 4] as $idx) {
+            $key = "signature_image{$idx}";
+            $sigKey = "sig{$idx}_image";
+            if ($request->hasFile($key)) {
+                $mergedSigs[$sigKey] = $request->file($key)->store('settings/signatures', 'public');
+            } elseif (!empty($existingSigs[$sigKey])) {
+                $mergedSigs[$sigKey] = $existingSigs[$sigKey];
+            }
         }
 
         Setting::set('spr_signatures', $mergedSigs);
@@ -149,8 +171,19 @@ class SettingController extends Controller
             }
         }
 
-        // 5. Handle remaining settings scalar key/value pairs
-        $excluded = ['company_logo', 'signature_image1', 'signature_image2', 'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', '_token'];
+        // 5. Save Special Offer array
+        if ($request->has('spr_special_offer')) {
+            $so = $request->input('spr_special_offer');
+            if (is_string($so)) {
+                $so = json_decode($so, true);
+            }
+            if (is_array($so)) {
+                Setting::set('spr_special_offer', $so);
+            }
+        }
+
+        // 6. Handle remaining settings scalar key/value pairs
+        $excluded = ['company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4', 'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', '_token'];
         $settings = $request->except($excluded);
         foreach ($settings as $key => $value) {
             if ($value !== null) {
