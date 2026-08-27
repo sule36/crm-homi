@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -132,13 +132,33 @@ function openAgentModal(agent = null, defaultBrokerCompanyId = null) {
 }
 
 function submitAgent() {
+    const payload = {
+        name: agentForm.name,
+        phone: agentForm.phone || null,
+        email: agentForm.email || null,
+        role: 'sales_agent',
+        agent_type: agentForm.agent_type,
+        broker_company_id: agentForm.agent_type === 'agency_agent' ? agentForm.broker_company_id : null,
+        commission_rate: (agentForm.commission_rate !== '' && agentForm.commission_rate !== null) ? Number(agentForm.commission_rate) : null,
+        custom_bonus: (agentForm.custom_bonus !== '' && agentForm.custom_bonus !== null) ? Number(agentForm.custom_bonus) : 0,
+        bank_name: agentForm.bank_name || null,
+        bank_account_number: agentForm.bank_account_number || null,
+        bank_account_name: agentForm.bank_account_name || null,
+    };
+
     if (editingAgent.value) {
-        agentForm.put(route('users.update', editingAgent.value.id), {
-            onSuccess: () => { showAgentModal.value = false; }
+        router.put(route('users.update', editingAgent.value.id), payload, {
+            onSuccess: () => { 
+                showAgentModal.value = false; 
+                agentForm.reset(); 
+            }
         });
     } else {
-        agentForm.post(route('users.store'), {
-            onSuccess: () => { showAgentModal.value = false; }
+        router.post(route('users.store'), payload, {
+            onSuccess: () => { 
+                showAgentModal.value = false; 
+                agentForm.reset(); 
+            }
         });
     }
 }
@@ -146,10 +166,24 @@ function submitAgent() {
 // Filtered LOV for Broker Companies
 const filteredBrokerList = computed(() => {
     if (!agencySearchQuery.value) return props.brokerList || [];
-    const q = agencySearchQuery.value.toLowerCase();
+    const q = agencySearchQuery.value.toLowerCase().trim();
     return (props.brokerList || []).filter(b => 
         b.name.toLowerCase().includes(q) || (b.code && b.code.toLowerCase().includes(q))
     );
+});
+
+// Auto-select first matching agency if search query changes and current selection is not in list
+watch(agencySearchQuery, (newQuery) => {
+    if (newQuery && filteredBrokerList.value.length > 0) {
+        const currentMatch = filteredBrokerList.value.find(b => b.id === agentForm.broker_company_id);
+        if (!currentMatch) {
+            agentForm.broker_company_id = filteredBrokerList.value[0].id;
+        }
+    }
+});
+
+const selectedBrokerCompanyObject = computed(() => {
+    return (props.brokerList || []).find(b => b.id === agentForm.broker_company_id);
 });
 
 // Filtered Agents in Tab 2
@@ -159,7 +193,7 @@ const filteredAgentsData = computed(() => {
         list = list.filter(a => a.agent_type === agentFilterType.value);
     }
     if (searchAgentQuery.value) {
-        const q = searchAgentQuery.value.toLowerCase();
+        const q = searchAgentQuery.value.toLowerCase().trim();
         list = list.filter(a => 
             a.name.toLowerCase().includes(q) || 
             (a.email && a.email.toLowerCase().includes(q)) || 
@@ -493,7 +527,7 @@ const filteredAgentsData = computed(() => {
             </div>
         </div>
 
-        <!-- MODAL DAFTARKAN / EDIT AGEN (LOV SEARCH KANTOR AGENCY) -->
+        <!-- MODAL DAFTARKAN / EDIT AGEN (LOV SEARCH KANTOR AGENCY INTERAKTIF) -->
         <div v-if="showAgentModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4">
                 <div class="flex justify-between items-center pb-3 border-b border-slate-800">
@@ -531,7 +565,7 @@ const filteredAgentsData = computed(() => {
                     </div>
 
                     <!-- LOV SEARCH KANTOR AGENCY (Hanya Tampil Jika Agency Sub-Agent) -->
-                    <div v-if="agentForm.agent_type === 'agency_agent'" class="p-3 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-2">
+                    <div v-if="agentForm.agent_type === 'agency_agent'" class="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
                         <div class="flex items-center justify-between">
                             <label class="block text-xs font-bold text-amber-400">Pilih Kantor Agency Naungan (LOV) *</label>
                             <span class="text-[10px] text-slate-400">Sub-agent akan masuk ke akumulasi kantor ini</span>
@@ -542,19 +576,44 @@ const filteredAgentsData = computed(() => {
                             <input 
                                 v-model="agencySearchQuery"
                                 type="text"
-                                placeholder="🔍 Ketik untuk cari nama/kode kantor agency..."
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-500 mb-1.5"
+                                placeholder="🔍 Ketik nama atau kode kantor agency..."
+                                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-medium"
                             />
                         </div>
 
-                        <!-- Select LOV Dropdown -->
-                        <select v-model="agentForm.broker_company_id" required class="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2 text-white font-bold text-xs cursor-pointer">
-                            <option :value="null" disabled>-- Pilih Kantor Agency --</option>
+                        <!-- Direct Clickable Matching Office Badges/Cards if searching -->
+                        <div v-if="agencySearchQuery && filteredBrokerList.length > 0" class="max-h-36 overflow-y-auto space-y-1 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                            <div 
+                                v-for="b in filteredBrokerList" 
+                                :key="b.id"
+                                @click="agentForm.broker_company_id = b.id"
+                                :class="agentForm.broker_company_id === b.id ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'"
+                                class="p-2 border rounded-lg cursor-pointer flex items-center justify-between text-xs transition-all"
+                            >
+                                <span class="font-bold">🏢 [{{ b.code || 'NO-CODE' }}] {{ b.name }}</span>
+                                <span class="text-[10px] text-amber-400">Rate: {{ b.commission_rate || 3.0 }}%</span>
+                            </div>
+                        </div>
+
+                        <!-- Native Select LOV Dropdown -->
+                        <select v-model="agentForm.broker_company_id" required class="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-white font-bold text-xs cursor-pointer">
+                            <option :value="null" disabled>-- Pilih Kantor Agency ({{ filteredBrokerList.length }} kantor) --</option>
                             <option v-for="b in filteredBrokerList" :key="b.id" :value="b.id">
                                 🏢 [{{ b.code || 'NO-CODE' }}] {{ b.name }} (Rate Fee: {{ b.commission_rate || 3.0 }}%)
                             </option>
                         </select>
-                        <p v-if="filteredBrokerList.length === 0" class="text-[10px] text-rose-400 italic">Kantor agency tidak ditemukan. Daftarkan kantor agency baru terlebih dahulu.</p>
+
+                        <!-- Visual Selected Agency Pill -->
+                        <div v-if="selectedBrokerCompanyObject" class="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-400 font-bold">✓ Terpilih:</span>
+                                <span class="text-white font-bold">{{ selectedBrokerCompanyObject.name }}</span>
+                                <span class="text-amber-400 font-mono text-[10px]">({{ selectedBrokerCompanyObject.code || 'NO-CODE' }})</span>
+                            </div>
+                            <span class="text-emerald-400 font-bold text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full">Rate {{ selectedBrokerCompanyObject.commission_rate || 3.0 }}%</span>
+                        </div>
+
+                        <p v-if="filteredBrokerList.length === 0" class="text-[10px] text-rose-400 italic">Kantor agency tidak ditemukan. Silakan buat kantor agency baru lebih dahulu.</p>
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">

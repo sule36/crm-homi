@@ -32,7 +32,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'nullable|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['nullable'],
-            'role' => 'nullable|exists:roles,name',
+            'role' => 'nullable|string',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'agent_type' => 'nullable|in:inhouse,agency_agent,independent',
@@ -57,15 +57,18 @@ class UserController extends Controller
             'project_id' => $request->project_id,
             'broker_company_id' => $request->broker_company_id,
             'agent_type' => $agentType,
-            'commission_rate' => $request->commission_rate,
-            'custom_bonus' => $request->custom_bonus ?? 0,
+            'commission_rate' => is_numeric($request->commission_rate) ? $request->commission_rate : null,
+            'custom_bonus' => is_numeric($request->custom_bonus) ? $request->custom_bonus : 0,
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
             'status' => 'active',
         ]);
 
-        $user->assignRole($role);
+        if ($role) {
+            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role]);
+            $user->assignRole($role);
+        }
 
         return back()->with('success', 'Agen / Staff baru berhasil mendaftar.');
     }
