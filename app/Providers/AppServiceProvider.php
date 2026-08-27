@@ -21,5 +21,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        \Illuminate\Support\Facades\Route::bind('booking', function ($value) {
+            return \App\Models\Booking::withTrashed()
+                ->where('id', $value)
+                ->orWhere('spk_number', $value)
+                ->firstOrFail();
+        });
     }
 }
