@@ -230,7 +230,7 @@ function submitAgent() {
                                 </td>
                                 <td class="p-4">
                                     <div class="font-bold text-emerald-400 text-sm">
-                                        {{ formatCurrency(b.commissions_sum_commission_amount) }}
+                                        {{ formatCurrency(b.commissions_sum_amount) }}
                                     </div>
                                     <div class="text-[10px] text-slate-400 flex gap-2 mt-0.5">
                                         <span class="text-emerald-400">Cair: {{ formatCurrency(b.paid_commissions_sum) }}</span>
@@ -423,7 +423,7 @@ function submitAgent() {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
                         <div class="text-xs text-slate-400">Total Akumulasi Komisi</div>
-                        <div class="text-lg font-black text-emerald-400 mt-1">{{ formatCurrency(selectedBroker.commissions_sum_commission_amount) }}</div>
+                        <div class="text-lg font-black text-emerald-400 mt-1">{{ formatCurrency(selectedBroker.commissions_sum_amount) }}</div>
                     </div>
                     <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
                         <div class="text-xs text-slate-400">Komisi Sudah Dicairkan</div>
@@ -465,7 +465,7 @@ function submitAgent() {
                                     <td class="p-3 font-bold text-white">{{ agent.name }}</td>
                                     <td class="p-3 text-slate-400">{{ agent.email }} • {{ agent.phone || '-' }}</td>
                                     <td class="p-3 text-amber-400 font-bold">{{ agent.commission_rate ? agent.commission_rate + '%' : 'Ikuti Kantor (' + (selectedBroker.commission_rate || 3) + '%)' }}</td>
-                                    <td class="p-3 text-right font-bold text-emerald-400">{{ formatCurrency(agent.commissions_sum_commission_amount) }}</td>
+                                    <td class="p-3 text-right font-bold text-emerald-400">{{ formatCurrency(agent.commissions_sum_amount) }}</td>
                                 </tr>
                                 <tr v-if="!selectedBroker.agents || selectedBroker.agents.length === 0">
                                     <td colspan="4" class="p-6 text-center text-slate-500">Belum ada agen yang terdaftar di kantor agency ini.</td>

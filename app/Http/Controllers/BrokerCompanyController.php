@@ -13,10 +13,10 @@ class BrokerCompanyController extends Controller
     public function index(Request $request)
     {
         $brokers = BrokerCompany::withCount(['agents', 'commissions'])
-            ->withSum('commissions', 'commission_amount')
-            ->withSum(['commissions as paid_commissions_sum' => fn($q) => $q->where('status', 'paid')], 'commission_amount')
-            ->withSum(['commissions as pending_commissions_sum' => fn($q) => $q->where('status', 'unpaid')], 'commission_amount')
-            ->with(['agents' => fn($q) => $q->withSum('commissions', 'commission_amount')])
+            ->withSum('commissions', 'amount')
+            ->withSum(['commissions as paid_commissions_sum' => fn($q) => $q->where('status', 'paid')], 'amount')
+            ->withSum(['commissions as pending_commissions_sum' => fn($q) => $q->where('status', 'unpaid')], 'amount')
+            ->with(['agents' => fn($q) => $q->withSum('commissions', 'amount')])
             ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('code', 'like', "%{$s}%"))
             ->when($request->status, fn($q, $st) => $q->where('status', $st))
             ->latest()
@@ -25,7 +25,10 @@ class BrokerCompanyController extends Controller
         $agents = User::with(['brokerCompany', 'roles'])
             ->when($request->agent_type, fn($q, $type) => $q->where('agent_type', $type))
             ->when($request->search_agent, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
-            ->role(['sales_agent', 'broker', 'sales_manager'])
+            ->where(function ($q) {
+                $q->whereNotNull('agent_type')
+                  ->orWhereHas('roles', fn($rq) => $rq->whereIn('name', ['sales_agent', 'broker', 'sales_manager', 'agent']));
+            })
             ->latest()
             ->paginate(20, ['*'], 'agents_page');
 
