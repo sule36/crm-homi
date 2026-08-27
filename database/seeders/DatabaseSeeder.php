@@ -23,6 +23,11 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production')) {
+            $this->command->warn('SEEDER DIABORT DI ENVIRONMENT PRODUCTION AGAR DATA TIDAK TERHAPUS!');
+            return;
+        }
+
         // ── 0. CLEAN OLD DUMMY DATA ─────────────────────
         \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
         Booking::truncate();

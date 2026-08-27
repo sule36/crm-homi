@@ -22,10 +22,9 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# 4. Run migrasi database & seeder
-echo "🗄️ Running database migrations & seeders..."
+# 4. Run migrasi database saja (PENTING: JANGAN PERNAH RUN db:seed ATAU migrate:fresh AGAR DATA PROD TIDAK TERHAPUS)
+echo "🗄️ Running database migrations..."
 php artisan migrate --force
-php artisan db:seed --force
 
 # 5. Clear and recreate caches
 echo "🧹 Clearing old caches..."
