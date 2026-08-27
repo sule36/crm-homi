@@ -12,7 +12,11 @@ class BrokerCompanyController extends Controller
 {
     public function index(Request $request)
     {
-        $brokers = BrokerCompany::withCount('agents')
+        $brokers = BrokerCompany::withCount(['agents', 'commissions'])
+            ->withSum('commissions', 'commission_amount')
+            ->withSum(['commissions as paid_commissions_sum' => fn($q) => $q->where('status', 'paid')], 'commission_amount')
+            ->withSum(['commissions as pending_commissions_sum' => fn($q) => $q->where('status', 'unpaid')], 'commission_amount')
+            ->with(['agents' => fn($q) => $q->withSum('commissions', 'commission_amount')])
             ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('code', 'like', "%{$s}%"))
             ->when($request->status, fn($q, $st) => $q->where('status', $st))
             ->latest()

@@ -13,6 +13,20 @@ const props = defineProps({
 
 const activeTab = ref('agencies'); // 'agencies' | 'agents'
 
+// Modal Detail Kantor Agency & Agen
+const showDetailModal = ref(false);
+const selectedBroker = ref(null);
+
+function openDetailModal(broker) {
+    selectedBroker.value = broker;
+    showDetailModal.value = true;
+}
+
+function formatCurrency(val) {
+    if (!val) return 'Rp 0';
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+}
+
 // Modal Agency
 const showAgencyModal = ref(false);
 const editingAgency = ref(null);
@@ -188,8 +202,9 @@ function submitAgent() {
                             <tr>
                                 <th class="p-4">Kode & Nama Kantor Agency</th>
                                 <th class="p-4">PIC / Kontak</th>
-                                <th class="p-4">Jumlah Agen</th>
-                                <th class="p-4">Rate Fee Kantor (%)</th>
+                                <th class="p-4">Tim Agen & Sales</th>
+                                <th class="p-4">Akumulasi Komisi Kantor</th>
+                                <th class="p-4">Rate Fee (%)</th>
                                 <th class="p-4">Rekening Pencairan</th>
                                 <th class="p-4">Status</th>
                                 <th class="p-4 text-right">Aksi</th>
@@ -208,9 +223,19 @@ function submitAgent() {
                                     <div class="text-xs text-slate-500">{{ b.email || '-' }}</div>
                                 </td>
                                 <td class="p-4">
-                                    <span class="px-2.5 py-1 bg-slate-800 text-slate-200 rounded-lg text-xs font-semibold">
-                                        {{ b.agents_count }} Agen Registered
-                                    </span>
+                                    <button @click="openDetailModal(b)" class="px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-semibold hover:bg-blue-500/20 transition-all flex items-center gap-1.5">
+                                        <span>👥 {{ b.agents_count }} Agen</span>
+                                        <span class="text-[10px] text-slate-400">({{ b.commissions_count }} Closing)</span>
+                                    </button>
+                                </td>
+                                <td class="p-4">
+                                    <div class="font-bold text-emerald-400 text-sm">
+                                        {{ formatCurrency(b.commissions_sum_commission_amount) }}
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 flex gap-2 mt-0.5">
+                                        <span class="text-emerald-400">Cair: {{ formatCurrency(b.paid_commissions_sum) }}</span>
+                                        <span class="text-amber-400">Pending: {{ formatCurrency(b.pending_commissions_sum) }}</span>
+                                    </div>
                                 </td>
                                 <td class="p-4">
                                     <span class="text-amber-400 font-bold text-base">{{ b.commission_rate ? b.commission_rate + '%' : 'Default' }}</span>
@@ -227,13 +252,14 @@ function submitAgent() {
                                         {{ b.status }}
                                     </span>
                                 </td>
-                                <td class="p-4 text-right space-x-2">
-                                    <button @click="openAgencyModal(b)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg text-xs font-semibold">Edit</button>
-                                    <button @click="deleteAgency(b)" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-xs font-semibold">Hapus</button>
+                                <td class="p-4 text-right space-x-1.5">
+                                    <button @click="openDetailModal(b)" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold" title="Lihat Tim Agen & Akumulasi Komisi">👁️ Detail</button>
+                                    <button @click="openAgencyModal(b)" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg text-xs font-semibold">Edit</button>
+                                    <button @click="deleteAgency(b)" class="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-xs font-semibold">Hapus</button>
                                 </td>
                             </tr>
                             <tr v-if="brokers.data.length === 0">
-                                <td colspan="7" class="p-8 text-center text-slate-500">Belum ada kantor agency yang terdaftar. Klik "Daftarkan Kantor Agency" di atas.</td>
+                                <td colspan="8" class="p-8 text-center text-slate-500">Belum ada kantor agency yang terdaftar. Klik "Daftarkan Kantor Agency" di atas.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -377,6 +403,81 @@ function submitAgent() {
                         <button type="submit" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl">Simpan Parameter</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- MODAL DETAIL KANTOR AGENCY & TIM AGEN -->
+        <div v-if="showDetailModal && selectedBroker" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-6">
+                <div class="flex justify-between items-center pb-4 border-b border-slate-800">
+                    <div>
+                        <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                            <span>🏢</span> <span>{{ selectedBroker.name }}</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">Kode: <span class="font-mono text-amber-400">{{ selectedBroker.code || 'NO-CODE' }}</span> • Rate Komisi Kantor: <span class="text-amber-400 font-bold">{{ selectedBroker.commission_rate || 3.0 }}%</span></p>
+                    </div>
+                    <button @click="showDetailModal = false" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                        <div class="text-xs text-slate-400">Total Akumulasi Komisi</div>
+                        <div class="text-lg font-black text-emerald-400 mt-1">{{ formatCurrency(selectedBroker.commissions_sum_commission_amount) }}</div>
+                    </div>
+                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                        <div class="text-xs text-slate-400">Komisi Sudah Dicairkan</div>
+                        <div class="text-lg font-black text-blue-400 mt-1">{{ formatCurrency(selectedBroker.paid_commissions_sum) }}</div>
+                    </div>
+                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                        <div class="text-xs text-slate-400">Komisi Belum Dicairkan</div>
+                        <div class="text-lg font-black text-amber-400 mt-1">{{ formatCurrency(selectedBroker.pending_commissions_sum) }}</div>
+                    </div>
+                </div>
+
+                <!-- Rekening Pencairan -->
+                <div class="p-4 bg-slate-950/60 rounded-2xl border border-slate-800 flex justify-between items-center text-xs">
+                    <div>
+                        <span class="text-slate-400 font-medium">Rekening Pencairan Kantor:</span>
+                        <span v-if="selectedBroker.bank_name" class="ml-2 text-white font-bold">{{ selectedBroker.bank_name }} - {{ selectedBroker.bank_account_number }} (a.n {{ selectedBroker.bank_account_name }})</span>
+                        <span v-else class="ml-2 text-slate-500 italic">Belum diatur</span>
+                    </div>
+                    <button @click="openAgencyModal(selectedBroker); showDetailModal = false" class="text-amber-400 hover:underline font-bold">Edit Rekening</button>
+                </div>
+
+                <!-- Daftar Agen Terdaftar Under This Agency -->
+                <div>
+                    <h4 class="text-sm font-bold text-white mb-3 flex items-center justify-between">
+                        <span>👥 Daftar Agen Terdaftar di Kantor Ini ({{ selectedBroker.agents?.length || 0 }} Agen)</span>
+                    </h4>
+                    <div class="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-800/80 uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3">Nama Agen</th>
+                                    <th class="p-3">Kontak & Email</th>
+                                    <th class="p-3">Rate Agen</th>
+                                    <th class="p-3 text-right">Akumulasi Komisi Agen</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/60">
+                                <tr v-for="agent in selectedBroker.agents" :key="agent.id" class="hover:bg-slate-900 transition-colors">
+                                    <td class="p-3 font-bold text-white">{{ agent.name }}</td>
+                                    <td class="p-3 text-slate-400">{{ agent.email }} • {{ agent.phone || '-' }}</td>
+                                    <td class="p-3 text-amber-400 font-bold">{{ agent.commission_rate ? agent.commission_rate + '%' : 'Ikuti Kantor (' + (selectedBroker.commission_rate || 3) + '%)' }}</td>
+                                    <td class="p-3 text-right font-bold text-emerald-400">{{ formatCurrency(agent.commissions_sum_commission_amount) }}</td>
+                                </tr>
+                                <tr v-if="!selectedBroker.agents || selectedBroker.agents.length === 0">
+                                    <td colspan="4" class="p-6 text-center text-slate-500">Belum ada agen yang terdaftar di kantor agency ini.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <button @click="showDetailModal = false" class="px-6 py-2.5 bg-slate-800 text-slate-200 font-bold rounded-xl text-xs hover:bg-slate-700">Tutup</button>
+                </div>
             </div>
         </div>
     </CrmLayout>

@@ -50,6 +50,11 @@ class User extends Authenticatable
         return $this->hasMany(LeadActivity::class);
     }
 
+    public function commissions()
+    {
+        return $this->hasMany(Commission::class, 'user_id');
+    }
+
     // Helpers
     public function getActiveLeadsCountAttribute(): int
     {
