@@ -66,6 +66,8 @@ class User extends Authenticatable
         return $this->active_leads_count < $this->lead_capacity;
     }
 
+    protected $appends = ['effective_commission_rate', 'effective_bank_account'];
+
     public function getEffectiveCommissionRateAttribute(): float
     {
         if ($this->commission_rate !== null && (float)$this->commission_rate > 0) {
@@ -84,5 +86,33 @@ class User extends Authenticatable
 
         $type = $this->agent_type ?? 'inhouse';
         return (float)($defaultRates[$type] ?? 2.5);
+    }
+
+    /**
+     * Get effective payout bank account details for this agent.
+     * Agency Sub-Agents (agency_agent / attached to a BrokerCompany) payout MUST go to BrokerCompany bank account.
+     * Freelance Independent & In-House agents payout goes to agent's personal bank account.
+     */
+    public function getEffectiveBankAccountAttribute(): array
+    {
+        if (($this->agent_type === 'agency_agent' || $this->broker_company_id) && $this->brokerCompany) {
+            return [
+                'recipient_type' => 'office',
+                'recipient_name' => $this->brokerCompany->name,
+                'bank_name' => $this->brokerCompany->bank_name ?: 'Belum set',
+                'bank_account_number' => $this->brokerCompany->bank_account_number ?: '-',
+                'bank_account_name' => $this->brokerCompany->bank_account_name ?: $this->brokerCompany->name,
+                'is_office' => true,
+            ];
+        }
+
+        return [
+            'recipient_type' => 'agent',
+            'recipient_name' => $this->name,
+            'bank_name' => $this->bank_name ?: 'Belum set',
+            'bank_account_number' => $this->bank_account_number ?: '-',
+            'bank_account_name' => $this->bank_account_name ?: $this->name,
+            'is_office' => false,
+        ];
     }
 }

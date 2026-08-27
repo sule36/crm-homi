@@ -416,9 +416,10 @@ const filteredAgentsData = computed(() => {
                             <tr>
                                 <th class="p-4">Nama Agen</th>
                                 <th class="p-4">Tipe Agen</th>
-                                <th class="p-4">Kantor Agency Naungan (LOV)</th>
+                                <th class="p-4">Kantor Agency Naungan</th>
+                                <th class="p-4">Target Rekening Pencairan Developer</th>
                                 <th class="p-4">Rate Komisi Efektif</th>
-                                <th class="p-4">Promo Bonus (Rp)</th>
+                                <th class="p-4">Promo Bonus</th>
                                 <th class="p-4 text-right">Aksi</th>
                             </tr>
                         </thead>
@@ -450,6 +451,20 @@ const filteredAgentsData = computed(() => {
                                     </div>
                                 </td>
                                 <td class="p-4">
+                                    <!-- Effective Bank Account Display -->
+                                    <div v-if="a.effective_bank_account" class="text-xs">
+                                        <div v-if="a.effective_bank_account.is_office" class="text-amber-400 font-semibold flex items-center gap-1">
+                                            <span>🏢 Kantor:</span>
+                                            <span class="font-bold">{{ a.effective_bank_account.bank_name }} - {{ a.effective_bank_account.bank_account_number }}</span>
+                                        </div>
+                                        <div v-else-if="a.effective_bank_account.bank_name !== 'Belum set'" class="text-slate-200 font-semibold flex items-center gap-1">
+                                            <span>💼 Personal:</span>
+                                            <span>{{ a.effective_bank_account.bank_name }} - {{ a.effective_bank_account.bank_account_number }}</span>
+                                        </div>
+                                        <div v-else class="text-slate-500 italic text-[11px]">Belum diatur</div>
+                                    </div>
+                                </td>
+                                <td class="p-4">
                                     <span class="text-amber-400 font-bold">
                                         {{ a.commission_rate ? a.commission_rate + '%' : (a.broker_company ? a.broker_company.commission_rate + '% (Office)' : 'System Default') }}
                                     </span>
@@ -465,7 +480,7 @@ const filteredAgentsData = computed(() => {
                                 </td>
                             </tr>
                             <tr v-if="filteredAgentsData.length === 0">
-                                <td colspan="6" class="p-8 text-center text-slate-500">Tidak ada agen yang sesuai kriteria pencarian.</td>
+                                <td colspan="7" class="p-8 text-center text-slate-500">Tidak ada agen yang sesuai kriteria pencarian.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -628,7 +643,22 @@ const filteredAgentsData = computed(() => {
                     </div>
 
                     <div class="border-t border-slate-800 pt-3">
-                        <label class="block text-xs font-semibold text-blue-400 mb-2">Rekening Bank Agen (Pencairan Komisi)</label>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-xs font-semibold text-blue-400">Rekening Bank Agen</label>
+                            <span v-if="agentForm.agent_type === 'agency_agent'" class="text-[10px] text-amber-400 font-bold">
+                                🏢 Wajib Ditransfer ke Rekening Kantor Agency
+                            </span>
+                        </div>
+
+                        <div v-if="agentForm.agent_type === 'agency_agent' && selectedBrokerCompanyObject" class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl mb-3 text-xs text-amber-200">
+                            <div class="font-bold flex items-center gap-1.5">
+                                <span>🔒 Kebijakan Pencairan Komisi Sub-Agent:</span>
+                            </div>
+                            <p class="text-[11px] text-slate-300 mt-1">
+                                Developer <strong>wajib mentransfer komisi ke Rekening Kantor Agency</strong> (<span class="text-amber-300 font-bold">{{ selectedBrokerCompanyObject.name }}</span>). Sub-agent menginduk ke rekening kantor tersebut.
+                            </p>
+                        </div>
+
                         <div class="grid grid-cols-3 gap-2">
                             <input v-model="agentForm.bank_name" type="text" placeholder="Bank (BCA/BSI)" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs" />
                             <input v-model="agentForm.bank_account_number" type="text" placeholder="No. Rekening" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs" />

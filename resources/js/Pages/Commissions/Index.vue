@@ -329,7 +329,17 @@ const simNetCommission = computed(() => {
                         <tr v-for="item in commissions.data" :key="item.id" class="hover:bg-slate-50/50 transition-colors group">
                             <td class="px-8 py-6">
                                 <p class="text-sm font-black text-slate-900">{{ item.user?.name }}</p>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase">{{ item.user?.email }}</p>
+                                <div class="mt-1">
+                                    <span v-if="item.user?.agent_type === 'agency_agent' || item.broker_company || item.user?.broker_company_id" class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md">
+                                        🏢 Sub-Agent: {{ item.broker_company?.name || item.user?.broker_company?.name || 'Kantor Agency' }}
+                                    </span>
+                                    <span v-else-if="item.user?.agent_type === 'independent'" class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md">
+                                        💼 Freelance Independen
+                                    </span>
+                                    <span v-else class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-md">
+                                        🏠 In-House Agent
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-8 py-6">
                                 <div class="flex items-center gap-3">
@@ -345,10 +355,23 @@ const simNetCommission = computed(() => {
                                 <p class="text-[10px] text-slate-400 font-bold uppercase">Generated at {{ new Date(item.created_at).toLocaleDateString('id-ID') }}</p>
                             </td>
                             <td class="px-8 py-6">
-                                <div v-if="item.user?.bank_account_number" class="p-3 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-white transition-all">
-                                    <p class="text-[10px] font-black text-slate-900 uppercase">{{ item.user.bank_name }}</p>
-                                    <p class="text-xs font-black text-blue-600 tracking-wider">{{ item.user.bank_account_number }}</p>
-                                    <p class="text-[9px] text-slate-400 font-bold uppercase mt-1">A/N {{ item.user.bank_account_name }}</p>
+                                <div v-if="item.user?.effective_bank_account" class="p-3 rounded-2xl border transition-all"
+                                    :class="item.user.effective_bank_account.is_office ? 'bg-amber-50/60 border-amber-200 text-amber-950' : 'bg-slate-50 border-slate-100 text-slate-900'">
+                                    <div class="flex items-center justify-between gap-1 mb-1">
+                                        <span class="text-[10px] font-black uppercase" :class="item.user.effective_bank_account.is_office ? 'text-amber-900' : 'text-slate-900'">
+                                            {{ item.user.effective_bank_account.bank_name }}
+                                        </span>
+                                        <span v-if="item.user.effective_bank_account.is_office" class="text-[9px] font-extrabold bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                                            🏢 Rekening Kantor Agency
+                                        </span>
+                                        <span v-else class="text-[9px] font-extrabold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
+                                            💼 Rekening Agen
+                                        </span>
+                                    </div>
+                                    <p class="text-xs font-black text-blue-600 tracking-wider">{{ item.user.effective_bank_account.bank_account_number }}</p>
+                                    <p class="text-[9px] font-bold uppercase mt-1" :class="item.user.effective_bank_account.is_office ? 'text-amber-800' : 'text-slate-500'">
+                                        A/N {{ item.user.effective_bank_account.bank_account_name }}
+                                    </p>
                                 </div>
                                 <p v-else class="text-[10px] text-rose-400 font-black uppercase">Data Bank Kosong!</p>
                             </td>
