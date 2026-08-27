@@ -38,12 +38,26 @@ function submit() {
     }
 }
 
-const inhouseAgents = computed(() => {
-    return (props.agents || []).filter(a => !a.broker_company_id || a.agent_type === 'inhouse');
-});
+const availableAgentsForLead = computed(() => {
+    const source = form.source;
+    const allAgents = props.agents || [];
 
-const brokerAgents = computed(() => {
-    return (props.agents || []).filter(a => a.broker_company_id || a.agent_type === 'agency_agent' || a.agent_type === 'independent');
+    if (['broker', 'agent'].includes(source)) {
+        if (form.broker_company_id) {
+            return allAgents.filter(a => a.broker_company_id === form.broker_company_id);
+        }
+        return allAgents.filter(a => a.broker_company_id || a.agent_type === 'agency_agent');
+    }
+
+    if (source === 'independent') {
+        return allAgents.filter(a => a.agent_type === 'independent');
+    }
+
+    if (source === 'referral') {
+        return allAgents.filter(a => a.agent_type === 'independent' || a.agent_type === 'agency_agent');
+    }
+
+    return allAgents.filter(a => !a.broker_company_id || a.agent_type === 'inhouse');
 });
 </script>
 
@@ -97,13 +111,17 @@ const brokerAgents = computed(() => {
                         <div>
                             <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sumber Prospek (Source)</label>
                             <select v-model="form.source" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+                                <option value="broker">🏢 Kantor Agency & Sub-Agent</option>
+                                <option value="independent">💼 Agen Freelance Independen</option>
+                                <option value="inhouse">🏠 Tim Sales In-House</option>
                                 <option value="walk_in">🚶 Walk In / Pameran</option>
                                 <option value="facebook">📘 Meta / Facebook Ads</option>
                                 <option value="instagram">📸 Instagram Ads</option>
                                 <option value="google">🔍 Google Ads</option>
-                                <option value="agent">👔 Agen / Broker</option>
+                                <option value="tiktok">🎵 TikTok Ads</option>
                                 <option value="referral">🤝 Referensi</option>
                                 <option value="website">🌐 Website</option>
+                                <option value="other">📁 Lain-lain</option>
                             </select>
                         </div>
                     </div>
@@ -149,24 +167,27 @@ const brokerAgents = computed(() => {
                             </select>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sales PIC Assigned / Agen</label>
-                            <select v-model="form.assigned_to" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-                                <option value="">-- Pilih Sales PIC / Agen --</option>
-                                <optgroup v-if="brokerAgents.length" label="🏢 AGEN KANTOR BROKER / INDEPENDEN">
-                                    <option v-for="a in brokerAgents" :key="a.id" :value="a.id">🏢 {{ a.name }} ({{ a.broker_company ? a.broker_company.name : 'Agency' }})</option>
-                                </optgroup>
-                                <optgroup label="🏠 TIM SALES IN-HOUSE">
-                                    <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">🏠 {{ a.name }}</option>
-                                </optgroup>
+                        <div v-if="['broker', 'agent'].includes(form.source)">
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">1. Kantor Agency (Broker)</label>
+                            <select v-model="form.broker_company_id" class="w-full px-4 py-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs font-bold text-amber-950 focus:ring-2 focus:ring-amber-500/20 cursor-pointer">
+                                <option value="">-- Pilih Kantor Agency --</option>
+                                <option v-for="b in broker_companies" :key="b.id" :value="b.id">🏢 {{ b.name }} ({{ b.code }})</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Kantor Agency (Refferal)</label>
-                            <select v-model="form.broker_company_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-                                <option value="">-- Tanpa Kantor Agency --</option>
-                                <option v-for="b in broker_companies" :key="b.id" :value="b.id">{{ b.name }} ({{ b.code }})</option>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                <span v-if="['broker', 'agent'].includes(form.source)">2. Sub-Agent Terdaftar</span>
+                                <span v-else-if="form.source === 'independent'">Agen Freelance Independen</span>
+                                <span v-else>Sales PIC In-House</span>
+                            </label>
+                            <select v-model="form.assigned_to" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+                                <option value="">-- Pilih Agen --</option>
+                                <option v-for="a in availableAgentsForLead" :key="a.id" :value="a.id">
+                                    {{ a.agent_type === 'agency_agent' ? '🏢' : (a.agent_type === 'independent' ? '💼' : '🏠') }} 
+                                    {{ a.name }}
+                                    <template v-if="a.broker_company"> ({{ a.broker_company.name }})</template>
+                                </option>
                             </select>
                         </div>
                     </div>

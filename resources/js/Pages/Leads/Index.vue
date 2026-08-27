@@ -76,6 +76,51 @@ const brokerAgents = computed(() => {
     return (props.agents || []).filter(a => a.broker_company_id || a.agent_type === 'agency_agent' || a.agent_type === 'independent');
 });
 
+// Dynamic LOV filtering based on selected source & broker_company_id
+const availableAgentsForLead = computed(() => {
+    const source = addForm.source;
+    const allAgents = props.agents || [];
+
+    // Scenario 1: Source is Kantor Agency (Broker)
+    if (['broker', 'agent'].includes(source)) {
+        if (addForm.broker_company_id) {
+            return allAgents.filter(a => a.broker_company_id === addForm.broker_company_id);
+        }
+        return allAgents.filter(a => a.broker_company_id || a.agent_type === 'agency_agent');
+    }
+
+    // Scenario 2: Source is Freelance / Independent Agent
+    if (source === 'independent') {
+        return allAgents.filter(a => a.agent_type === 'independent');
+    }
+
+    // Scenario 3: Source is Referral
+    if (source === 'referral') {
+        return allAgents.filter(a => a.agent_type === 'independent' || a.agent_type === 'agency_agent');
+    }
+
+    // Scenario 4: Direct / In-House Sales Sources
+    return allAgents.filter(a => !a.broker_company_id || a.agent_type === 'inhouse');
+});
+
+watch(() => addForm.source, (newSource) => {
+    if (!['broker', 'agent'].includes(newSource)) {
+        addForm.broker_company_id = '';
+    }
+    addForm.assigned_to = '';
+});
+
+watch(() => addForm.broker_company_id, (newCompanyId) => {
+    if (newCompanyId) {
+        const subAgents = (props.agents || []).filter(a => a.broker_company_id === newCompanyId);
+        if (subAgents.length > 0) {
+            addForm.assigned_to = subAgents[0].id;
+        } else {
+            addForm.assigned_to = '';
+        }
+    }
+});
+
 function submitLead() {
     addForm.post('/leads', {
         onSuccess: () => { showAddModal.value = false; addForm.reset(); },
@@ -293,9 +338,19 @@ function scoreColor(score) {
                                 <input v-model="addForm.email" type="email" placeholder="email@example.com" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Sumber <span class="text-rose-500">*</span></label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Sumber Prospek <span class="text-rose-500">*</span></label>
                                 <select v-model="addForm.source" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer font-bold">
-                                    <option v-for="s in ['facebook','instagram','google','tiktok','walk_in','referral','broker','website','agent','other']" :key="s" :value="s">{{ s.replace('_', ' ') }}</option>
+                                    <option value="broker">🏢 Kantor Agency & Sub-Agent</option>
+                                    <option value="independent">💼 Agen Freelance Independen</option>
+                                    <option value="inhouse">🏠 Tim Sales In-House</option>
+                                    <option value="walk_in">🚶 Walk In / Pameran</option>
+                                    <option value="facebook">📘 Meta / Facebook Ads</option>
+                                    <option value="instagram">📸 Instagram Ads</option>
+                                    <option value="google">🔍 Google Ads</option>
+                                    <option value="tiktok">🎵 TikTok Ads</option>
+                                    <option value="referral">🤝 Referensi</option>
+                                    <option value="website">🌐 Website</option>
+                                    <option value="other">📁 Lain-lain</option>
                                 </select>
                             </div>
                             <div>
@@ -306,30 +361,38 @@ function scoreColor(score) {
                                 </select>
                             </div>
 
-                            <!-- Pilihan Kantor Agency (Jika sumber Broker / Referral) -->
-                            <div v-if="['broker', 'referral', 'agent'].includes(addForm.source)" class="col-span-2">
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Afiliasi Kantor Agency / Broker Company</label>
-                                <select v-model="addForm.broker_company_id" class="w-full px-4 py-2.5 border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/20 cursor-pointer font-bold bg-amber-50/50 text-amber-900">
+                            <!-- Pilihan Kantor Agency (Hanya jika sumber Kantor Agency) -->
+                            <div v-if="['broker', 'agent'].includes(addForm.source)" class="col-span-2 p-3 bg-amber-50 rounded-2xl border border-amber-200/60 space-y-1.5">
+                                <label class="block text-xs font-bold text-amber-900">1. Pilih Kantor Agency (Broker Company) *</label>
+                                <select v-model="addForm.broker_company_id" class="w-full px-4 py-2.5 border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/20 cursor-pointer font-bold bg-white text-amber-950">
                                     <option value="">-- Pilih Kantor Agency --</option>
                                     <option v-for="b in broker_companies" :key="b.id" :value="b.id">🏢 {{ b.name }} ({{ b.code || 'NO-CODE' }})</option>
                                 </select>
                             </div>
 
+                            <!-- Pilihan Agen / Sub-Agent LOV Dynamic -->
                             <div class="col-span-2">
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Agen / Sales PIC</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                    <span v-if="['broker', 'agent'].includes(addForm.source)">2. Pilih Sub-Agent di Kantor Terpilih (LOV)</span>
+                                    <span v-else-if="addForm.source === 'independent'">Pilih Agen Freelance Independen (LOV)</span>
+                                    <span v-else>Pilih Sales PIC In-House (Internal)</span>
+                                </label>
+
                                 <select v-model="addForm.assigned_to" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer font-bold">
-                                    <option value="">Auto-assign (Round Robin In-House)</option>
-                                    <optgroup v-if="brokerAgents.length" label="🏢 AGEN KANTOR BROKER / INDEPENDEN">
-                                        <option v-for="a in brokerAgents" :key="a.id" :value="a.id">
-                                            🏢 {{ a.name }} ({{ a.broker_company ? a.broker_company.name : 'Agency' }})
-                                        </option>
-                                    </optgroup>
-                                    <optgroup label="🏠 TIM SALES IN-HOUSE">
-                                        <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">
-                                            🏠 {{ a.name }}
-                                        </option>
-                                    </optgroup>
+                                    <option value="">
+                                        {{ ['broker', 'agent'].includes(addForm.source) ? '-- Auto-Assign Kantor / Semua Sub-Agent --' : 'Auto-assign (Round Robin In-House)' }}
+                                    </option>
+
+                                    <option v-for="a in availableAgentsForLead" :key="a.id" :value="a.id">
+                                        {{ a.agent_type === 'agency_agent' ? '🏢' : (a.agent_type === 'independent' ? '💼' : '🏠') }} 
+                                        {{ a.name }} 
+                                        <template v-if="a.broker_company"> ({{ a.broker_company.name }})</template>
+                                    </option>
                                 </select>
+
+                                <p v-if="['broker', 'agent'].includes(addForm.source) && addForm.broker_company_id && availableAgentsForLead.length === 0" class="text-xs text-amber-600 mt-1 italic font-medium">
+                                    Belum ada sub-agent terdaftar di kantor ini (Lead akan dialokasikan ke Kantor Agency).
+                                </p>
                             </div>
                             <div class="col-span-2">
                                 <label class="block text-xs font-bold text-slate-700 mb-1.5">Catatan</label>
