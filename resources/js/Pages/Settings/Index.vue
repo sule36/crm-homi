@@ -218,7 +218,7 @@ const form = useForm({
     spk_terms: props.settings.spk_terms || '',
     company_logo: null,
     
-    spr_number_format: props.settings.spr_number_format || '{seq}/SPR-{code}/{year}',
+    spr_number_format: props.settings.spr_number_format || '{seq}/SPR-{code}/{month_roman}/{year}',
     spr_terms_conditions: props.settings.spr_terms_conditions || [
         "Pembeli menyatakan telah mengerti dan menyetujui serta akan tunduk kepada persyaratan dan ketentuan serta kebijakan yang ditetapkan oleh Pengembang dalam SPR",
         "Dalam hal pembelian rumah melalui KPR, jumlah DP dan persyaratan KPR lainnya tunduk pada ketentuan Bank pemberi KPR",
@@ -451,9 +451,9 @@ const tabs = [
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Format Standar Nomor SPR</label>
-                                <input v-model="form.spr_number_format" type="text" placeholder="{seq}/SPR-{code}/{year}" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
+                                <input v-model="form.spr_number_format" type="text" placeholder="{seq}/SPR-{code}/{month_roman}/{year}" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
                                 <p class="text-[10px] text-slate-500 font-medium mt-1.5">
-                                    Contoh hasil: <span class="font-bold text-amber-700">001/SPR-ALC/2026</span>. Tag: <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{seq}</code> (Nomor Urut), <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{code}</code> (Kode Proyek), <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{year}</code> (Tahun).
+                                    Contoh hasil: <span class="font-bold text-amber-700">001/SPR-ALC/VIII/2026</span>. Tag: <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{seq}</code> (Urutan), <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{code}</code> (Kode Proyek), <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{month_roman}</code> (Bulan Romawi), <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{year}</code> (Tahun).
                                 </p>
                             </div>
                             <div>

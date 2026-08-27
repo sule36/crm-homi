@@ -91,11 +91,18 @@ class Booking extends Model
             }
         }
 
-        $format = Setting::get('spr_number_format', '{seq}/SPR-{code}/{year}');
+        $romanMonths = [
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'
+        ];
+        $monthNum = (int)date('n');
+        $monthRoman = $romanMonths[$monthNum] ?? 'VIII';
+
+        $format = Setting::get('spr_number_format', '{seq}/SPR-{code}/{month_roman}/{year}');
 
         return str_replace(
-            ['{seq}', '{code}', '{year}', '{month}'],
-            [$nextSeq, $projectCode, $year, date('m')],
+            ['{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
+            [$nextSeq, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
             $format
         );
     }
