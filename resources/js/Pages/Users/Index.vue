@@ -21,6 +21,7 @@ const form = useForm({
     role: 'sales_agent',
     project_id: '',
     broker_company_id: '',
+    agent_type: 'inhouse',
     phone: '',
     status: 'active',
     commission_rate: 1.00,
@@ -44,6 +45,7 @@ const openEditModal = (user) => {
     form.role = user.roles[0]?.name || '';
     form.project_id = user.project_id || '';
     form.broker_company_id = user.broker_company_id || '';
+    form.agent_type = user.agent_type || (user.broker_company_id ? 'agency_agent' : 'inhouse');
     form.phone = user.phone || '';
     form.status = user.status || 'active';
     form.commission_rate = user.commission_rate || 1.00;
@@ -208,13 +210,22 @@ const deleteUser = (id) => {
                             </div>
                         </div>
 
-                        <div v-if="form.role === 'sales_agent'" class="space-y-1.5">
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Afiliasi Kantor Agen / Broker</label>
-                            <select v-model="form.broker_company_id" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer">
-                                <option value="">Independent Agent (Tidak Berafiliasi)</option>
-                                <option v-for="broker in broker_companies" :key="broker.id" :value="broker.id">🏢 {{ broker.name }}</option>
-                            </select>
-                            <p class="text-[10px] text-slate-450 font-bold italic">Jika agen independen, biarkan kosong. Jika agen berbendera, pilih nama kantor agen di atas.</p>
+                        <div v-if="['sales_agent', 'broker', 'agent'].includes(form.role) || form.agent_type" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tipe Agen</label>
+                                <select v-model="form.agent_type" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer font-bold">
+                                    <option value="inhouse">🏠 In-House Agent (Internal)</option>
+                                    <option value="agency_agent">🏢 Agency Agent (Bernaung di Kantor)</option>
+                                    <option value="independent">💼 Freelance Independen</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Afiliasi Kantor Agency / Broker</label>
+                                <select v-model="form.broker_company_id" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer font-bold">
+                                    <option value="">-- Tanpa Kantor / Independen --</option>
+                                    <option v-for="broker in broker_companies" :key="broker.id" :value="broker.id">🏢 {{ broker.name }} ({{ broker.code || 'NO-CODE' }})</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>

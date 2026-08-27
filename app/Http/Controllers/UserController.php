@@ -69,12 +69,12 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'role' => 'required|exists:roles,name',
+            'role' => 'nullable|exists:roles,name',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'agent_type' => 'nullable|in:inhouse,agency_agent,independent',
             'phone' => 'nullable|string|max:20',
-            'status' => 'required|in:active,inactive',
+            'status' => 'nullable|in:active,inactive',
             'password' => ['nullable', Rules\Password::defaults()],
             'commission_rate' => 'nullable|numeric|min:0|max:100',
             'custom_bonus' => 'nullable|numeric|min:0',
@@ -83,10 +83,14 @@ class UserController extends Controller
             'bank_account_name' => 'nullable|string',
         ]);
 
-        $data = $request->only([
+        $data = array_filter($request->only([
             'name', 'phone', 'project_id', 'broker_company_id', 'agent_type', 'status', 
             'commission_rate', 'custom_bonus', 'bank_name', 'bank_account_number', 'bank_account_name'
-        ]);
+        ]), fn($v) => !is_null($v));
+
+        if (!empty($request->broker_company_id)) {
+            $data['agent_type'] = 'agency_agent';
+        }
 
         if ($request->filled('password')) {
             $data['password'] = Hash::make($request->password);
@@ -94,9 +98,11 @@ class UserController extends Controller
 
         $user->update($data);
         
-        $user->syncRoles([$request->role]);
+        if ($request->filled('role')) {
+            $user->syncRoles([$request->role]);
+        }
 
-        return back()->with('success', 'User berhasil diperbarui.');
+        return back()->with('success', 'Data staff / agen berhasil diperbarui.');
     }
 
     public function destroy(User $user)
