@@ -52,7 +52,9 @@ function generateWaMessage(type) {
 // Quick update
 const editForm = useForm({
     status: props.lead.status,
-    assigned_to: props.lead.assigned_to,
+    assigned_to: typeof props.lead.assigned_to === 'object' && props.lead.assigned_to !== null 
+        ? props.lead.assigned_to.id 
+        : (props.lead.assigned_to_user?.id || props.lead.assigned_to || null),
     notes: props.lead.notes || '',
 });
 

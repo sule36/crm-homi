@@ -110,6 +110,10 @@ class LeadController extends Controller
 
     public function update(Request $request, Lead $lead)
     {
+        if (is_array($request->input('assigned_to'))) {
+            $request->merge(['assigned_to' => $request->input('assigned_to.id')]);
+        }
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'phone' => 'sometimes|string|max:20',
