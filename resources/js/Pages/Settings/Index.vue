@@ -218,7 +218,7 @@ const form = useForm({
     spk_terms: props.settings.spk_terms || '',
     company_logo: null,
     
-    // SPR Dynamic Settings
+    spr_number_format: props.settings.spr_number_format || '{seq}/SPR-{code}/{year}',
     spr_terms_conditions: props.settings.spr_terms_conditions || [
         "Pembeli menyatakan telah mengerti dan menyetujui serta akan tunduk kepada persyaratan dan ketentuan serta kebijakan yang ditetapkan oleh Pengembang dalam SPR",
         "Dalam hal pembelian rumah melalui KPR, jumlah DP dan persyaratan KPR lainnya tunduk pada ketentuan Bank pemberi KPR",
@@ -446,17 +446,26 @@ const tabs = [
 
                     <!-- Section 3: Setup Tanda Tangan & Scan Digital -->
                     <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
-                        <h3 class="text-xs font-black uppercase tracking-widest text-amber-600 mb-6">3. Setup Tanda Tangan Digital Dokumen SPR</h3>
+                        <h3 class="text-xs font-black uppercase tracking-widest text-amber-600 mb-6">3. Setup Format Dokumen & Tanda Tangan Digital SPR</h3>
                         
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Kota Terbit Dokumen</label>
-                            <input v-model="form.spr_signatures.city" type="text" placeholder="misal: Jakarta Selatan" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Format Standar Nomor SPR</label>
+                                <input v-model="form.spr_number_format" type="text" placeholder="{seq}/SPR-{code}/{year}" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
+                                <p class="text-[10px] text-slate-500 font-medium mt-1.5">
+                                    Contoh hasil: <span class="font-bold text-amber-700">001/SPR-ALC/2026</span>. Tag: <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{seq}</code> (Nomor Urut), <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{code}</code> (Kode Proyek), <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9.5px]">{year}</code> (Tahun).
+                                </p>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Kota Terbit Dokumen</label>
+                                <input v-model="form.spr_signatures.city" type="text" placeholder="misal: Jakarta Selatan" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
-                            <!-- TTD 1 (Sales Manager / Staff) -->
+                            <!-- TTD 1 (Marketing / Sales Agent / Staff) -->
                             <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 1 (Staff / Agent)</h4>
+                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 1 (Marketing / Sales)</h4>
                                 <div>
                                     <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
                                     <input v-model="form.spr_signatures.sig1_title" type="text" placeholder="Sales Manager" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
@@ -466,7 +475,7 @@ const tabs = [
                                     <input v-model="form.spr_signatures.sig1_name" type="text" placeholder="Dhany Nur" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
                                 <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Scan TTD Digital (PNG Transparan)</label>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Marketing (PNG Transparan)</label>
                                     <input type="file" @change="handleSig1Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
                                     <div v-if="form.spr_signatures.sig1_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
                                         <img :src="`/storage/${form.spr_signatures.sig1_image}`" class="h-10 max-w-full inline-block object-contain" />

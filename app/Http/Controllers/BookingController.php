@@ -81,7 +81,7 @@ class BookingController extends Controller
             
             // 1. Create Booking
             $booking = Booking::create([
-                'spk_number' => Booking::generateSpkNumber(),
+                'spk_number' => Booking::generateSpkNumber($validated['project_id'] ?? null),
                 'unit_id' => $validated['unit_id'],
                 'lead_id' => $validated['lead_id'],
                 'project_id' => $unit->project_id,
@@ -270,7 +270,8 @@ class BookingController extends Controller
         }
 
         // 3. Unit price installments (DP starts 1 month AFTER booking_date)
-        $remaining = $basePrice - $booking->booking_fee;
+        $targetPrice = $booking->final_price > 0 ? $booking->final_price : ($booking->base_price ?: 0);
+        $remaining = $targetPrice - $booking->booking_fee;
 
         if ($booking->payment_scheme === 'kpr') {
             $dpTotal = $booking->dp_amount > 0 ? $booking->dp_amount : ($basePrice * 0.10);

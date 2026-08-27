@@ -5,13 +5,13 @@
     <title>SPR - {{ $booking->spk_number }}</title>
     <style>
         @page {
-            margin: 0.8cm 1.2cm;
+            margin: 0.5cm 0.8cm;
         }
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 9.5pt;
+            font-size: 8.5pt;
             color: #262626;
-            line-height: 1.4;
+            line-height: 1.3;
             margin: 0;
             padding: 0;
         }
@@ -19,22 +19,22 @@
         /* HEADER LOGO & TITLE */
         .header {
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
         .logo {
-            max-height: 48px;
-            max-width: 180px;
+            max-height: 38px;
+            max-width: 160px;
             object-fit: contain;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         .document-title {
-            font-size: 11pt;
+            font-size: 10.5pt;
             font-weight: bold;
             color: #171717;
-            margin-top: 2px;
+            margin-top: 1px;
         }
         .document-number {
-            font-size: 9pt;
+            font-size: 8.5pt;
             color: #525252;
             margin-top: 1px;
         }
@@ -42,7 +42,7 @@
         /* TWO COLUMN INFO GRID */
         .info-grid {
             width: 100%;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
             border-collapse: collapse;
         }
         .info-grid td {
@@ -52,11 +52,11 @@
 
         .info-header {
             background-color: #f5f5f5;
-            padding: 4px 8px;
+            padding: 3px 6px;
             font-weight: bold;
-            font-size: 9pt;
+            font-size: 8.5pt;
             border-left: 3px solid #d97706;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             color: #171717;
         }
 
@@ -65,8 +65,8 @@
             border-collapse: collapse;
         }
         .info-table td {
-            padding: 2.5px 0;
-            font-size: 8.5pt;
+            padding: 1.5px 0;
+            font-size: 8pt;
             vertical-align: top;
         }
         .info-table td.lbl {
@@ -81,27 +81,27 @@
         /* SCHEDULING TABLE */
         .schedule-title {
             font-weight: bold;
-            font-size: 9pt;
-            margin-bottom: 6px;
+            font-size: 8.5pt;
+            margin-bottom: 4px;
             color: #171717;
         }
         .schedule-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
         .schedule-table th {
             background-color: #f5f5f5;
             color: #404040;
             font-weight: bold;
-            font-size: 8pt;
-            padding: 5px 6px;
+            font-size: 7.5pt;
+            padding: 3.5px 5px;
             border: 1px solid #e5e5e5;
             text-align: left;
         }
         .schedule-table td {
-            padding: 4.5px 6px;
-            font-size: 8pt;
+            padding: 3.5px 5px;
+            font-size: 7.5pt;
             border: 1px solid #e5e5e5;
             color: #262626;
         }
@@ -114,38 +114,34 @@
 
         /* CATATAN-CATATAN (TERMS) */
         .catatan-section {
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
         .catatan-header {
             font-weight: bold;
-            font-size: 9pt;
-            margin-bottom: 6px;
+            font-size: 8.5pt;
+            margin-bottom: 4px;
             color: #171717;
         }
-        .catatan-list {
-            font-size: 7.5pt;
-            color: #404040;
-            line-height: 1.35;
+        .catatan-table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        .catatan-item {
-            margin-bottom: 3px;
-            padding-left: 14px;
-            text-indent: -14px;
-        }
-        .catatan-num {
-            display: inline-block;
-            width: 14px;
-            font-weight: bold;
+        .catatan-table td {
+            vertical-align: top;
+            font-size: 7pt;
+            line-height: 1.25;
+            padding-bottom: 1.5px;
+            text-align: left;
         }
 
         /* SIGNATURE SECTION */
         .signature-section {
-            margin-top: 15px;
+            margin-top: 6px;
         }
         .sig-date {
             text-align: right;
-            font-size: 8.5pt;
-            margin-bottom: 8px;
+            font-size: 8pt;
+            margin-bottom: 4px;
             color: #404040;
         }
         .sig-table {
@@ -158,25 +154,25 @@
             padding: 0 4px;
         }
         .sig-title {
-            font-size: 8.5pt;
+            font-size: 8pt;
             color: #404040;
-            margin-bottom: 6px;
+            margin-bottom: 2px;
         }
         .sig-box {
-            height: 48px;
+            height: 38px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .sig-img {
-            max-height: 44px;
-            max-width: 110px;
+            max-height: 36px;
+            max-width: 100px;
             object-fit: contain;
         }
         .sig-name {
             font-weight: normal;
-            font-size: 8.5pt;
-            margin-top: 4px;
+            font-size: 8pt;
+            margin-top: 2px;
         }
 
         /* PAGE 2 SPECIAL OFFER & BENEFIT */
@@ -560,17 +556,17 @@
         </tbody>
     </table>
 
-    <!-- CATATAN-CATATAN (TERMS & CONDITIONS DYNAMIC LIST) -->
+    <!-- CATATAN-CATATAN (TERMS & CONDITIONS DYNAMIC TABLE) -->
     <div class="catatan-section">
         <div class="catatan-header">Catatan-catatan</div>
-        <div class="catatan-list">
+        <table class="catatan-table">
             @foreach($terms as $idx => $item)
-            <div class="catatan-item">
-                <span class="catatan-num">{{ $idx + 1 }}</span>
-                <span>{{ $item }}</span>
-            </div>
+            <tr>
+                <td style="width: 16px; font-weight: bold; color: #171717;">{{ $idx + 1 }}</td>
+                <td>{{ $item }}</td>
+            </tr>
             @endforeach
-        </div>
+        </table>
     </div>
 
     <!-- SIGNATURE SECTION (DYNAMIC COLUMNS 2, 3, or 4) -->

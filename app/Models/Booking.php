@@ -72,16 +72,32 @@ class Booking extends Model
     public function documents() { return $this->hasMany(BookingDocument::class); }
 
     // Auto-generate SPR number
-    public static function generateSpkNumber(): string
+    public static function generateSpkNumber($projectId = null): string
     {
-        return static::generateSprNumber();
+        return static::generateSprNumber($projectId);
     }
 
-    public static function generateSprNumber(): string
+    public static function generateSprNumber($projectId = null): string
     {
         $year = date('Y');
-        $last = static::whereYear('created_at', $year)->max('id') ?? 0;
-        return sprintf('SPR-%s-%04d', $year, $last + 1);
+        $countThisYear = static::whereYear('created_at', $year)->count();
+        $nextSeq = sprintf('%03d', $countThisYear + 1);
+
+        $projectCode = 'HOMI';
+        if ($projectId) {
+            $project = Project::find($projectId);
+            if ($project) {
+                $projectCode = strtoupper($project->code ?: substr(preg_replace('/[^A-Za-z0-9]/', '', $project->name), 0, 3));
+            }
+        }
+
+        $format = Setting::get('spr_number_format', '{seq}/SPR-{code}/{year}');
+
+        return str_replace(
+            ['{seq}', '{code}', '{year}', '{month}'],
+            [$nextSeq, $projectCode, $year, date('m')],
+            $format
+        );
     }
 
     public function getTotalPaidAttribute(): int
