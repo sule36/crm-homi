@@ -57,8 +57,8 @@ class UserController extends Controller
             'project_id' => $request->project_id,
             'broker_company_id' => $request->broker_company_id,
             'agent_type' => $agentType,
-            'commission_rate' => is_numeric($request->commission_rate) ? $request->commission_rate : null,
-            'custom_bonus' => is_numeric($request->custom_bonus) ? $request->custom_bonus : 0,
+            'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : 0,
+            'custom_bonus' => is_numeric($request->custom_bonus) ? (float)$request->custom_bonus : 0,
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
@@ -66,7 +66,7 @@ class UserController extends Controller
         ]);
 
         if ($role) {
-            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role]);
+            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
             $user->assignRole($role);
         }
 
@@ -77,7 +77,7 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'role' => 'nullable|exists:roles,name',
+            'role' => 'nullable|string',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'agent_type' => 'nullable|in:inhouse,agency_agent,independent',
@@ -91,14 +91,19 @@ class UserController extends Controller
             'bank_account_name' => 'nullable|string',
         ]);
 
-        $data = array_filter($request->only([
-            'name', 'phone', 'project_id', 'broker_company_id', 'agent_type', 'status', 
-            'commission_rate', 'custom_bonus', 'bank_name', 'bank_account_number', 'bank_account_name'
-        ]), fn($v) => !is_null($v));
-
-        if (!empty($request->broker_company_id)) {
-            $data['agent_type'] = 'agency_agent';
-        }
+        $data = [
+            'name' => $request->name,
+            'phone' => $request->phone,
+            'project_id' => $request->project_id,
+            'broker_company_id' => $request->broker_company_id,
+            'agent_type' => $request->agent_type ?: ($request->broker_company_id ? 'agency_agent' : 'inhouse'),
+            'status' => $request->status ?: $user->status,
+            'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : 0,
+            'custom_bonus' => is_numeric($request->custom_bonus) ? (float)$request->custom_bonus : 0,
+            'bank_name' => $request->bank_name,
+            'bank_account_number' => $request->bank_account_number,
+            'bank_account_name' => $request->bank_account_name,
+        ];
 
         if ($request->filled('password')) {
             $data['password'] = Hash::make($request->password);
@@ -107,6 +112,7 @@ class UserController extends Controller
         $user->update($data);
         
         if ($request->filled('role')) {
+            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $request->role, 'guard_name' => 'web']);
             $user->syncRoles([$request->role]);
         }
 
