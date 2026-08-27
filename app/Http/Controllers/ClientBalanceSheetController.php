@@ -153,4 +153,14 @@ class ClientBalanceSheetController extends Controller
             'sheet' => $clientBalanceSheet,
         ]);
     }
+
+    public function create()
+    {
+        return redirect()->route('client-balance-sheets.index');
+    }
+
+    public function edit(ClientBalanceSheet $clientBalanceSheet)
+    {
+        return redirect()->route('client-balance-sheets.index');
+    }
 }

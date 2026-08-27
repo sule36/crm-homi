@@ -54,7 +54,18 @@ class LeadController extends Controller
     {
         return Inertia::render('Leads/Form', [
             'projects' => Project::select('id', 'name')->where('status', 'active')->get(),
-            'agents' => User::role(['sales_agent', 'sales_manager'])->select('id', 'name')->get(),
+            'agents' => User::role(['sales_agent', 'sales_manager', 'broker'])->select('id', 'name')->get(),
+            'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
+        ]);
+    }
+
+    public function edit(Lead $lead)
+    {
+        return Inertia::render('Leads/Form', [
+            'lead' => $lead,
+            'projects' => Project::select('id', 'name')->where('status', 'active')->get(),
+            'agents' => User::role(['sales_agent', 'sales_manager', 'broker'])->select('id', 'name')->get(),
+            'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
         ]);
     }
 
@@ -66,9 +77,16 @@ class LeadController extends Controller
             'email' => 'nullable|email|max:255',
             'project_id' => 'nullable|exists:projects,id',
             'assigned_to' => 'nullable|exists:users,id',
-            'source' => 'required|in:facebook,instagram,google,tiktok,walk_in,referral,broker,website,other',
+            'broker_company_id' => 'nullable|exists:broker_companies,id',
+            'source' => 'required|in:facebook,instagram,google,tiktok,walk_in,referral,broker,website,agent,other',
             'notes' => 'nullable|string',
             'preferences' => 'nullable|array',
+            'nik' => 'nullable|string|max:30',
+            'npwp' => 'nullable|string|max:30',
+            'address' => 'nullable|string',
+            'job' => 'nullable|string|max:255',
+            'budget' => 'nullable|numeric|min:0',
+            'preferred_type' => 'nullable|string|max:255',
         ]);
 
         $validated['status'] = 'new';
