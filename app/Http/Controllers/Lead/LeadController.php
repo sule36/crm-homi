@@ -17,7 +17,7 @@ class LeadController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Lead::with(['assignedTo', 'project', 'campaign']);
+        $query = Lead::with(['assignedTo.brokerCompany', 'project', 'campaign', 'brokerCompany']);
 
         // Sales agents can only see their own leads
         if ($user->hasRole('sales_agent') || $user->hasRole('broker')) {

@@ -131,9 +131,53 @@ const sourceColors = {
     facebook: 'bg-blue-100 text-blue-700', instagram: 'bg-pink-100 text-pink-700',
     google: 'bg-red-100 text-red-700', tiktok: 'bg-slate-100 text-slate-700',
     walk_in: 'bg-amber-100 text-amber-700', referral: 'bg-purple-100 text-purple-700',
-    broker: 'bg-cyan-100 text-cyan-700', website: 'bg-emerald-100 text-emerald-700',
-    other: 'bg-gray-100 text-gray-700',
+    broker: 'bg-amber-500/10 text-amber-700 border border-amber-500/20 font-bold', 
+    agency: 'bg-amber-500/10 text-amber-700 border border-amber-500/20 font-bold', 
+    agent: 'bg-amber-500/10 text-amber-700 border border-amber-500/20 font-bold',
+    independent: 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 font-bold',
+    inhouse: 'bg-blue-500/10 text-blue-700 border border-blue-500/20 font-bold',
+    website: 'bg-emerald-100 text-emerald-700', other: 'bg-gray-100 text-gray-700',
 };
+
+function formatSourceLabel(lead) {
+    if (!lead) return '-';
+    const src = lead.source;
+    if (src === 'broker' || src === 'agency' || src === 'agent') {
+        if (lead.broker_company) {
+            return `🏢 ${lead.broker_company.name}`;
+        }
+        return '🏢 Kantor Agency';
+    }
+    if (src === 'independent') return '💼 Agen Freelance';
+    if (src === 'inhouse') return '🏠 Sales In-House';
+    if (src === 'walk_in') return '🚶 Walk In';
+    if (src === 'facebook') return '📘 Meta Ads';
+    if (src === 'instagram') return '📸 Instagram';
+    if (src === 'google') return '🔍 Google Ads';
+    if (src === 'tiktok') return '🎵 TikTok';
+    if (src === 'referral') return '🤝 Referensi';
+    if (src === 'website') return '🌐 Website';
+    return src ? src.replace('_', ' ') : 'Lain-lain';
+}
+
+function formatAgentLabel(lead) {
+    if (!lead) return '-';
+    if (lead.assigned_to_user) {
+        let label = lead.assigned_to_user.name;
+        if (lead.assigned_to_user.broker_company) {
+            label += ` (${lead.assigned_to_user.broker_company.name})`;
+        } else if (lead.broker_company) {
+            label += ` (${lead.broker_company.name})`;
+        }
+        return label;
+    }
+
+    if (lead.broker_company) {
+        return `🏢 ${lead.broker_company.name}`;
+    }
+
+    return '-';
+}
 
 const statusColors = {
     new: 'bg-blue-100 text-blue-700', contacted: 'bg-cyan-100 text-cyan-700',
@@ -241,10 +285,12 @@ function scoreColor(score) {
                                 </select>
                             </td>
                             <td class="px-4 py-3 hidden lg:table-cell">
-                                <span :class="sourceColors[lead.source]" class="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize">{{ lead.source?.replace('_', ' ') }}</span>
+                                <span :class="sourceColors[lead.source]" class="text-[10px] font-bold px-2.5 py-1 rounded-full border">
+                                    {{ formatSourceLabel(lead) }}
+                                </span>
                             </td>
                             <td class="px-4 py-3 hidden lg:table-cell">
-                                <span class="text-xs text-slate-600">{{ lead.assigned_to_user?.name || '-' }}</span>
+                                <span class="text-xs font-semibold text-slate-700">{{ formatAgentLabel(lead) }}</span>
                             </td>
                             <td class="px-4 py-3 text-center">
                                 <span :class="scoreColor(lead.score)" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black">{{ lead.score }}</span>
@@ -295,8 +341,10 @@ function scoreColor(score) {
                         </div>
                         <p class="text-xs text-slate-500 mb-2">{{ lead.phone }}</p>
                         <div class="flex items-center justify-between">
-                            <span :class="sourceColors[lead.source]" class="text-[9px] font-bold px-1.5 py-0.5 rounded capitalize">{{ lead.source?.replace('_', ' ') }}</span>
-                            <span class="text-[10px] text-slate-400">{{ lead.assigned_to_user?.name?.split(' ')[0] || '-' }}</span>
+                            <span :class="sourceColors[lead.source]" class="text-[9px] font-bold px-1.5 py-0.5 rounded border">
+                                {{ formatSourceLabel(lead) }}
+                            </span>
+                            <span class="text-[10px] text-slate-600 font-medium">{{ formatAgentLabel(lead) }}</span>
                         </div>
                     </div>
                 </div>
