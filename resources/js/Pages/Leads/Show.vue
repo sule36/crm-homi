@@ -101,6 +101,9 @@ function scoreColor(s) {
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                <Link href="/kpr-scoring" class="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors flex items-center gap-1.5">
+                    <span>📊</span> <span>Analisis Neraca Client</span>
+                </Link>
                 <button @click="showKprModal = true" class="px-4 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl hover:bg-blue-100 transition-colors">🧮 Kalkulator KPR</button>
                 <button @click="showReminderModal = true" class="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-100 transition-colors">⏰ Set Reminder</button>
                 <a :href="`https://wa.me/${lead.phone?.replace(/^0/, '62')}`" target="_blank" class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">💬 WhatsApp</a>

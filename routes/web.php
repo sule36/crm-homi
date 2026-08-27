@@ -64,6 +64,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('kpr.calculator');
 
+    // Analisis Neraca Client & Skor KPR
+    Route::resource('client-balance-sheets', \App\Http\Controllers\ClientBalanceSheetController::class);
+    Route::get('/kpr-scoring', [\App\Http\Controllers\ClientBalanceSheetController::class, 'index'])->name('kpr.scoring');
+
     // WhatsApp Inbox
     Route::get('/whatsapp/inbox', [\App\Http\Controllers\WhatsAppChatController::class, 'index'])->name('whatsapp.inbox');
     Route::get('/whatsapp/chat/{phone}', [\App\Http\Controllers\WhatsAppChatController::class, 'getMessages'])->name('whatsapp.chat.messages');
