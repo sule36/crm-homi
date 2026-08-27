@@ -388,7 +388,7 @@ const docTypeLabels = {
 
                                         <button @click="sendEmailRow(schedule)" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="Kirim Invoice Email Tagihan Ke Konsumen">✉️</button>
                                         <button @click="openEditRow(schedule)" class="p-1 text-slate-400 hover:text-amber-600 transition-colors" title="Edit Baris">✏️</button>
-                                        <button v-if="schedule.status !== 'paid' && schedule.installment_number !== 0" @click="deleteRow(schedule)" class="p-1 text-slate-400 hover:text-rose-600 transition-colors" title="Hapus Baris">🗑️</button>
+                                        <button @click="deleteRow(schedule)" class="p-1 text-slate-400 hover:text-rose-600 transition-colors" title="Hapus Baris Tagihan Ini">🗑️</button>
                                     </td>
                                 </tr>
                             </tbody>

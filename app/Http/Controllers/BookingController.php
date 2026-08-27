@@ -106,9 +106,17 @@ class BookingController extends Controller
 
     public function show(Booking $booking)
     {
+        // Self-healing: Clean up duplicate UTJ rows (#0) if any exist from legacy operations
+        $utjSchedules = $booking->paymentSchedules()->where('installment_number', 0)->orderBy('id', 'asc')->get();
+        if ($utjSchedules->count() > 1) {
+            foreach ($utjSchedules->slice(1) as $dupUtj) {
+                $dupUtj->delete();
+            }
+        }
+
         $booking->load([
             'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy',
-            'paymentSchedules' => fn ($q) => $q->orderBy('installment_number', 'asc')->orderBy('due_date', 'asc'),
+            'paymentSchedules' => fn ($q) => $q->orderBy('installment_number', 'asc')->orderBy('id', 'asc'),
             'transactions', 'documents'
         ]);
 
@@ -346,8 +354,11 @@ class BookingController extends Controller
 
     public function deleteScheduleRow(\App\Models\PaymentSchedule $paymentSchedule)
     {
-        if ($paymentSchedule->status === 'paid') {
-            return back()->with('error', 'Tagihan yang sudah lunas tidak dapat dihapus.');
+        $booking = $paymentSchedule->booking;
+        $utjCount = $booking->paymentSchedules()->where('installment_number', 0)->count();
+
+        if ($paymentSchedule->installment_number === 0 && $utjCount <= 1 && $paymentSchedule->status === 'paid') {
+            return back()->with('error', 'Tagihan Booking Fee (UTJ) utama yang sudah lunas tidak dapat dihapus.');
         }
 
         $paymentSchedule->delete();
