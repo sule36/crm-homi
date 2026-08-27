@@ -335,8 +335,10 @@
         </thead>
         <tbody>
             @php
-                $dpAmount = $booking->dp_amount > 0 ? $booking->dp_amount : ($booking->final_price * 0.10);
-                $kprAmount = $booking->final_price - $booking->booking_fee - $dpAmount;
+                $dpAmount = $booking->dp_amount > 0 ? $booking->dp_amount : 0;
+                $remainingInstallment = $booking->final_price - $booking->booking_fee - $dpAmount;
+                $tenorMonths = $booking->installment_months > 0 ? $booking->installment_months : 12;
+                $perMonthAmount = round($remainingInstallment / $tenorMonths);
                 $formattedBank = ($bankInfo['bank_name'] ?? 'BCA/BSI') . ' ' . ($bankInfo['account_number'] ?? '542-539-2929');
                 $accHolder = $bankInfo['account_holder'] ?? 'PT. Serangkai Roden Development';
             @endphp
@@ -347,18 +349,36 @@
                 <td>{{ $formattedBank }}</td>
                 <td>{{ $accHolder }}</td>
             </tr>
-            @if(strtolower($booking->payment_scheme) === 'kpr' || strtolower($booking->payment_scheme) === 'cash_bertahap')
+            @if($dpAmount > 0)
             <tr>
                 <td>Down Payment (DP)</td>
                 <td class="text-right">{{ number_format($dpAmount, 2, '.', ',') }}</td>
-                <td class="text-center">TBD</td>
+                <td class="text-center">Sesuai Jadwal</td>
                 <td>{{ $formattedBank }}</td>
                 <td>{{ $accHolder }}</td>
             </tr>
+            @endif
+            @if(strtolower($booking->payment_scheme) === 'kpr')
             <tr>
-                <td>Pelunasan / {{ strtoupper($booking->payment_scheme) }}</td>
-                <td class="text-right">{{ number_format($kprAmount, 2, '.', ',') }}</td>
-                <td class="text-center">TBD</td>
+                <td>Pencairan KPR Bank</td>
+                <td class="text-right">{{ number_format($booking->final_price - $booking->booking_fee - $dpAmount, 2, '.', ',') }}</td>
+                <td class="text-center">Akad Kredit</td>
+                <td>{{ $formattedBank }}</td>
+                <td>{{ $accHolder }}</td>
+            </tr>
+            @elseif(strtolower($booking->payment_scheme) === 'cash_installment' || strtolower($booking->payment_scheme) === 'cash_bertahap')
+            <tr>
+                <td>Cicilan Cash Bertahap ({{ $tenorMonths }} Bulan @ Rp {{ number_format($perMonthAmount, 0, ',', '.') }})</td>
+                <td class="text-right">{{ number_format($remainingInstallment, 2, '.', ',') }}</td>
+                <td class="text-center">Bulanan (1-{{ $tenorMonths }})</td>
+                <td>{{ $formattedBank }}</td>
+                <td>{{ $accHolder }}</td>
+            </tr>
+            @else
+            <tr>
+                <td>Pelunasan Cash Keras</td>
+                <td class="text-right">{{ number_format($booking->final_price - $booking->booking_fee, 2, '.', ',') }}</td>
+                <td class="text-center">14 Hari</td>
                 <td>{{ $formattedBank }}</td>
                 <td>{{ $accHolder }}</td>
             </tr>

@@ -44,6 +44,67 @@ function deleteTransaction(id) {
     }
 }
 
+// Flexible Payment Schedule Management
+const showScheduleModal = ref(false);
+const showAddRowModal = ref(false);
+const editingScheduleRow = ref(null);
+
+const regenForm = useForm({
+    payment_scheme: props.booking.payment_scheme || 'cash_installment',
+    installment_months: props.booking.installment_months || 60,
+    dp_amount: props.booking.dp_amount || 0,
+    dp_installment_months: props.booking.dp_installment_months || 0,
+});
+
+function submitRegenSchedule() {
+    regenForm.post(`/bookings/${props.booking.id}/regenerate-schedule`, {
+        preserveScroll: true,
+        onSuccess: () => { showScheduleModal.value = false; }
+    });
+}
+
+const addRowForm = useForm({
+    label: '',
+    amount: '',
+    due_date: '',
+});
+
+function submitAddRow() {
+    addRowForm.post(`/bookings/${props.booking.id}/schedules`, {
+        preserveScroll: true,
+        onSuccess: () => { showAddRowModal.value = false; addRowForm.reset(); }
+    });
+}
+
+const editRowForm = useForm({
+    label: '',
+    amount: '',
+    due_date: '',
+    status: 'upcoming',
+});
+
+function openEditRow(schedule) {
+    editingScheduleRow.value = schedule;
+    editRowForm.label = schedule.label;
+    editRowForm.amount = schedule.amount;
+    editRowForm.due_date = schedule.due_date;
+    editRowForm.status = schedule.status;
+}
+
+function submitEditRow() {
+    if (!editingScheduleRow.value) return;
+    editRowForm.put(`/payment-schedules/${editingScheduleRow.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => { editingScheduleRow.value = null; }
+    });
+}
+
+function deleteRow(schedule) {
+    if (confirm(`Hapus baris tagihan "${schedule.label}"?`)) {
+        router.delete(`/payment-schedules/${schedule.id}`, { preserveScroll: true });
+    }
+}
+
 const showReasonModal = ref(false);
 const actionType = ref(''); // 'reject' or 'cancel'
 const reason = ref('');
@@ -263,41 +324,61 @@ const docTypeLabels = {
 
                 <!-- PAYMENT SCHEDULE -->
                 <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                    <div class="flex items-center justify-between mb-6">
-                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">Jadwal Pembayaran</h2>
-                        <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold uppercase">{{ booking.payment_scheme }}</span>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+                        <div>
+                            <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                                <span>📅</span> <span>Jadwal Pembayaran</span>
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                Skema: <span class="font-bold text-amber-600 uppercase">{{ booking.payment_scheme }}</span> 
+                                <span v-if="booking.installment_months"> ({{ booking.installment_months }} Bulan / {{ (booking.installment_months / 12).toFixed(1) }} Thn)</span>
+                            </p>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button @click="showScheduleModal = true" class="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl hover:bg-amber-100 transition-colors flex items-center gap-1">
+                                <span>⚙️</span> <span>Atur Skema / Tenor</span>
+                            </button>
+                            <button @click="showAddRowModal = true" class="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center gap-1">
+                                <span>➕</span> <span>Tambah Tagihan</span>
+                            </button>
+                        </div>
                     </div>
                     
-                    <div v-if="booking.payment_schedules?.length" class="overflow-hidden">
+                    <div v-if="booking.payment_schedules?.length" class="overflow-x-auto">
                         <table class="w-full text-left">
                             <thead class="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
                                 <tr>
-                                    <th class="py-3">Tagihan</th>
-                                    <th class="py-3">Jatuh Tempo</th>
-                                    <th class="py-3 text-right">Jumlah</th>
-                                    <th class="py-3 text-center">Status</th>
+                                    <th class="py-3 px-4">Tagihan</th>
+                                    <th class="py-3 px-4">Jatuh Tempo</th>
+                                    <th class="py-3 px-4 text-right">Jumlah</th>
+                                    <th class="py-3 px-4 text-center">Status</th>
+                                    <th class="py-3 px-4 text-right">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-50">
                                 <tr v-for="schedule in booking.payment_schedules" :key="schedule.id" class="hover:bg-slate-50/50 transition-colors">
-                                    <td class="px-6 py-4">
-                                        <p class="font-black text-slate-900">{{ schedule.label }}</p>
+                                    <td class="px-4 py-3">
+                                        <p class="font-black text-slate-900 text-xs">{{ schedule.label }}</p>
                                         <p class="text-[10px] text-slate-400">#{{ schedule.installment_number }}</p>
                                     </td>
-                                    <td class="px-6 py-4 text-slate-500 font-medium">
+                                    <td class="px-4 py-3 text-slate-600 font-medium text-xs">
                                         {{ new Date(schedule.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }}
                                     </td>
-                                    <td class="px-6 py-4 font-black text-slate-900">
+                                    <td class="px-4 py-3 font-black text-slate-900 text-xs text-right">
                                         Rp {{ Number(schedule.amount).toLocaleString('id-ID') }}
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3 text-center">
                                         <span :class="statusColors[schedule.status]" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
                                             {{ schedule.status }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-right">
-                                        <button v-if="schedule.status !== 'paid'" @click="openPaymentModal(schedule)" class="px-3 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700">Bayar</button>
-                                        <span v-else class="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Lunas ✅</span>
+                                    <td class="px-4 py-3 text-right space-x-1.5">
+                                        <button v-if="schedule.status !== 'paid'" @click="openPaymentModal(schedule)" class="px-2.5 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700">Bayar</button>
+                                        <span v-else class="text-[10px] text-emerald-600 font-black uppercase tracking-widest mr-2">Lunas ✅</span>
+
+                                        <button @click="openEditRow(schedule)" class="p-1 text-slate-400 hover:text-amber-600 transition-colors" title="Edit Baris">✏️</button>
+                                        <button v-if="schedule.status !== 'paid' && schedule.installment_number !== 0" @click="deleteRow(schedule)" class="p-1 text-slate-400 hover:text-rose-600 transition-colors" title="Hapus Baris">🗑️</button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -568,6 +649,134 @@ const docTypeLabels = {
                         📥 Download PDF
                     </a>
                 </div>
+            </div>
+        </div>
+
+        <!-- REGENERATE SCHEDULE MODAL -->
+        <div v-if="showScheduleModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showScheduleModal = false"></div>
+            <div class="relative bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl p-8 animate-in zoom-in duration-150">
+                <div class="flex justify-between items-center mb-6 pb-3 border-b border-slate-100">
+                    <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <span>⚙️</span> <span>Atur Skema & Tenor Cash Bertahap</span>
+                    </h3>
+                    <button @click="showScheduleModal = false" class="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
+                </div>
+
+                <form @submit.prevent="submitRegenSchedule" class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Skema Pembayaran</label>
+                        <select v-model="regenForm.payment_scheme" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20">
+                            <option value="cash_installment">Cash Bertahap / In-House</option>
+                            <option value="cash">Cash Keras</option>
+                            <option value="kpr">KPR Bank</option>
+                        </select>
+                    </div>
+
+                    <div v-if="regenForm.payment_scheme === 'cash_installment'">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tenor Cicilan (Bulan / Tahun)</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <select v-model.number="regenForm.installment_months" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20">
+                                <option :value="6">6 Bulan (0.5 Tahun)</option>
+                                <option :value="12">12 Bulan (1 Tahun)</option>
+                                <option :value="24">24 Bulan (2 Tahun)</option>
+                                <option :value="36">36 Bulan (3 Tahun)</option>
+                                <option :value="48">48 Bulan (4 Tahun)</option>
+                                <option :value="60">60 Bulan (5 Tahun)</option>
+                                <option :value="72">72 Bulan (6 Tahun)</option>
+                            </select>
+                            <input v-model.number="regenForm.installment_months" type="number" min="1" max="360" placeholder="Custom (Bulan)" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20" />
+                        </div>
+                        <p class="text-[10px] text-amber-600 mt-1 font-bold">Total Durasi: {{ regenForm.installment_months }} Bulan ({{ (regenForm.installment_months / 12).toFixed(1) }} Tahun)</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Uang Muka / DP (Rp)</label>
+                            <input v-model.number="regenForm.dp_amount" type="number" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tenor DP (Bulan)</label>
+                            <input v-model.number="regenForm.dp_installment_months" type="number" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-800 leading-relaxed font-medium">
+                        ⚠️ **Perhatian**: Meng-generate ulang jadwal akan memperbarui seluruh baris tagihan yang belum lunas disesuaikan dengan tenor & skema pembayaran baru.
+                    </div>
+
+                    <div class="pt-3 flex justify-end gap-2">
+                        <button type="button" @click="showScheduleModal = false" class="px-4 py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl">Batal</button>
+                        <button type="submit" :disabled="regenForm.processing" class="px-6 py-2.5 bg-amber-600 text-white text-xs font-black rounded-xl shadow-lg hover:bg-amber-700 uppercase">
+                            GENERATE ULANG JADWAL
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ADD SCHEDULE ROW MODAL -->
+        <div v-if="showAddRowModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showAddRowModal = false"></div>
+            <div class="relative bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-8">
+                <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider mb-4">Tambah Baris Tagihan Baru</h3>
+                <form @submit.prevent="submitAddRow" class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nama / Label Tagihan</label>
+                        <input v-model="addRowForm.label" type="text" placeholder="misal: Balloon Payment Th-1" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" required />
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Jumlah Nominal (Rp)</label>
+                        <input v-model.number="addRowForm.amount" type="number" placeholder="50000000" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" required />
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tanggal Jatuh Tempo</label>
+                        <input v-model="addRowForm.due_date" type="date" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" required />
+                    </div>
+                    <div class="pt-3 flex justify-end gap-2">
+                        <button type="button" @click="showAddRowModal = false" class="px-4 py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl">Batal</button>
+                        <button type="submit" :disabled="addRowForm.processing" class="px-6 py-2.5 bg-slate-900 text-white text-xs font-black rounded-xl shadow-lg uppercase">
+                            SIMPAN BARIS
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- EDIT SCHEDULE ROW MODAL -->
+        <div v-if="editingScheduleRow" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="editingScheduleRow = null"></div>
+            <div class="relative bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-8">
+                <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider mb-4">Edit Baris Tagihan</h3>
+                <form @submit.prevent="submitEditRow" class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nama / Label Tagihan</label>
+                        <input v-model="editRowForm.label" type="text" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" required />
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Jumlah Nominal (Rp)</label>
+                        <input v-model.number="editRowForm.amount" type="number" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" required />
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tanggal Jatuh Tempo</label>
+                        <input v-model="editRowForm.due_date" type="date" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" required />
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Status Tagihan</label>
+                        <select v-model="editRowForm.status" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold">
+                            <option value="upcoming">Upcoming (Belum Bayar)</option>
+                            <option value="paid">Paid (Lunas)</option>
+                            <option value="overdue">Overdue (Jatuh Tempo)</option>
+                            <option value="partial">Partial (Sebagian)</option>
+                        </select>
+                    </div>
+                    <div class="pt-3 flex justify-end gap-2">
+                        <button type="button" @click="editingScheduleRow = null" class="px-4 py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl">Batal</button>
+                        <button type="submit" :disabled="editRowForm.processing" class="px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl shadow-lg uppercase">
+                            SIMPAN PERUBAHAN
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </teleport>

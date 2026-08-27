@@ -56,6 +56,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spk.stream');
     Route::post('/bookings/{booking}/documents', [\App\Http\Controllers\BookingDocumentController::class, 'store'])->name('bookings.documents.store');
     Route::delete('/booking-documents/{document}', [\App\Http\Controllers\BookingDocumentController::class, 'destroy'])->name('bookings.documents.destroy');
+    Route::post('/bookings/{booking}/regenerate-schedule', [\App\Http\Controllers\BookingController::class, 'regenerateSchedule'])->name('bookings.regenerateSchedule');
+    Route::post('/bookings/{booking}/schedules', [\App\Http\Controllers\BookingController::class, 'addScheduleRow'])->name('bookings.schedules.store');
+    Route::put('/payment-schedules/{paymentSchedule}', [\App\Http\Controllers\BookingController::class, 'updateScheduleRow'])->name('bookings.schedules.update');
+    Route::delete('/payment-schedules/{paymentSchedule}', [\App\Http\Controllers\BookingController::class, 'deleteScheduleRow'])->name('bookings.schedules.destroy');
 
     // Kalkulator KPR
     Route::get('/kalkulator-kpr', function () {
