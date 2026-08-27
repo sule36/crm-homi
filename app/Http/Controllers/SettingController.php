@@ -81,14 +81,14 @@ class SettingController extends Controller
             'signature_image2' => 'nullable|image|max:2048',
         ]);
 
-        // Company Logo
+        // 1. Company Logo Upload
         if ($request->hasFile('company_logo')) {
             $path = $request->file('company_logo')->store('settings', 'public');
             Setting::set('company_logo', $path);
         }
 
-        // TTD 1 Image Upload
-        $signatures = Setting::get('spr_signatures', [
+        // 2. Signatures Setup & Uploads
+        $existingSigs = Setting::get('spr_signatures', [
             'city' => 'Jakarta Selatan',
             'sig1_title' => 'Sales Manager',
             'sig1_name' => 'Dhany Nur',
@@ -99,26 +99,35 @@ class SettingController extends Controller
             'sig3_title' => 'Pembeli',
         ]);
 
+        if (!is_array($existingSigs)) {
+            $existingSigs = [];
+        }
+
+        $inputSig = $request->input('spr_signatures');
+        if (is_string($inputSig)) {
+            $inputSig = json_decode($inputSig, true);
+        }
+        if (!is_array($inputSig)) {
+            $inputSig = [];
+        }
+
+        $mergedSigs = array_merge($existingSigs, $inputSig);
+
         if ($request->hasFile('signature_image1')) {
-            $path1 = $request->file('signature_image1')->store('settings/signatures', 'public');
-            $signatures['sig1_image'] = $path1;
+            $mergedSigs['sig1_image'] = $request->file('signature_image1')->store('settings/signatures', 'public');
+        } elseif (!empty($existingSigs['sig1_image'])) {
+            $mergedSigs['sig1_image'] = $existingSigs['sig1_image'];
         }
 
         if ($request->hasFile('signature_image2')) {
-            $path2 = $request->file('signature_image2')->store('settings/signatures', 'public');
-            $signatures['sig2_image'] = $path2;
+            $mergedSigs['sig2_image'] = $request->file('signature_image2')->store('settings/signatures', 'public');
+        } elseif (!empty($existingSigs['sig2_image'])) {
+            $mergedSigs['sig2_image'] = $existingSigs['sig2_image'];
         }
 
-        // Merge updated input for spr_signatures
-        if ($request->has('spr_signatures')) {
-            $inputSig = is_string($request->input('spr_signatures')) ? json_decode($request->input('spr_signatures'), true) : $request->input('spr_signatures');
-            if (is_array($inputSig)) {
-                $signatures = array_merge($signatures, $inputSig);
-            }
-        }
-        Setting::set('spr_signatures', $signatures);
+        Setting::set('spr_signatures', $mergedSigs);
 
-        // Save Terms and Conditions array
+        // 3. Save Terms and Conditions array
         if ($request->has('spr_terms_conditions')) {
             $terms = $request->input('spr_terms_conditions');
             if (is_string($terms)) {
@@ -129,7 +138,7 @@ class SettingController extends Controller
             }
         }
 
-        // Save Bank Info array
+        // 4. Save Bank Info array
         if ($request->has('spr_bank_info')) {
             $bank = $request->input('spr_bank_info');
             if (is_string($bank)) {
@@ -140,7 +149,7 @@ class SettingController extends Controller
             }
         }
 
-        // Handle remaining settings scalar key/value pairs
+        // 5. Handle remaining settings scalar key/value pairs
         $excluded = ['company_logo', 'signature_image1', 'signature_image2', 'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', '_token'];
         $settings = $request->except($excluded);
         foreach ($settings as $key => $value) {

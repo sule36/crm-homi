@@ -563,100 +563,28 @@ const docTypeLabels = {
         </div>
     </div>
 
-    <!-- SPK PREVIEW MODAL -->
+    <!-- SPK / SPR PREVIEW MODAL -->
     <teleport to="body">
         <div v-if="showSpkPreview" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showSpkPreview = false"></div>
-            <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8 md:p-12">
-                <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Pratinjau Surat Pemesanan Rumah (SPR)</span>
-                    <button @click="showSpkPreview = false" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">&times;</button>
+            <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col p-6 md:p-8">
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100 shrink-0">
+                    <div>
+                        <h3 class="text-sm font-black uppercase tracking-widest text-slate-900">Pratinjau Surat Pemesanan Rumah (SPR)</h3>
+                        <p class="text-[10px] text-slate-400">Pratinjau dokumen sesuai template DNA Umala/Andara & Pengaturan Control Room.</p>
+                    </div>
+                    <button @click="showSpkPreview = false" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 font-bold">&times;</button>
                 </div>
 
-                <!-- Printable Document Style Wrapper -->
-                <div class="border border-slate-200 p-8 rounded-2xl bg-white text-slate-800 text-xs space-y-6 shadow-inner font-serif leading-relaxed">
-                    <!-- SPR Header -->
-                    <div class="flex justify-between items-start border-b-2 border-slate-800 pb-4">
-                        <div>
-                            <h2 class="text-base font-black uppercase tracking-wide text-amber-600">{{ booking.unit?.project?.name || 'ALONICA HILLS' }}</h2>
-                            <p class="text-[10px] text-slate-500 font-sans mt-1">PT. SERANGKAI RODEN DEVELOPMENT</p>
-                        </div>
-                        <div class="text-right">
-                            <h3 class="text-sm font-black text-slate-900">{{ booking.spk_number }}</h3>
-                            <p class="text-[10px] text-slate-500 font-sans">Tanggal: {{ new Date(booking.booking_date).toLocaleDateString('id-ID', { dateStyle: 'long' }) }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Section: Buyer Details -->
-                    <div class="space-y-2">
-                        <h4 class="font-sans font-black uppercase tracking-wider text-slate-900 text-[10px]">I. DATA PEMESAN (KONSUMEN)</h4>
-                        <table class="w-full text-left font-sans">
-                            <tr class="border-b border-slate-100"><td class="py-1.5 w-1/3 text-slate-500">Nama Lengkap</td><td class="py-1.5 font-bold text-slate-800">{{ booking.lead?.name }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">No. Telepon / WA</td><td class="py-1.5 font-bold text-slate-800">{{ booking.lead?.phone }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">Email</td><td class="py-1.5 font-bold text-slate-800">{{ booking.lead?.email || '-' }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">No. Identitas KTP</td><td class="py-1.5 font-bold text-slate-800">{{ booking.lead?.identity_number || '-' }}</td></tr>
-                        </table>
-                    </div>
-
-                    <!-- Section: Property Details -->
-                    <div class="space-y-2">
-                        <h4 class="font-sans font-black uppercase tracking-wider text-slate-900 text-[10px]">II. DATA UNIT PROPERTI</h4>
-                        <table class="w-full text-left font-sans font-medium text-slate-700">
-                            <tr class="border-b border-slate-100"><td class="py-1.5 w-1/3 text-slate-500">Proyek Perumahan</td><td class="py-1.5 font-bold text-slate-800">{{ booking.unit?.project?.name }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">Kavling Unit</td><td class="py-1.5 font-bold text-slate-800">Blok {{ booking.unit?.block }} No. {{ booking.unit?.number }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">Tipe Rumah</td><td class="py-1.5 font-bold text-slate-800">{{ booking.unit?.unit_type?.name }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">Arah Hadap</td><td class="py-1.5 font-bold text-slate-800 capitalize">{{ booking.unit?.facing_direction || '-' }}</td></tr>
-                        </table>
-                    </div>
-
-                    <!-- Section: Financial Details -->
-                    <div class="space-y-2">
-                        <h4 class="font-sans font-black uppercase tracking-wider text-slate-900 text-[10px]">III. RINCIAN HARGA & PEMBAYARAN</h4>
-                        <table class="w-full text-left font-sans">
-                            <tr class="border-b border-slate-100"><td class="py-1.5 w-1/3 text-slate-500">Harga Jual Unit</td><td class="py-1.5 font-bold text-slate-800 text-right">{{ formatCurrency(booking.base_price) }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">PPN (11%)</td><td class="py-1.5 font-bold text-slate-800 text-right">{{ formatCurrency(booking.ppn_amount) }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">BPHTB + AJB & BBN</td><td class="py-1.5 font-bold text-slate-800 text-right">{{ formatCurrency(Number(booking.bphtb_amount) + Number(booking.ajb_bbn_amount)) }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">Biaya Legalitas Lainnya</td><td class="py-1.5 font-bold text-slate-800 text-right">{{ formatCurrency(booking.other_legal_fees) }}</td></tr>
-                            <tr class="border-b border-slate-100 bg-slate-50 font-bold"><td class="py-2 text-slate-900">Total Harga Kesepakatan (All-in)</td><td class="py-2 text-blue-600 text-right text-sm">{{ formatCurrency(booking.final_price) }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">Booking Fee (Tanda Jadi)</td><td class="py-1.5 font-bold text-emerald-600 text-right">{{ formatCurrency(booking.booking_fee) }}</td></tr>
-                            <tr class="border-b border-slate-100"><td class="py-1.5 text-slate-500">Skema Pembayaran</td><td class="py-1.5 font-bold text-slate-800 text-right uppercase">{{ booking.payment_scheme }}</td></tr>
-                        </table>
-                    </div>
-
-                    <!-- Section: Terms & Conditions -->
-                    <div class="space-y-2">
-                        <h4 class="font-sans font-black uppercase tracking-wider text-slate-900 text-[10px]">IV. SYARAT & KETENTUAN PEMESANAN</h4>
-                        <div class="text-[9px] text-slate-500 font-sans space-y-1.5 pl-2">
-                            <p>1. Uang Tanda Jadi (UTJ) atau Booking Fee yang telah dibayarkan bersifat non-refundable (tidak dapat ditarik kembali) apabila pemesan membatalkan transaksi secara sepihak.</p>
-                            <p>2. Pemesan wajib melengkapi berkas administrasi dan persyaratan KPR paling lambat 14 hari kerja setelah penandatanganan SPK ini.</p>
-                            <p>3. Apabila terjadi penolakan fasilitas KPR oleh pihak Bank, pemesan setuju untuk beralih ke skema pembayaran Cash Installment atau pengembalian dana disesuaikan dengan regulasi developer.</p>
-                            <p>4. Harga all-in yang tertera sudah termasuk biaya sertifikat, IMB/PBG, instalasi listrik, dan air bersih standar proyek.</p>
-                        </div>
-                    </div>
-
-                    <!-- Section: Signatures -->
-                    <div class="pt-6 grid grid-cols-2 text-center font-sans text-[10px] gap-8">
-                        <div class="space-y-12">
-                            <p class="text-slate-500">Pemesan (Konsumen),</p>
-                            <div>
-                                <p class="font-bold text-slate-900 underline">{{ booking.lead?.name }}</p>
-                                <p class="text-[8px] text-slate-400">Tanda Tangan Konsumen</p>
-                            </div>
-                        </div>
-                        <div class="space-y-12">
-                            <p class="text-slate-500">Sales Agent Developer,</p>
-                            <div>
-                                <p class="font-bold text-slate-900 underline">{{ booking.booked_by?.name || 'Staff' }}</p>
-                                <p class="text-[8px] text-slate-400">Tanda Tangan Sales</p>
-                            </div>
-                        </div>
-                    </div>
+                <!-- Live Document Stream Iframe -->
+                <div class="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-inner">
+                    <iframe :src="`/bookings/${booking.id}/spk/view?html=1`" class="w-full h-full min-h-[500px] border-0 rounded-2xl"></iframe>
                 </div>
 
-                <div class="mt-8 flex justify-end gap-3">
+                <div class="mt-4 flex justify-end gap-3 shrink-0 pt-2">
                     <button @click="showSpkPreview = false" class="px-6 py-3 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">Tutup</button>
                     <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-6 py-3 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-lg hover:shadow-slate-800 transition-all flex items-center gap-2">
-                        📥 Download PDF
+                        📥 Download PDF Resmi
                     </a>
                 </div>
             </div>
