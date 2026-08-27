@@ -503,28 +503,43 @@ const tabs = [
                                 </div>
                             </div>
 
-                            <!-- TTD 3 (Pemesan Utama) -->
-                            <div class="p-4 bg-blue-50/50 rounded-2xl border border-blue-200/60 space-y-3">
-                                <h4 class="text-[11px] font-black text-blue-900 uppercase tracking-wider">✒️ Slot TTD 3 (Pemesan Utama)</h4>
+                            <!-- TTD 3 (Pemesan Utama / Pembeli) -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 3 (Pemesan Utama)</h4>
                                 <div>
-                                    <label class="block text-[9px] font-black text-blue-400 uppercase mb-1">Judul</label>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
                                     <input v-model="form.spr_signatures.sig3_title" type="text" placeholder="Pemesan Utama" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
-                                <div class="p-2 bg-white rounded-lg border text-[10px] text-slate-500 italic">
-                                    Otomatis diisi Nama Konsumen / Pembeli dari data Booking.
+                                <div>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat / Custom Name</label>
+                                    <input v-model="form.spr_signatures.sig3_name" type="text" placeholder="Default: Otomatis dari nama Pembeli" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Pemesan (PNG Transparan)</label>
+                                    <input type="file" @change="handleSig3Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                    <div v-if="form.spr_signatures.sig3_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
+                                        <img :src="`/storage/${form.spr_signatures.sig3_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- TTD 4 (Penanggung Jawab / Pemesan 2 / Saksi) -->
-                            <div class="p-4 bg-amber-50/50 rounded-2xl border border-amber-200/60 space-y-3">
-                                <h4 class="text-[11px] font-black text-amber-900 uppercase tracking-wider">✒️ Slot TTD 4 (Penanggung Jawab)</h4>
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 4 (Penanggung Jawab)</h4>
                                 <div>
-                                    <label class="block text-[9px] font-black text-amber-600 uppercase mb-1">Judul Default</label>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
                                     <input v-model="form.spr_signatures.sig4_title" type="text" placeholder="Penanggung Jawab / Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
                                 </div>
                                 <div>
-                                    <label class="block text-[9px] font-black text-amber-600 uppercase mb-1">Nama Default (Opsional)</label>
-                                    <input v-model="form.spr_signatures.sig4_name" type="text" placeholder="Akan terisi otomatis jika ada Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat / Custom Name</label>
+                                    <input v-model="form.spr_signatures.sig4_name" type="text" placeholder="Default: Otomatis jika ada Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Digital (PNG Transparan)</label>
+                                    <input type="file" @change="handleSig4Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                    <div v-if="form.spr_signatures.sig4_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
+                                        <img :src="`/storage/${form.spr_signatures.sig4_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
