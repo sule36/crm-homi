@@ -23,6 +23,7 @@ class SPKController extends Controller
     {
         $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']);
         $settings = $this->getSettings();
+        $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);
 
         $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'))
             ->setPaper('a4', 'portrait')
@@ -30,7 +31,7 @@ class SPKController extends Controller
             ->setOption('isHtml5ParserEnabled', true)
             ->setOption('chroot', [public_path(), storage_path()]);
         
-        return $pdf->download("SPR-{$booking->spk_number}.pdf");
+        return $pdf->download("SPR-{$safeName}.pdf");
     }
 
     public function stream(Booking $booking)
@@ -38,9 +39,11 @@ class SPKController extends Controller
         $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']);
         $settings = $this->getSettings();
 
-        if (request()->has('html')) {
+        if (request()->has('html') || request()->query('view') === 'html' || !request()->has('pdf')) {
             return view('pdf.spr', compact('booking', 'settings'));
         }
+
+        $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);
 
         $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'))
             ->setPaper('a4', 'portrait')
@@ -50,7 +53,7 @@ class SPKController extends Controller
         
         return response($pdf->output(), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => "inline; filename=\"SPR-{$booking->spk_number}.pdf\"",
+            'Content-Disposition' => "inline; filename=\"SPR-{$safeName}.pdf\"",
             'Cache-Control' => 'no-cache, no-store, must-revalidate',
             'Pragma' => 'no-cache',
             'Expires' => '0',

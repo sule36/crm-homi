@@ -232,15 +232,22 @@
         // Safe base64 image helper to prevent DOMPDF blank screen crashes
         $getSafeBase64 = function($relativePath) {
             if (empty($relativePath)) return null;
-            $fullPath = storage_path('app/public/' . $relativePath);
-            if (file_exists($fullPath) && is_file($fullPath)) {
-                try {
-                    $content = @file_get_contents($fullPath);
-                    if ($content) {
-                        $mime = mime_content_type($fullPath) ?: 'image/png';
-                        return 'data:' . $mime . ';base64,' . base64_encode($content);
-                    }
-                } catch (\Throwable $e) {}
+            $cleanPath = ltrim(str_replace('storage/', '', $relativePath), '/');
+            $candidates = [
+                storage_path('app/public/' . $cleanPath),
+                public_path('storage/' . $cleanPath),
+                public_path($cleanPath),
+            ];
+            foreach ($candidates as $fullPath) {
+                if (file_exists($fullPath) && is_file($fullPath)) {
+                    try {
+                        $content = @file_get_contents($fullPath);
+                        if ($content) {
+                            $mime = @mime_content_type($fullPath) ?: 'image/png';
+                            return 'data:' . $mime . ';base64,' . base64_encode($content);
+                        }
+                    } catch (\Throwable $e) {}
+                }
             }
             return null;
         };
