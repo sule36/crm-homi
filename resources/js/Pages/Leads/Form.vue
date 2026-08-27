@@ -37,6 +37,14 @@ function submit() {
         form.post(route('leads.store'));
     }
 }
+
+const inhouseAgents = computed(() => {
+    return (props.agents || []).filter(a => !a.broker_company_id || a.agent_type === 'inhouse');
+});
+
+const brokerAgents = computed(() => {
+    return (props.agents || []).filter(a => a.broker_company_id || a.agent_type === 'agency_agent' || a.agent_type === 'independent');
+});
 </script>
 
 <template>
@@ -142,10 +150,15 @@ function submit() {
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sales PIC Assigned</label>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sales PIC Assigned / Agen</label>
                             <select v-model="form.assigned_to" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-                                <option value="">-- Pilih Sales PIC --</option>
-                                <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+                                <option value="">-- Pilih Sales PIC / Agen --</option>
+                                <optgroup v-if="brokerAgents.length" label="🏢 AGEN KANTOR BROKER / INDEPENDEN">
+                                    <option v-for="a in brokerAgents" :key="a.id" :value="a.id">🏢 {{ a.name }} ({{ a.broker_company ? a.broker_company.name : 'Agency' }})</option>
+                                </optgroup>
+                                <optgroup label="🏠 TIM SALES IN-HOUSE">
+                                    <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">🏠 {{ a.name }}</option>
+                                </optgroup>
                             </select>
                         </div>
 

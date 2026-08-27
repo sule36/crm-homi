@@ -46,7 +46,8 @@ class LeadController extends Controller
             'pipeline' => $pipeline,
             'filters' => $request->only(['search', 'status', 'project_id', 'source', 'assigned_to']),
             'projects' => Project::select('id', 'name')->get(),
-            'agents' => User::role(['sales_agent', 'sales_manager'])->select('id', 'name')->get(),
+            'agents' => User::with('brokerCompany:id,name,code')->select('id', 'name', 'agent_type', 'broker_company_id')->get(),
+            'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
         ]);
     }
 
@@ -54,7 +55,7 @@ class LeadController extends Controller
     {
         return Inertia::render('Leads/Form', [
             'projects' => Project::select('id', 'name')->where('status', 'active')->get(),
-            'agents' => User::role(['sales_agent', 'sales_manager', 'broker'])->select('id', 'name')->get(),
+            'agents' => User::with('brokerCompany:id,name,code')->select('id', 'name', 'agent_type', 'broker_company_id')->get(),
             'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
         ]);
     }
@@ -64,7 +65,7 @@ class LeadController extends Controller
         return Inertia::render('Leads/Form', [
             'lead' => $lead,
             'projects' => Project::select('id', 'name')->where('status', 'active')->get(),
-            'agents' => User::role(['sales_agent', 'sales_manager', 'broker'])->select('id', 'name')->get(),
+            'agents' => User::with('brokerCompany:id,name,code')->select('id', 'name', 'agent_type', 'broker_company_id')->get(),
             'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
         ]);
     }

@@ -9,6 +9,7 @@ const props = defineProps({
     filters: Object,
     projects: Array,
     agents: Array,
+    broker_companies: Array,
 });
 
 const search = ref(props.filters?.search || '');
@@ -64,7 +65,15 @@ function updateLeadStatus(leadId, newStatus) {
 // Quick add lead modal
 const showAddModal = ref(false);
 const addForm = useForm({
-    name: '', phone: '', email: '', source: 'website', project_id: '', assigned_to: '', notes: '',
+    name: '', phone: '', email: '', source: 'broker', project_id: '', broker_company_id: '', assigned_to: '', notes: '',
+});
+
+const inhouseAgents = computed(() => {
+    return (props.agents || []).filter(a => !a.broker_company_id || a.agent_type === 'inhouse');
+});
+
+const brokerAgents = computed(() => {
+    return (props.agents || []).filter(a => a.broker_company_id || a.agent_type === 'agency_agent' || a.agent_type === 'independent');
 });
 
 function submitLead() {
@@ -285,8 +294,8 @@ function scoreColor(score) {
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1.5">Sumber <span class="text-rose-500">*</span></label>
-                                <select v-model="addForm.source" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-                                    <option v-for="s in ['facebook','instagram','google','tiktok','walk_in','referral','broker','website','other']" :key="s" :value="s">{{ s.replace('_', ' ') }}</option>
+                                <select v-model="addForm.source" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer font-bold">
+                                    <option v-for="s in ['facebook','instagram','google','tiktok','walk_in','referral','broker','website','agent','other']" :key="s" :value="s">{{ s.replace('_', ' ') }}</option>
                                 </select>
                             </div>
                             <div>
@@ -296,11 +305,30 @@ function scoreColor(score) {
                                     <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
                                 </select>
                             </div>
+
+                            <!-- Pilihan Kantor Agency (Jika sumber Broker / Referral) -->
+                            <div v-if="['broker', 'referral', 'agent'].includes(addForm.source)" class="col-span-2">
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Afiliasi Kantor Agency / Broker Company</label>
+                                <select v-model="addForm.broker_company_id" class="w-full px-4 py-2.5 border border-amber-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/20 cursor-pointer font-bold bg-amber-50/50 text-amber-900">
+                                    <option value="">-- Pilih Kantor Agency --</option>
+                                    <option v-for="b in broker_companies" :key="b.id" :value="b.id">🏢 {{ b.name }} ({{ b.code || 'NO-CODE' }})</option>
+                                </select>
+                            </div>
+
                             <div class="col-span-2">
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Agen</label>
-                                <select v-model="addForm.assigned_to" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
-                                    <option value="">Auto-assign (Round Robin)</option>
-                                    <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Agen / Sales PIC</label>
+                                <select v-model="addForm.assigned_to" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer font-bold">
+                                    <option value="">Auto-assign (Round Robin In-House)</option>
+                                    <optgroup v-if="brokerAgents.length" label="🏢 AGEN KANTOR BROKER / INDEPENDEN">
+                                        <option v-for="a in brokerAgents" :key="a.id" :value="a.id">
+                                            🏢 {{ a.name }} ({{ a.broker_company ? a.broker_company.name : 'Agency' }})
+                                        </option>
+                                    </optgroup>
+                                    <optgroup label="🏠 TIM SALES IN-HOUSE">
+                                        <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">
+                                            🏠 {{ a.name }}
+                                        </option>
+                                    </optgroup>
                                 </select>
                             </div>
                             <div class="col-span-2">
