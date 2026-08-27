@@ -46,8 +46,17 @@ const printReceipt = () => {
     window.print();
 };
 
+const projectLogo = props.transaction.booking?.unit?.project?.logo || null;
+const logoImage = projectLogo || props.settings?.company_logo || null;
+const companyName = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Homi Developer';
+const projectCode = props.transaction.booking?.unit?.project?.code || 'HOMI';
+const txYear = new Date(props.transaction.created_at).getFullYear();
+const paddedId = String(props.transaction.id).padStart(4, '0');
+const receiptNumber = props.transaction.receipt_number || `KW/${projectCode.toUpperCase()}/${txYear}/${paddedId}`;
+const cityName = props.settings?.spr_signatures?.city || 'Jakarta';
 const sigImage = props.settings?.spr_signatures?.sig1_image || null;
-const logoImage = props.settings?.company_logo || null;
+const officerTitle = props.settings?.spr_signatures?.sig1_title || 'Kasir & Keuangan';
+const officerName = props.settings?.spr_signatures?.sig1_name || props.transaction.recorded_by_user?.name || 'Keuangan Homi';
 </script>
 
 <template>
@@ -114,13 +123,13 @@ const logoImage = props.settings?.company_logo || null;
                         H
                     </div>
                     <div>
-                        <h2 class="text-lg font-black text-slate-900 tracking-tight leading-none">{{ settings?.company_name || 'Homi Developer' }}</h2>
-                        <p class="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1">Premium Living & Housing</p>
+                        <h2 class="text-lg font-black text-slate-900 tracking-tight leading-none">{{ companyName }}</h2>
+                        <p class="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1">Bukti Pembayaran Resmi</p>
                     </div>
                 </div>
                 <div class="text-right sm:text-right">
                     <h1 class="text-xl font-black text-slate-800 uppercase tracking-widest">Kwitansi</h1>
-                    <p class="text-xs text-slate-400 font-bold mt-1">No: Receipt-{{ transaction.id }}</p>
+                    <p class="text-xs text-slate-500 font-black mt-1">No: {{ receiptNumber }}</p>
                 </div>
             </div>
 
@@ -147,7 +156,7 @@ const logoImage = props.settings?.company_logo || null;
                         <p class="text-sm font-black text-slate-800">
                             {{ transaction.notes || 'Cicilan / Pembayaran Unit' }}
                         </p>
-                        <p class="text-[10px] text-slate-500 font-medium mt-1">
+                        <p v-if="transaction.booking?.unit" class="text-[10px] text-slate-500 font-medium mt-1">
                             Unit Kavling: Blok {{ transaction.booking?.unit?.block }} No. {{ transaction.booking?.unit?.number }} 
                             • Proyek: {{ transaction.booking?.unit?.project?.name }}
                         </p>
@@ -181,14 +190,15 @@ const logoImage = props.settings?.company_logo || null;
                     </div>
 
                     <!-- Signature Box -->
-                    <div class="text-center w-44">
-                        <p class="text-[10px] font-bold text-slate-500">{{ new Date(transaction.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' }) }}</p>
-                        <div class="h-20 flex items-center justify-center relative">
+                    <div class="text-center w-48">
+                        <p class="text-[10px] font-bold text-slate-500">{{ cityName }}, {{ new Date(transaction.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' }) }}</p>
+                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-wider mt-0.5">{{ officerTitle }}</p>
+                        <div class="h-20 flex items-center justify-center relative my-1">
                             <!-- Digital Signature & Stamp Image if available -->
                             <img v-if="sigImage" :src="`/storage/${sigImage}`" class="h-16 max-w-full object-contain" />
-                            <div v-else class="text-[10px] text-slate-300 font-bold italic tracking-wide">Tanda Tangan Cashier & Stempel</div>
+                            <div v-else class="text-[10px] text-slate-300 font-bold italic tracking-wide">Tanda Tangan & Stempel</div>
                         </div>
-                        <p class="text-xs font-black text-slate-800 border-t border-slate-200 pt-1.5">{{ transaction.recorded_by_user?.name ?? 'Keuangan Homi' }}</p>
+                        <p class="text-xs font-black text-slate-800 border-t border-slate-200 pt-1.5">{{ officerName }}</p>
                     </div>
                 </div>
             </div>
