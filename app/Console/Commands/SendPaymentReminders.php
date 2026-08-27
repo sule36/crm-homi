@@ -79,11 +79,23 @@ class SendPaymentReminders extends Command
                     $this->sendWhatsApp($phoneNumberId, $accessToken, $customerPhone, $message);
                     $count++;
                 }
+
+                // Automatic Email Billing Invoice Dispatch
+                if (!empty($booking->lead->email)) {
+                    try {
+                        \Illuminate\Support\Facades\Mail::to($booking->lead->email)->send(
+                            new \App\Mail\BillingInvoiceMail($schedule, $type)
+                        );
+                        Log::info("Billing email sent to {$booking->lead->email} for schedule ID {$schedule->id}");
+                    } catch (\Throwable $e) {
+                        Log::error("Failed to send billing email to {$booking->lead->email}: " . $e->getMessage());
+                    }
+                }
             }
         }
 
         $this->info("Successfully sent {$count} payment reminders.");
-        Log::info("WhatsApp payment reminders command: sent {$count} messages.");
+        Log::info("WhatsApp & Email payment reminders command executed.");
     }
 
     /**

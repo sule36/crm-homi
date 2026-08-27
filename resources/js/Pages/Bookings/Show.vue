@@ -105,6 +105,15 @@ function deleteRow(schedule) {
     }
 }
 
+function sendEmailRow(schedule) {
+    if (!props.booking.lead?.email) {
+        return alert('Konsumen (Lead) ini belum memiliki alamat email yang terdaftar.');
+    }
+    if (confirm(`Kirimkan invoice tagihan "${schedule.label}" ke email ${props.booking.lead.email}?`)) {
+        router.post(`/payment-schedules/${schedule.id}/send-email`, {}, { preserveScroll: true });
+    }
+}
+
 const showReasonModal = ref(false);
 const actionType = ref(''); // 'reject' or 'cancel'
 const reason = ref('');
@@ -377,6 +386,7 @@ const docTypeLabels = {
                                         <button v-if="schedule.status !== 'paid'" @click="openPaymentModal(schedule)" class="px-2.5 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700">Bayar</button>
                                         <span v-else class="text-[10px] text-emerald-600 font-black uppercase tracking-widest mr-2">Lunas ✅</span>
 
+                                        <button @click="sendEmailRow(schedule)" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="Kirim Invoice Email Tagihan Ke Konsumen">✉️</button>
                                         <button @click="openEditRow(schedule)" class="p-1 text-slate-400 hover:text-amber-600 transition-colors" title="Edit Baris">✏️</button>
                                         <button v-if="schedule.status !== 'paid' && schedule.installment_number !== 0" @click="deleteRow(schedule)" class="p-1 text-slate-400 hover:text-rose-600 transition-colors" title="Hapus Baris">🗑️</button>
                                     </td>

@@ -354,6 +354,26 @@ class BookingController extends Controller
         return back()->with('success', 'Baris tagihan berhasil dihapus.');
     }
 
+    public function sendScheduleEmail(\App\Models\PaymentSchedule $paymentSchedule)
+    {
+        $paymentSchedule->load(['booking.lead', 'booking.unit.project']);
+        $clientEmail = $paymentSchedule->booking?->lead?->email;
+
+        if (empty($clientEmail)) {
+            return back()->with('error', 'Gagal mengirim email: Alamat email konsumen belum diisi di data Lead.');
+        }
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($clientEmail)->send(
+                new \App\Mail\BillingInvoiceMail($paymentSchedule, 'manual')
+            );
+            AuditLog::record('billing_email_sent', $paymentSchedule->booking, null, ['schedule_id' => $paymentSchedule->id, 'email' => $clientEmail]);
+            return back()->with('success', "Invoice tagihan berhasil dikirimkan ke email {$clientEmail}.");
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal mengirim email tagihan: ' . $e->getMessage());
+        }
+    }
+
     public function reject(Request $request, Booking $booking)
     {
         $request->validate(['reason' => 'required|string']);
