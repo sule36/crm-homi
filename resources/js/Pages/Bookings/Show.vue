@@ -156,6 +156,20 @@ const copyTrackingLink = () => {
     alert('Link pelacakan berhasil disalin!');
 };
 
+const sendWaTxReceipt = (tx) => {
+    const name = props.booking.lead?.name || 'Konsumen';
+    const amountStr = formatCurrency(tx.amount);
+    const unitStr = props.booking.unit ? `Blok ${props.booking.unit.block} No. ${props.booking.unit.number}` : 'Unit';
+    const projStr = props.booking.unit?.project?.name || 'Homi Developer';
+    const rawPhone = props.booking.lead?.phone || '';
+    const phone = rawPhone.replace(/\D/g, '').replace(/^0/, '62');
+    const receiptUrl = `${window.location.origin}/finance/transactions/${tx.id}/receipt`;
+
+    const message = `Halo Bapak/Ibu *${name}*,\n\nBerikut adalah Kwitansi Pembayaran Resmi (TTD & Cap Stempel) untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}*:\n${receiptUrl}\n\nTerima kasih,\n*Keuangan Homi Developer*`;
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+};
+
 const whatsappReminderLink = computed(() => {
     const url = `${window.location.origin}/track/${props.booking.tracking_token}`;
     const message = `Halo Bapak/Ibu ${props.booking.lead.name}, ini dari tim sales ${props.booking.project.name}. Berikut adalah link untuk memantau progres pesanan dan riwayat pembayaran unit Anda: ${url}. Terima kasih.`;
@@ -421,17 +435,31 @@ const docTypeLabels = {
                 <div class="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm mb-8">
                     <h3 class="text-xs font-black uppercase tracking-widest text-slate-900 mb-6">Transaction History</h3>
                     <div v-if="booking.transactions?.length" class="space-y-4">
-                        <div v-for="tx in booking.transactions" :key="tx.id" class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div v-for="tx in booking.transactions" :key="tx.id" class="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-3">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-lg shadow-sm">💰</div>
                                 <div>
                                     <p class="text-xs font-black text-slate-900 uppercase tracking-tight">{{ tx.payment_method }} - {{ tx.bank_name || 'Cash' }}</p>
-                                    <p class="text-[10px] text-slate-400">{{ tx.notes || 'No notes' }} • {{ new Date(tx.created_at).toLocaleDateString('id-ID') }}</p>
+                                    <p class="text-[10px] text-slate-400">{{ tx.notes || 'Pembayaran' }} • {{ new Date(tx.created_at).toLocaleDateString('id-ID') }}</p>
                                 </div>
                             </div>
-                            <div class="text-right">
-                                <p class="text-sm font-black text-slate-900">Rp {{ Number(tx.amount).toLocaleString('id-ID') }}</p>
-                                <button @click="deleteTransaction(tx.id)" class="text-[10px] font-black text-rose-500 uppercase tracking-tighter hover:underline">Hapus</button>
+                            
+                            <div class="flex flex-wrap items-center gap-2 justify-end">
+                                <span class="text-sm font-black text-slate-900 mr-2">Rp {{ Number(tx.amount).toLocaleString('id-ID') }}</span>
+                                
+                                <a :href="`/finance/transactions/${tx.id}/receipt`" target="_blank" class="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-black rounded-lg hover:bg-slate-100 transition-all flex items-center gap-1 shadow-sm">
+                                    <span>📄</span> <span>Kwitansi TTD & Cap</span>
+                                </a>
+
+                                <button @click="sendWaTxReceipt(tx)" class="px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-lg hover:bg-emerald-700 transition-all shadow-sm flex items-center gap-1">
+                                    <span>💬</span> <span>Kirim WA</span>
+                                </button>
+
+                                <a v-if="tx.wet_receipt_file" :href="`/storage/${tx.wet_receipt_file}`" target="_blank" class="px-2.5 py-1 bg-amber-500 text-white text-[10px] font-black rounded-lg hover:bg-amber-600 transition-all shadow-sm flex items-center gap-1">
+                                    <span>📎</span> <span>Kwitansi Basah</span>
+                                </a>
+
+                                <button @click="deleteTransaction(tx.id)" class="text-[10px] font-black text-rose-500 uppercase tracking-tighter hover:underline ml-1">Hapus</button>
                             </div>
                         </div>
                     </div>

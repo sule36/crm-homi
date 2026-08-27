@@ -1,10 +1,42 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({
     transaction: Object,
     spelled_text: String,
+    settings: Object,
 });
+
+const wetForm = useForm({
+    wet_receipt_file: null,
+});
+
+const handleWetUpload = (e) => {
+    wetForm.wet_receipt_file = e.target.files[0];
+};
+
+const submitWetReceipt = () => {
+    if (!wetForm.wet_receipt_file) return alert('Silakan pilih berkas scan kwitansi basah terlebih dahulu.');
+    wetForm.post(`/finance/transactions/${props.transaction.id}/wet-receipt`, {
+        preserveScroll: true,
+        onSuccess: () => alert('Berkas Kwitansi Basah Asli berhasil diunggah!'),
+    });
+};
+
+const sendWaReceipt = () => {
+    const name = props.transaction.booking?.lead?.name || 'Konsumen';
+    const amountStr = formatCurrency(props.transaction.amount);
+    const unitStr = props.transaction.booking?.unit ? `Blok ${props.transaction.booking.unit.block} No. ${props.transaction.booking.unit.number}` : 'Unit';
+    const projStr = props.transaction.booking?.unit?.project?.name || 'Homi Developer';
+    const rawPhone = props.transaction.booking?.lead?.phone || '';
+    const phone = rawPhone.replace(/\D/g, '').replace(/^0/, '62');
+    const receiptUrl = `${window.location.origin}/finance/transactions/${props.transaction.id}/receipt`;
+
+    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan Homi Developer*`;
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+};
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
@@ -13,19 +45,56 @@ const formatCurrency = (value) => {
 const printReceipt = () => {
     window.print();
 };
+
+const sigImage = props.settings?.spr_signatures?.sig1_image || null;
+const logoImage = props.settings?.company_logo || null;
 </script>
 
 <template>
     <Head title="Kwitansi Pembayaran" />
     <div class="min-h-screen bg-slate-100 py-12 px-4 print:bg-white print:py-0">
-        <!-- Actions (Hidden during print) -->
-        <div class="max-w-3xl mx-auto flex items-center justify-between mb-6 print:hidden">
-            <button onclick="window.history.back()" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm">
+        <!-- Actions & Share Toolbar (Hidden during print) -->
+        <div class="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
+            <button onclick="window.history.back()" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm">
                 ← Kembali
             </button>
-            <button @click="printReceipt" class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md">
-                🖨️ Cetak Kwitansi
-            </button>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button @click="sendWaReceipt" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5">
+                    <span>💬</span> <span>Kirim Kwitansi WA</span>
+                </button>
+
+                <button @click="printReceipt" class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center gap-1.5">
+                    <span>🖨️</span> <span>Cetak Kwitansi</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- UPLOAD KWITANSI BASAH SECTION (PRINT HIDDEN) -->
+        <div class="max-w-3xl mx-auto bg-amber-50/80 border border-amber-200 rounded-3xl p-6 mb-6 shadow-sm print:hidden">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>📜</span> <span>Kwitansi Basah Asli (Fisik / Scan TTD & Cap Tinta)</span>
+                    </h3>
+                    <p class="text-xs text-amber-700/80 mt-1">
+                        Unggah scan foto/PDF kwitansi basah fisik jika konsumen meminta dokumen berkas cetak asli.
+                    </p>
+                </div>
+
+                <div v-if="transaction.wet_receipt_file" class="shrink-0">
+                    <a :href="`/storage/${transaction.wet_receipt_file}`" target="_blank" class="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl hover:bg-amber-700 transition-all shadow-md flex items-center gap-1.5">
+                        <span>📎</span> <span>Lihat Kwitansi Basah</span>
+                    </a>
+                </div>
+            </div>
+
+            <form @submit.prevent="submitWetReceipt" class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-3 border-t border-amber-200/60">
+                <input type="file" @change="handleWetUpload" accept="image/*,application/pdf" class="flex-1 text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer" />
+                <button type="submit" :disabled="wetForm.processing" class="px-5 py-2.5 bg-amber-900 text-white text-xs font-black rounded-xl hover:bg-amber-950 transition-all shadow-md disabled:opacity-50">
+                    {{ wetForm.processing ? 'Mengunggah...' : 'Upload Berkas Basah' }}
+                </button>
+            </form>
         </div>
 
         <!-- Premium Kwitansi Layout -->
@@ -38,11 +107,14 @@ const printReceipt = () => {
             <!-- Header -->
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-200">
                 <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg">
+                    <div v-if="logoImage" class="h-12 flex items-center">
+                        <img :src="`/storage/${logoImage}`" class="max-h-12 max-w-[180px] object-contain" />
+                    </div>
+                    <div v-else class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg">
                         H
                     </div>
                     <div>
-                        <h2 class="text-lg font-black text-slate-900 tracking-tight leading-none">Homi Developer</h2>
+                        <h2 class="text-lg font-black text-slate-900 tracking-tight leading-none">{{ settings?.company_name || 'Homi Developer' }}</h2>
                         <p class="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1">Premium Living & Housing</p>
                     </div>
                 </div>
@@ -109,11 +181,12 @@ const printReceipt = () => {
                     </div>
 
                     <!-- Signature Box -->
-                    <div class="text-center w-40">
+                    <div class="text-center w-44">
                         <p class="text-[10px] font-bold text-slate-500">{{ new Date(transaction.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' }) }}</p>
-                        <div class="h-20 flex items-center justify-center">
-                            <!-- Digital Signature Placeholder / Stamp -->
-                            <div class="text-[10px] text-slate-300 font-bold italic tracking-wide">Tanda Tangan Cashier</div>
+                        <div class="h-20 flex items-center justify-center relative">
+                            <!-- Digital Signature & Stamp Image if available -->
+                            <img v-if="sigImage" :src="`/storage/${sigImage}`" class="h-16 max-w-full object-contain" />
+                            <div v-else class="text-[10px] text-slate-300 font-bold italic tracking-wide">Tanda Tangan Cashier & Stempel</div>
                         </div>
                         <p class="text-xs font-black text-slate-800 border-t border-slate-200 pt-1.5">{{ transaction.recorded_by_user?.name ?? 'Keuangan Homi' }}</p>
                     </div>

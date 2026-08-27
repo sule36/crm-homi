@@ -128,6 +128,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Finance - Kwitansi & Bukti Pembayaran
     Route::get('/finance/transactions/{transaction}/receipt', [\App\Http\Controllers\TransactionController::class, 'receipt'])->name('finance.transactions.receipt');
+    Route::post('/finance/transactions/{transaction}/wet-receipt', [\App\Http\Controllers\TransactionController::class, 'uploadWetReceipt'])->name('finance.transactions.wet_receipt');
 
 
     // Users / Staff

@@ -73,11 +73,31 @@ class TransactionController extends Controller
         $transaction->load(['booking.lead', 'booking.unit.project', 'recordedBy', 'bankAccount']);
         
         $spelledText = ucwords(trim($this->terbilang($transaction->amount))) . " Rupiah";
+        $settingsRaw = \App\Models\Setting::all();
+        $settings = [];
+        foreach ($settingsRaw as $s) {
+            $settings[$s->key] = \App\Models\Setting::get($s->key);
+        }
 
         return Inertia::render('Finance/Receipt', [
             'transaction' => $transaction,
             'spelled_text' => $spelledText,
+            'settings' => $settings,
         ]);
+    }
+
+    public function uploadWetReceipt(Request $request, Transaction $transaction)
+    {
+        $request->validate([
+            'wet_receipt_file' => 'required|file|mimes:jpeg,png,jpg,pdf|max:10240',
+        ]);
+
+        if ($request->hasFile('wet_receipt_file')) {
+            $path = $request->file('wet_receipt_file')->store('receipts/wet', 'public');
+            $transaction->update(['wet_receipt_file' => $path]);
+        }
+
+        return back()->with('success', 'Berkas Kwitansi Basah Asli berhasil diunggah.');
     }
 
     private function terbilang($angka)

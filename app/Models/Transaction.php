@@ -34,7 +34,7 @@ class Transaction extends Model
     protected $fillable = [
         'booking_id', 'payment_schedule_id', 'amount',
         'payment_method', 'bank_name', 'reference_number',
-        'receipt_file', 'notes', 'recorded_by', 'bank_account_id',
+        'receipt_file', 'wet_receipt_file', 'notes', 'recorded_by', 'bank_account_id',
     ];
 
     protected function casts(): array
