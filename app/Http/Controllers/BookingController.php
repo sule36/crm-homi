@@ -180,13 +180,12 @@ class BookingController extends Controller
                 [
                     'user_id' => $booking->booked_by,
                     'broker_company_id' => $agent?->broker_company_id,
-                    'booking_amount' => $booking->final_price,
+                    'amount' => $totalCommission,
                     'base_commission' => $baseCommission,
                     'promo_bonus' => $promoBonus,
                     'rate_used' => $effectiveRate,
-                    'commission_amount' => $totalCommission,
-                    'payout_recipient' => $agent?->broker_company_id ? 'office' : 'agent',
-                    'status' => 'unpaid',
+                    'payout_recipient' => $agent?->broker_company_id ? 'agency' : 'agent',
+                    'status' => 'pending',
                 ]
             );
 
