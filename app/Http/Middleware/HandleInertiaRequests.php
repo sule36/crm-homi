@@ -50,6 +50,9 @@ class HandleInertiaRequests extends Middleware
             'partner_banks' => \Illuminate\Support\Facades\Schema::hasTable('partner_banks')
                 ? \App\Models\PartnerBank::where('is_active', true)->get()
                 : [],
+            'active_project' => \Illuminate\Support\Facades\Schema::hasTable('projects')
+                ? \App\Models\Project::where('status', 'active')->first()
+                : null,
         ];
     }
 }

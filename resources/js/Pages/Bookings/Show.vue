@@ -166,11 +166,11 @@ const docTypeLabels = {
             </div>
             <div v-else-if="booking.status === 'approved'" class="flex gap-2">
                 <button @click="showSpkPreview = true" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                    👁️ Tinjau SPK
+                    👁️ Tinjau SPR
                 </button>
                 <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-6 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Download SPK (PDF)
+                    Download SPR (PDF)
                 </a>
                 <button @click="openReasonModal('cancel')" class="px-4 py-2.5 text-slate-400 text-xs font-bold hover:text-rose-600 transition-all">
                     Batalkan Pesanan
@@ -478,17 +478,17 @@ const docTypeLabels = {
             <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showSpkPreview = false"></div>
             <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8 md:p-12">
                 <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Pratinjau Surat Pemesanan Konsumen (SPK)</span>
+                    <span class="text-xs font-black uppercase tracking-widest text-slate-400">Pratinjau Surat Pemesanan Rumah (SPR)</span>
                     <button @click="showSpkPreview = false" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">&times;</button>
                 </div>
 
                 <!-- Printable Document Style Wrapper -->
                 <div class="border border-slate-200 p-8 rounded-2xl bg-white text-slate-800 text-xs space-y-6 shadow-inner font-serif leading-relaxed">
-                    <!-- SPK Header -->
+                    <!-- SPR Header -->
                     <div class="flex justify-between items-start border-b-2 border-slate-800 pb-4">
                         <div>
-                            <h2 class="text-base font-black uppercase tracking-wide text-slate-900">HOMI DEVELOPER CRM</h2>
-                            <p class="text-[10px] text-slate-500 font-sans mt-1">Sistem Pemesanan Unit Properti Terintegrasi</p>
+                            <h2 class="text-base font-black uppercase tracking-wide text-amber-600">{{ booking.unit?.project?.name || 'ALONICA HILLS' }}</h2>
+                            <p class="text-[10px] text-slate-500 font-sans mt-1">PT. SERANGKAI RODEN DEVELOPMENT</p>
                         </div>
                         <div class="text-right">
                             <h3 class="text-sm font-black text-slate-900">{{ booking.spk_number }}</h3>

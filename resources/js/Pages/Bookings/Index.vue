@@ -71,7 +71,7 @@ const formatCurrency = (value) => {
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 border-b border-slate-100">
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">No. SPK</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">No. SPR</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Konsumen</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Unit</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Skema</th>

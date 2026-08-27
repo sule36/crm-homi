@@ -13,9 +13,9 @@ class SPKController extends Controller
         $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']);
         $settings = \App\Models\Setting::all()->pluck('value', 'key');
 
-        $pdf = Pdf::loadView('pdf.spk', compact('booking', 'settings'));
+        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'));
         
-        return $pdf->download("SPK-{$booking->spk_number}.pdf");
+        return $pdf->download("SPR-{$booking->spk_number}.pdf");
     }
 
     public function stream(Booking $booking)
@@ -23,8 +23,12 @@ class SPKController extends Controller
         $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']);
         $settings = \App\Models\Setting::all()->pluck('value', 'key');
 
-        $pdf = Pdf::loadView('pdf.spk', compact('booking', 'settings'));
+        if (request()->has('html')) {
+            return view('pdf.spr', compact('booking', 'settings'));
+        }
+
+        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'));
         
-        return $pdf->stream();
+        return $pdf->stream("SPR-{$booking->spk_number}.pdf");
     }
 }

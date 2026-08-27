@@ -5,6 +5,7 @@ import { Link, usePage, router } from '@inertiajs/vue3';
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 const reminders = computed(() => page.props.auth.reminders || []);
+const activeProject = computed(() => page.props.active_project);
 
 const showNotificationsDropdown = ref(false);
 
@@ -253,6 +254,16 @@ const bottomNav = [
                         <span class="text-gray-800 font-bold">
                             <slot name="breadcrumb">Dashboard</slot>
                         </span>
+                    </div>
+
+                    <!-- Developer & Project Logo Header -->
+                    <div v-if="activeProject" class="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                        <img v-if="activeProject.logo" :src="'/storage/' + activeProject.logo" :alt="activeProject.name" class="h-6 max-w-[100px] object-contain" />
+                        <span v-else class="text-base">🏛️</span>
+                        <div class="text-left leading-tight">
+                            <p class="text-xs font-black text-amber-900">{{ activeProject.name }}</p>
+                            <p class="text-[9px] font-bold text-amber-700 uppercase tracking-wider">PT. SERANGKAI RODEN DEVELOPMENT</p>
+                        </div>
                     </div>
                 </div>
 

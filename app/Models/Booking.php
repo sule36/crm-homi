@@ -65,12 +65,17 @@ class Booking extends Model
     public function transactions() { return $this->hasMany(Transaction::class); }
     public function documents() { return $this->hasMany(BookingDocument::class); }
 
-    // Auto-generate SPK number
+    // Auto-generate SPR number
     public static function generateSpkNumber(): string
+    {
+        return static::generateSprNumber();
+    }
+
+    public static function generateSprNumber(): string
     {
         $year = date('Y');
         $last = static::whereYear('created_at', $year)->max('id') ?? 0;
-        return sprintf('SPK-%s-%04d', $year, $last + 1);
+        return sprintf('SPR-%s-%04d', $year, $last + 1);
     }
 
     public function getTotalPaidAttribute(): int
