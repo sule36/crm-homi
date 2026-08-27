@@ -142,6 +142,31 @@ class BookingController extends Controller
             }
         }
 
+        // Self-healing: Ensure UTJ Schedule and Transaction exist for approved bookings
+        if ($booking->status === 'approved' || $booking->status === 'pending') {
+            $utjSched = $booking->paymentSchedules()->where('installment_number', 0)->first();
+            if (!$utjSched) {
+                $utjSched = $booking->paymentSchedules()->create([
+                    'installment_number' => 0,
+                    'label' => 'Booking Fee (UTJ)',
+                    'amount' => $booking->booking_fee,
+                    'due_date' => $booking->booking_date ?? now()->format('Y-m-d'),
+                    'status' => 'paid',
+                ]);
+            }
+
+            if ($utjSched && !$booking->transactions()->where('payment_schedule_id', $utjSched->id)->exists()) {
+                \App\Models\Transaction::create([
+                    'booking_id' => $booking->id,
+                    'payment_schedule_id' => $utjSched->id,
+                    'amount' => $booking->booking_fee,
+                    'payment_method' => 'cash',
+                    'notes' => 'Otomatis dari Booking Fee (UTJ)',
+                    'recorded_by' => auth()->id() ?? $booking->booked_by,
+                ]);
+            }
+        }
+
         $booking->load([
             'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy',
             'paymentSchedules' => fn ($q) => $q->orderBy('installment_number', 'asc')->orderBy('id', 'asc'),

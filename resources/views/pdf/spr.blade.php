@@ -463,34 +463,93 @@
             @php
                 $formattedBank = ($bankInfo['bank_name'] ?? 'BCA') . ' ' . ($bankInfo['account_number'] ?? '');
                 $accHolder = $bankInfo['account_holder'] ?? 'PT. Serangkai Roden Development';
+                $schedules = $booking->paymentSchedules;
+                $summaryRows = [];
+
+                if ($schedules && $schedules->count() > 0) {
+                    // 1. UTJ / Booking Fee
+                    $utjSched = $schedules->firstWhere('installment_number', 0);
+                    if ($utjSched) {
+                        $summaryRows[] = [
+                            'label' => $utjSched->label ?: 'Uang Tanda Jadi (UTJ)',
+                            'amount' => $utjSched->amount,
+                            'date' => date('n/j/Y', strtotime($utjSched->due_date)),
+                        ];
+                    } else {
+                        $summaryRows[] = [
+                            'label' => 'Uang Tanda Jadi (UTJ)',
+                            'amount' => $booking->booking_fee,
+                            'date' => date('n/j/Y', strtotime($booking->booking_date ?? $booking->created_at)),
+                        ];
+                    }
+
+                    // 2. DP Schedules (if any)
+                    $dpScheds = $schedules->filter(function($s) {
+                        return $s->installment_number > 0 && (str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
+                    });
+
+                    if ($dpScheds->count() > 0) {
+                        $dpCount = $dpScheds->count();
+                        $dpTotal = $dpScheds->sum('amount');
+                        $dpPerMonth = $dpTotal / $dpCount;
+                        $summaryRows[] = [
+                            'label' => "Cicilan Uang Muka / DP ({$dpCount} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")",
+                            'amount' => $dpTotal,
+                            'date' => "Bulanan (1-{$dpCount})",
+                        ];
+                    }
+
+                    // 3. Cash Bertahap or Sisa Installments (not UTJ, not DP)
+                    $otherScheds = $schedules->filter(function($s) {
+                        return $s->installment_number > 0 && !str_contains(strtolower($s->label), 'dp') && !str_contains(strtolower($s->label), 'uang muka');
+                    });
+
+                    if ($otherScheds->count() > 0) {
+                        $otherCount = $otherScheds->count();
+                        $otherTotal = $otherScheds->sum('amount');
+                        $otherPerMonth = $otherCount > 0 ? ($otherTotal / $otherCount) : $otherTotal;
+                        $schemeLabel = $booking->payment_scheme === 'cash_installment' ? 'Cicilan Cash Bertahap' : 'Pelunasan';
+                        
+                        if ($booking->payment_scheme === 'kpr' && $otherCount === 1) {
+                            $summaryRows[] = [
+                                'label' => 'Pelunasan Akad KPR (Pencairan Bank)',
+                                'amount' => $otherTotal,
+                                'date' => 'Saat Akad Kredit',
+                            ];
+                        } else {
+                            $summaryRows[] = [
+                                'label' => "{$schemeLabel} ({$otherCount} Bulan @ Rp " . number_format($otherPerMonth, 0, ',', '.') . ")",
+                                'amount' => $otherTotal,
+                                'date' => "Bulanan (1-{$otherCount})",
+                            ];
+                        }
+                    }
+                } else {
+                    // Fallback
+                    $summaryRows[] = [
+                        'label' => 'Uang Tanda Jadi (UTJ)',
+                        'amount' => $booking->booking_fee,
+                        'date' => date('n/j/Y', strtotime($booking->booking_date ?? $booking->created_at)),
+                    ];
+                    $remAmount = $booking->final_price - $booking->booking_fee;
+                    $schemeLabel = $booking->payment_scheme === 'cash_installment' ? 'Cicilan Cash Bertahap' : 'Pelunasan';
+                    $summaryRows[] = [
+                        'label' => "{$schemeLabel} " . ($booking->installment_months ? "({$booking->installment_months} Bulan)" : ''),
+                        'amount' => $remAmount,
+                        'date' => 'Bulanan',
+                    ];
+                }
             @endphp
 
-            @if($booking->paymentSchedules && $booking->paymentSchedules->count() > 0)
-                @foreach($booking->paymentSchedules as $sched)
-                <tr>
-                    <td>{{ $sched->label }}</td>
-                    <td class="text-right">{{ number_format($sched->amount, 2, '.', ',') }}</td>
-                    <td class="text-center">{{ date('d/m/Y', strtotime($sched->due_date)) }}</td>
-                    <td>{{ $formattedBank }}</td>
-                    <td>{{ $accHolder }}</td>
-                </tr>
-                @endforeach
-            @else
+            @foreach($summaryRows as $row)
             <tr>
-                <td>Booking Fee (UTJ)</td>
-                <td class="text-right">{{ number_format($booking->booking_fee, 2, '.', ',') }}</td>
-                <td class="text-center">{{ date('d/m/Y', strtotime($booking->booking_date)) }}</td>
+                <td>{{ $row['label'] }}</td>
+                <td class="text-right">{{ number_format($row['amount'], 2, '.', ',') }}</td>
+                <td class="text-center">{{ $row['date'] }}</td>
                 <td>{{ $formattedBank }}</td>
                 <td>{{ $accHolder }}</td>
             </tr>
-            <tr>
-                <td>Pelunasan {{ strtoupper($booking->payment_scheme) }}</td>
-                <td class="text-right">{{ number_format($booking->final_price - $booking->booking_fee, 2, '.', ',') }}</td>
-                <td class="text-center">14 Hari</td>
-                <td>{{ $formattedBank }}</td>
-                <td>{{ $accHolder }}</td>
-            </tr>
-            @endif
+            @endforeach
             <tr class="total-row">
                 <td>Total Kesepakatan</td>
                 <td class="text-right">{{ number_format($booking->final_price, 2, '.', ',') }}</td>
@@ -551,7 +610,7 @@
 
     <div class="signature-section">
         <div class="sig-date">
-            {{ $sigs['city'] ?? 'Jakarta Selatan' }}, {{ date('j F Y', strtotime($booking->booking_date)) }}
+            {{ $sigs['city'] ?? 'Jakarta Selatan' }}, {{ date('j F Y', strtotime($booking->created_at ?? now())) }}
         </div>
         <table class="sig-table">
             <tr>
