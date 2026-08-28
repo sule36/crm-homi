@@ -67,6 +67,8 @@ class BookingController extends Controller
             'secondary_nik' => 'nullable|string|max:50',
             'secondary_phone' => 'nullable|string|max:20',
             'secondary_relationship' => 'nullable|string|max:100',
+            'secondary_address' => 'nullable|string',
+            'secondary_email' => 'nullable|email|max:255',
             'notes' => 'nullable|string',
         ]);
 

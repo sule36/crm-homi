@@ -336,15 +336,19 @@
 
     <!-- PAGE 1: SURAT PEMESANAN RUMAH (SPR) -->
 
-    <!-- HEADER LOGO & DOCUMENT TITLE -->
+    <!-- HEADER LOGO & TITLE -->
     <div class="header">
-        @if($logoData)
-            <img src="{{ $logoData }}" class="logo"><br>
-        @else
-            <div style="font-size: 16pt; font-weight: bold; color: #171717;">{{ $project->name ?? 'UMALA ANDARA' }}</div>
+        @if(!empty($companyLogoData))
+            <img src="{{ $companyLogoData }}" class="logo">
         @endif
         <div class="document-title">Surat Pemesanan Rumah (SPR)</div>
-        <div class="document-number">{{ $booking->spk_number }}</div>
+        @php
+            $displaySpkNumber = $booking->spk_number;
+            if (str_contains($displaySpkNumber, 'HOMI') || str_starts_with($displaySpkNumber, 'SPR-2026-')) {
+                $displaySpkNumber = \App\Models\Booking::generateSprNumber($booking->project_id ?: ($booking->unit->project_id ?? null));
+            }
+        @endphp
+        <div class="document-number">{{ $displaySpkNumber }}</div>
     </div>
 
     <!-- INFORMASI PEMBELI & INFORMASI UNIT (2-COLUMN GRID) -->
@@ -402,6 +406,14 @@
                     <tr>
                         <td class="lbl">No. Telp 2</td>
                         <td class="val">: {{ $booking->secondary_phone ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Alamat KTP 2</td>
+                        <td class="val">: {{ $booking->secondary_address ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Email 2</td>
+                        <td class="val">: {{ $booking->secondary_email ?? '-' }}</td>
                     </tr>
                 </table>
                 @endif
@@ -489,16 +501,16 @@
                     // 2. DP Schedules (if any)
                     $dpScheds = $schedules->filter(function($s) {
                         return $s->installment_number > 0 && (str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
-                    });
-
-                    if ($dpScheds->count() > 0) {
+                    });                    if ($dpScheds->count() > 0) {
                         $dpCount = $dpScheds->count();
                         $dpTotal = $dpScheds->sum('amount');
                         $dpPerMonth = $dpTotal / $dpCount;
+                        $firstDpDate = date('n/j/Y', strtotime($dpScheds->first()->due_date));
+                        $dpDateLabel = $dpCount === 1 ? $firstDpDate : "{$firstDpDate} (DP1)";
                         $summaryRows[] = [
                             'label' => "Cicilan Uang Muka / DP ({$dpCount} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")",
                             'amount' => $dpTotal,
-                            'date' => "Bulanan (1-{$dpCount})",
+                            'date' => $dpDateLabel,
                         ];
                     }
 
@@ -512,6 +524,8 @@
                         $otherTotal = $otherScheds->sum('amount');
                         $otherPerMonth = $otherCount > 0 ? ($otherTotal / $otherCount) : $otherTotal;
                         $schemeLabel = $booking->payment_scheme === 'cash_installment' ? 'Cicilan Cash Bertahap' : 'Pelunasan';
+                        $firstOtherDate = date('n/j/Y', strtotime($otherScheds->first()->due_date));
+                        $otherDateLabel = $otherCount === 1 ? $firstOtherDate : "Bulanan ({$firstOtherDate})";
                         
                         if ($booking->payment_scheme === 'kpr' && $otherCount === 1) {
                             $summaryRows[] = [
@@ -523,7 +537,7 @@
                             $summaryRows[] = [
                                 'label' => "{$schemeLabel} ({$otherCount} Bulan @ Rp " . number_format($otherPerMonth, 0, ',', '.') . ")",
                                 'amount' => $otherTotal,
-                                'date' => "Bulanan (1-{$otherCount})",
+                                'date' => $otherDateLabel,
                             ];
                         }
                     }
@@ -553,60 +567,59 @@
                 <td>{{ $accHolder }}</td>
             </tr>
             @endforeach
-            <tr class="total-row">
-                <td>Total Kesepakatan</td>
-                <td class="text-right">{{ number_format($booking->final_price, 2, '.', ',') }}</td>
-                <td></td>
-                <td></td>
-                <td></td>
-            </tr>
         </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td style="font-weight: bold;">Total Kesepakatan</td>
+                <td class="text-right" style="font-weight: bold;">{{ number_format($booking->final_price, 2, '.', ',') }}</td>
+                <td colspan="3"></td>
+            </tr>
+        </tfoot>
     </table>
 
-    <!-- CATATAN-CATATAN (TERMS & CONDITIONS DYNAMIC TABLE) -->
+    <!-- CATATAN-CATATAN (TERMS) -->
     <div class="catatan-section">
         <div class="catatan-header">Catatan-catatan</div>
+        @php
+            $terms = $settings['spr_terms_conditions'] ?? [];
+        @endphp
         <table class="catatan-table">
-            @foreach($terms as $idx => $item)
+            @foreach($terms as $index => $item)
             <tr>
-                <td style="width: 16px; font-weight: bold; color: #171717;">{{ $idx + 1 }}</td>
+                <td style="width: 20px; font-weight: bold;">{{ $index + 1 }}</td>
                 <td>{{ $item }}</td>
             </tr>
             @endforeach
         </table>
     </div>
 
-    <!-- SIGNATURE SECTION (DYNAMIC COLUMNS 2, 3, or 4) -->
+    <!-- SIGNATURE SECTION (4 DYNAMIC PARAMETERIZED SLOTS) -->
     @php
         $sigSlots = [];
-        // Slot 1: Sales / Staff
+        // Slot 1: AGENT COORDINATOR / LEAD
         $sigSlots[] = [
-            'title' => !empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'Sales Agent',
+            'title' => !empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'AGENT COORDINATOR',
             'name' => !empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($booking->bookedBy->name ?? 'Staff'),
             'image' => $sig1ImageData,
         ];
-        // Slot 2: Management / Direktur
-        if (!empty($sigs['sig2_title'])) {
-            $sigSlots[] = [
-                'title' => !empty($sigs['sig2_title']) ? $sigs['sig2_title'] : 'Direktur',
-                'name' => !empty($sigs['sig2_name']) ? $sigs['sig2_name'] : 'Luhur Wira Pramudya',
-                'image' => $sig2ImageData,
-            ];
-        }
-        // Slot 3: Pemesan Utama / Pembeli
+        // Slot 2: DIREKTUR
         $sigSlots[] = [
-            'title' => !empty($sigs['sig3_title']) ? $sigs['sig3_title'] : 'Pemesan Utama',
-            'name' => !empty($sigs['sig3_name']) ? $sigs['sig3_name'] : ($booking->lead->name ?? 'Pembeli'),
+            'title' => !empty($sigs['sig2_title']) ? $sigs['sig2_title'] : 'DIREKTUR',
+            'name' => !empty($sigs['sig2_name']) ? $sigs['sig2_name'] : 'Ch. Bramantyo P. S',
+            'image' => $sig2ImageData,
+        ];
+        // Slot 3: SALES / MARKETING
+        $sigSlots[] = [
+            'title' => !empty($sigs['sig3_title']) ? $sigs['sig3_title'] : 'SALES',
+            'name' => !empty($sigs['sig3_name']) ? $sigs['sig3_name'] : 'Mawardi KanaProject',
             'image' => $sig3ImageData,
         ];
-        // Slot 4: Penanggung Jawab / Pemesan 2 (if present or configured)
-        if (!empty($sigs['sig4_name']) || !empty($booking->secondary_name) || !empty($sigs['sig4_title']) || !empty($sig4ImageData)) {
-            $sigSlots[] = [
-                'title' => !empty($sigs['sig4_title']) ? $sigs['sig4_title'] : ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Penanggung Jawab'),
-                'name' => !empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->secondary_name ?? '-'),
-                'image' => $sig4ImageData,
-            ];
-        }
+        // Slot 4: PEMESAN UTAMA / PENANGGUNG JAWAB
+        $sigSlots[] = [
+            'title' => !empty($sigs['sig4_title']) ? $sigs['sig4_title'] : ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Penanggung Jawab'),
+            'name' => !empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->secondary_name ?: ($booking->lead->name ?? '-')),
+            'image' => $sig4ImageData,
+        ];
 
         $colWidth = floor(100 / count($sigSlots));
     @endphp

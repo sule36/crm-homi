@@ -35,7 +35,7 @@ class Booking extends Model
         'tracking_token',
         // Consumer Full Details & Secondary Buyer
         'buyer_nik', 'buyer_npwp', 'buyer_address', 'buyer_job',
-        'secondary_name', 'secondary_nik', 'secondary_phone', 'secondary_relationship',
+        'secondary_name', 'secondary_nik', 'secondary_phone', 'secondary_relationship', 'secondary_address', 'secondary_email',
         'special_bonus_items', 'special_package_items',
     ];
 

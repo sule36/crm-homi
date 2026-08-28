@@ -38,6 +38,8 @@ const form = useForm({
     secondary_nik: '',
     secondary_phone: '',
     secondary_relationship: 'Orang Tua',
+    secondary_address: '',
+    secondary_email: '',
     notes: '',
 });
 
@@ -213,6 +215,14 @@ const formatCurrency = (value) => {
                                     <div>
                                         <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">No. HP / WA Pemesan 2</label>
                                         <input v-model="form.secondary_phone" type="text" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">Alamat KTP Pemesan 2</label>
+                                        <input v-model="form.secondary_address" type="text" placeholder="Jl. Raya No. XX..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">Email Pemesan 2</label>
+                                        <input v-model="form.secondary_email" type="email" placeholder="email@domain.com" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20" />
                                     </div>
                                 </div>
                             </div>
