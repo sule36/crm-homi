@@ -1,6 +1,6 @@
 <script setup>
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
@@ -19,7 +19,7 @@ const paramForm = useForm({
 });
 
 function submitParameters() {
-    paramForm.post(route('commissions.updateParameters'), {
+    paramForm.post('/commissions/parameters', {
         onSuccess: () => { showParamModal.value = false; }
     });
 }
@@ -313,8 +313,8 @@ const simNetCommission = computed(() => {
                     <Link href="/commissions?status=paid" :class="filters.status === 'paid' ? 'bg-emerald-500 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs font-black uppercase transition-all">Paid</Link>
                 </div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+            <div class="overflow-x-auto max-w-full touch-pan-x">
+                <table class="w-full text-left border-collapse min-w-[800px]">
                     <thead>
                         <tr class="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
                             <th class="px-8 py-5">Sales Agent</th>
