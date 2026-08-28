@@ -144,37 +144,42 @@ class BookingController extends Controller
 
     public function show(Booking $booking)
     {
-        // Self-healing: Clean up duplicate UTJ rows (#0) if any exist from legacy operations
-        $utjSchedules = $booking->paymentSchedules()->where('installment_number', 0)->orderBy('id', 'asc')->get();
-        if ($utjSchedules->count() > 1) {
-            foreach ($utjSchedules->slice(1) as $dupUtj) {
-                $dupUtj->delete();
-            }
-        }
-
-        // Self-healing: Ensure UTJ Schedule and Transaction exist for approved bookings
-        if ($booking->status === 'approved' || $booking->status === 'pending') {
-            $utjSched = $booking->paymentSchedules()->where('installment_number', 0)->first();
-            if (!$utjSched) {
-                $utjSched = $booking->paymentSchedules()->create([
-                    'installment_number' => 0,
-                    'label' => 'Booking Fee (UTJ)',
-                    'amount' => $booking->booking_fee,
-                    'due_date' => $booking->booking_date ?? now()->format('Y-m-d'),
-                    'status' => 'paid',
-                ]);
+        try {
+            // Self-healing: Clean up duplicate UTJ rows (#0) if any exist from legacy operations
+            $utjSchedules = $booking->paymentSchedules()->where('installment_number', 0)->orderBy('id', 'asc')->get();
+            if ($utjSchedules->count() > 1) {
+                foreach ($utjSchedules->slice(1) as $dupUtj) {
+                    $dupUtj->delete();
+                }
             }
 
-            if ($utjSched && !$booking->transactions()->where('payment_schedule_id', $utjSched->id)->exists()) {
-                \App\Models\Transaction::create([
-                    'booking_id' => $booking->id,
-                    'payment_schedule_id' => $utjSched->id,
-                    'amount' => $booking->booking_fee,
-                    'payment_method' => 'cash',
-                    'notes' => 'Otomatis dari Booking Fee (UTJ)',
-                    'recorded_by' => auth()->id() ?? $booking->booked_by,
-                ]);
+            // Self-healing: Ensure UTJ Schedule and Transaction exist for approved bookings
+            if ($booking->status === 'approved' || $booking->status === 'pending') {
+                $utjSched = $booking->paymentSchedules()->where('installment_number', 0)->first();
+                if (!$utjSched) {
+                    $utjSched = $booking->paymentSchedules()->create([
+                        'installment_number' => 0,
+                        'label' => 'Booking Fee (UTJ)',
+                        'amount' => $booking->booking_fee,
+                        'due_date' => $booking->booking_date ?? now()->format('Y-m-d'),
+                        'status' => 'paid',
+                    ]);
+                }
+
+                if ($utjSched && !$booking->transactions()->where('payment_schedule_id', $utjSched->id)->exists()) {
+                    $recordedBy = auth()->id() ?? $booking->booked_by ?? \App\Models\User::first()?->id ?? 1;
+                    \App\Models\Transaction::create([
+                        'booking_id' => $booking->id,
+                        'payment_schedule_id' => $utjSched->id,
+                        'amount' => $booking->booking_fee,
+                        'payment_method' => 'cash',
+                        'notes' => 'Otomatis dari Booking Fee (UTJ)',
+                        'recorded_by' => $recordedBy,
+                    ]);
+                }
             }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Self-healing UTJ failed in BookingController@show: ' . $e->getMessage());
         }
 
         $relations = [
@@ -187,9 +192,18 @@ class BookingController extends Controller
         }
         $booking->load($relations);
 
+        $bankAccountsAll = [];
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('bank_accounts')) {
+                $bankAccountsAll = \App\Models\BankAccount::latest()->get();
+            }
+        } catch (\Throwable $e) {
+            $bankAccountsAll = [];
+        }
+
         return Inertia::render('Bookings/Show', [
             'booking' => $booking,
-            'bank_accounts_all' => \App\Models\BankAccount::latest()->get(),
+            'bank_accounts_all' => $bankAccountsAll,
         ]);
     }
 
