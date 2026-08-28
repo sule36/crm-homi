@@ -598,26 +598,26 @@
         $sigSlots = [];
         // Slot 1: AGENT COORDINATOR / LEAD
         $sigSlots[] = [
-            'title' => !empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'AGENT COORDINATOR',
-            'name' => !empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($booking->bookedBy->name ?? 'Staff'),
+            'title' => !empty($booking->sig1_title) ? $booking->sig1_title : (!empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'AGENT COORDINATOR'),
+            'name' => !empty($booking->sig1_name) ? $booking->sig1_name : (!empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($booking->bookedBy->name ?? 'Staff')),
             'image' => $sig1ImageData,
         ];
-        // Slot 2: DIREKTUR
+        // Slot 2: DIREKTUR / MANAGEMENT
         $sigSlots[] = [
-            'title' => !empty($sigs['sig2_title']) ? $sigs['sig2_title'] : 'DIREKTUR',
-            'name' => !empty($sigs['sig2_name']) ? $sigs['sig2_name'] : 'Ch. Bramantyo P. S',
+            'title' => !empty($booking->sig2_title) ? $booking->sig2_title : (!empty($sigs['sig2_title']) ? $sigs['sig2_title'] : 'DIREKTUR'),
+            'name' => !empty($booking->sig2_name) ? $booking->sig2_name : (!empty($sigs['sig2_name']) ? $sigs['sig2_name'] : 'Ch. Bramantyo P. S'),
             'image' => $sig2ImageData,
         ];
         // Slot 3: SALES / MARKETING
         $sigSlots[] = [
-            'title' => !empty($sigs['sig3_title']) ? $sigs['sig3_title'] : 'SALES',
-            'name' => !empty($sigs['sig3_name']) ? $sigs['sig3_name'] : 'Mawardi KanaProject',
+            'title' => !empty($booking->sig3_title) ? $booking->sig3_title : (!empty($sigs['sig3_title']) ? $sigs['sig3_title'] : 'SALES'),
+            'name' => !empty($booking->sig3_name) ? $booking->sig3_name : (!empty($sigs['sig3_name']) ? $sigs['sig3_name'] : ($booking->bookedBy->name ?? 'Mawardi KanaProject')),
             'image' => $sig3ImageData,
         ];
         // Slot 4: PEMESAN UTAMA / PENANGGUNG JAWAB
         $sigSlots[] = [
-            'title' => !empty($sigs['sig4_title']) ? $sigs['sig4_title'] : ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Penanggung Jawab'),
-            'name' => !empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->secondary_name ?: ($booking->lead->name ?? '-')),
+            'title' => !empty($booking->sig4_title) ? $booking->sig4_title : (!empty($sigs['sig4_title']) ? $sigs['sig4_title'] : ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Penanggung Jawab')),
+            'name' => !empty($booking->sig4_name) ? $booking->sig4_name : (!empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->secondary_name ?: ($booking->lead->name ?? '-'))),
             'image' => $sig4ImageData,
         ];
 

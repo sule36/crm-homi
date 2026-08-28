@@ -40,6 +40,15 @@ const form = useForm({
     secondary_relationship: 'Orang Tua',
     secondary_address: '',
     secondary_email: '',
+    has_custom_signatures: false,
+    sig1_title: '',
+    sig1_name: '',
+    sig2_title: '',
+    sig2_name: '',
+    sig3_title: '',
+    sig3_name: '',
+    sig4_title: '',
+    sig4_name: '',
     notes: '',
 });
 
@@ -223,6 +232,49 @@ const formatCurrency = (value) => {
                                     <div>
                                         <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">Email Pemesan 2</label>
                                         <input v-model="form.secondary_email" type="email" placeholder="email@domain.com" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- KUSTOMISASI TTD SPR KHUSUS BOOKING INI -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input v-model="form.has_custom_signatures" type="checkbox" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
+                                    <span class="text-xs font-bold text-slate-800">🖋️ Kustomisasi Nama Penanda Tangan SPR (Opsional Khusus Booking Ini)</span>
+                                </label>
+
+                                <div v-if="form.has_custom_signatures" class="grid grid-cols-2 gap-3 pt-2">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Judul TTD 1</label>
+                                        <input v-model="form.sig1_title" type="text" placeholder="AGENT COORDINATOR" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama TTD 1</label>
+                                        <input v-model="form.sig1_name" type="text" placeholder="Maulizar Hamid" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Judul TTD 2</label>
+                                        <input v-model="form.sig2_title" type="text" placeholder="DIREKTUR" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama TTD 2</label>
+                                        <input v-model="form.sig2_name" type="text" placeholder="Ch. Bramantyo P. S" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Judul TTD 3</label>
+                                        <input v-model="form.sig3_title" type="text" placeholder="SALES" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama TTD 3</label>
+                                        <input v-model="form.sig3_name" type="text" placeholder="Mawardi KanaProject" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Judul TTD 4</label>
+                                        <input v-model="form.sig4_title" type="text" placeholder="Penanggung Jawab (Orang Tua)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama TTD 4</label>
+                                        <input v-model="form.sig4_name" type="text" placeholder="Fatimah Rafiuddin" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
                                     </div>
                                 </div>
                             </div>

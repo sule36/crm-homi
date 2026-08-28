@@ -37,6 +37,9 @@ class Booking extends Model
         'buyer_nik', 'buyer_npwp', 'buyer_address', 'buyer_job',
         'secondary_name', 'secondary_nik', 'secondary_phone', 'secondary_relationship', 'secondary_address', 'secondary_email',
         'special_bonus_items', 'special_package_items',
+        // Per-Booking Signature Overrides
+        'sig1_title', 'sig1_name', 'sig2_title', 'sig2_name',
+        'sig3_title', 'sig3_name', 'sig4_title', 'sig4_name',
     ];
 
     protected function casts(): array
