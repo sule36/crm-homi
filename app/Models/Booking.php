@@ -70,11 +70,11 @@ class Booking extends Model
         ];
     }
 
-    public function lead() { return $this->belongsTo(Lead::class); }
-    public function unit() { return $this->belongsTo(Unit::class); }
-    public function project() { return $this->belongsTo(Project::class); }
-    public function bookedBy() { return $this->belongsTo(User::class, 'booked_by'); }
-    public function approvedBy() { return $this->belongsTo(User::class, 'approved_by'); }
+    public function lead() { return $this->belongsTo(Lead::class)->withTrashed(); }
+    public function unit() { return $this->belongsTo(Unit::class)->withTrashed(); }
+    public function project() { return $this->belongsTo(Project::class)->withTrashed(); }
+    public function bookedBy() { return $this->belongsTo(User::class, 'booked_by')->withTrashed(); }
+    public function approvedBy() { return $this->belongsTo(User::class, 'approved_by')->withTrashed(); }
     public function paymentSchedules() { return $this->hasMany(PaymentSchedule::class); }
     public function transactions() { return $this->hasMany(Transaction::class); }
     public function documents() { return $this->hasMany(BookingDocument::class); }

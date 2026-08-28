@@ -95,9 +95,12 @@ const deleteBooking = (id) => {
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-2">
                                 <div class="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center text-[10px] font-bold text-blue-600">
-                                    {{ booking.lead?.name.charAt(0) }}
+                                    {{ (booking.lead?.name || 'K').charAt(0) }}
                                 </div>
-                                <span class="text-sm font-bold text-slate-700">{{ booking.lead?.name }}</span>
+                                <div class="flex flex-col">
+                                    <span class="text-sm font-bold text-slate-700">{{ booking.lead?.name || 'Konsumen' }}</span>
+                                    <span v-if="booking.lead?.deleted_at" class="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded w-fit">Lead Dihapus</span>
+                                </div>
                             </div>
                         </td>
                         <td class="px-6 py-4">
