@@ -115,7 +115,6 @@ class Booking extends Model
         $format = Setting::get('spr_number_format');
         if (empty($format) || !str_contains($format, '{month_roman}')) {
             $format = '{seq}/SPR-{code}/{month_roman}/{year}';
-            Setting::set('spr_number_format', $format);
         }
 
         return str_replace(
@@ -169,7 +168,6 @@ class Booking extends Model
         $format = Setting::get('spr_number_format');
         if (empty($format) || !str_contains($format, '{month_roman}')) {
             $format = '{seq}/SPR-{code}/{month_roman}/{year}';
-            Setting::set('spr_number_format', $format);
         }
 
         return str_replace(
