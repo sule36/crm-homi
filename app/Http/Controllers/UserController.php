@@ -35,6 +35,7 @@ class UserController extends Controller
             'role' => 'nullable|string',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
+            'master_lead_id' => 'nullable|exists:users,id',
             'agent_type' => 'nullable|in:inhouse,inhouse_developer,inhouse_master_lead,agency_agent,independent,master_lead',
             'phone' => 'nullable|string|max:20',
             'commission_rate' => 'nullable|numeric|min:0|max:100',
@@ -47,18 +48,20 @@ class UserController extends Controller
         $email = $request->email ?: 'agent_' . time() . '_' . rand(100, 999) . '@homi.id';
         $password = $request->filled('password') ? Hash::make($request->password) : Hash::make('password123');
         $role = $request->role ?: 'sales_agent';
-        $agentType = $request->agent_type ?: ($request->broker_company_id ? 'agency_agent' : 'inhouse');
+        $agentType = $request->agent_type ?: ($request->filled('broker_company_id') ? 'agency_agent' : 'inhouse');
 
         $isMasterLead = auth()->user() && (auth()->user()->hasRole('master_lead') || auth()->user()->agent_type === 'master_lead');
-        $masterLeadId = $isMasterLead ? auth()->id() : ($request->master_lead_id ?: null);
+        $masterLeadId = $isMasterLead ? auth()->id() : ($request->filled('master_lead_id') ? $request->master_lead_id : null);
+        $brokerCompanyId = $request->filled('broker_company_id') ? $request->broker_company_id : null;
+        $projectId = $request->filled('project_id') ? $request->project_id : null;
 
         $user = User::create([
             'name' => $request->name,
             'email' => $email,
             'password' => $password,
             'phone' => $request->phone,
-            'project_id' => $request->project_id,
-            'broker_company_id' => $request->broker_company_id,
+            'project_id' => $projectId,
+            'broker_company_id' => $brokerCompanyId,
             'master_lead_id' => $masterLeadId,
             'agent_type' => $agentType,
             'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : 0,
@@ -98,13 +101,15 @@ class UserController extends Controller
         ]);
 
         $isMasterLead = auth()->user() && (auth()->user()->hasRole('master_lead') || auth()->user()->agent_type === 'master_lead');
-        $masterLeadId = $isMasterLead ? auth()->id() : ($request->has('master_lead_id') ? $request->master_lead_id : $user->master_lead_id);
+        $masterLeadId = $isMasterLead ? auth()->id() : ($request->has('master_lead_id') ? ($request->filled('master_lead_id') ? $request->master_lead_id : null) : $user->master_lead_id);
+        $brokerCompanyId = $request->has('broker_company_id') ? ($request->filled('broker_company_id') ? $request->broker_company_id : null) : $user->broker_company_id;
+        $projectId = $request->has('project_id') ? ($request->filled('project_id') ? $request->project_id : null) : $user->project_id;
 
         $data = [
             'name' => $request->name,
             'phone' => $request->phone,
-            'project_id' => $request->project_id,
-            'broker_company_id' => $request->broker_company_id,
+            'project_id' => $projectId,
+            'broker_company_id' => $brokerCompanyId,
             'master_lead_id' => $masterLeadId,
             'status' => $request->status ?: $user->status,
             'bank_name' => $request->bank_name,

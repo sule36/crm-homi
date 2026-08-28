@@ -441,15 +441,27 @@ const filteredAgentsData = computed(() => {
                                     <div class="text-xs text-slate-400">{{ a.email }} • {{ a.phone || '-' }}</div>
                                 </td>
                                 <td class="p-4">
-                                    <span v-if="a.agent_type === 'agency_agent'" class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-xs font-semibold">
+                                    <span v-if="a.agent_type === 'master_lead'" class="px-2.5 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-full text-xs font-bold">
+                                        👑 Master Lead
+                                    </span>
+                                    <span v-else-if="a.agent_type === 'agency_agent'" class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-xs font-semibold">
                                         🏢 Sub-Agent Agency
                                     </span>
                                     <span v-else-if="a.agent_type === 'independent'" class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-semibold">
                                         💼 Freelance Independen
                                     </span>
-                                    <span v-else class="px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-xs font-semibold">
-                                        🏠 In-House Agent
+                                    <span v-else-if="a.agent_type === 'inhouse_master_lead'" class="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-xs font-semibold">
+                                        🤝 In-House Master Lead
                                     </span>
+                                    <span v-else class="px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-xs font-semibold">
+                                        🏠 In-House Developer
+                                    </span>
+
+                                    <!-- Master Lead Badge if present -->
+                                    <div v-if="a.master_lead" class="text-[10px] text-purple-400 font-bold mt-1 flex items-center gap-1">
+                                        <span>👑 Naungan:</span>
+                                        <span>{{ a.master_lead.name }}</span>
+                                    </div>
                                 </td>
                                 <td class="p-4">
                                     <div v-if="a.broker_company" class="font-bold text-slate-200 flex items-center gap-1.5">
@@ -458,7 +470,7 @@ const filteredAgentsData = computed(() => {
                                         <span class="text-[10px] text-amber-400 font-mono">({{ a.broker_company.code || 'NO-CODE' }})</span>
                                     </div>
                                     <div v-else class="text-xs text-slate-500 italic">
-                                        {{ a.agent_type === 'independent' ? 'Independen (Tanpa Kantor)' : 'Inhouse Direct' }}
+                                        {{ a.agent_type === 'independent' ? 'Independen (Tanpa Kantor)' : 'Tanpa Kantor Agency' }}
                                     </div>
                                 </td>
                                 <td class="p-4">
