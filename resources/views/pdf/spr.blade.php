@@ -429,7 +429,7 @@
                     </tr>
                     <tr>
                         <td class="lbl">Harga Jual Unit</td>
-                        <td class="val">: Rp {{ number_format($booking->base_price ?: $booking->final_price, 2, '.', ',') }}</td>
+                        <td class="val">: Rp {{ number_format(($booking->unit_price > 0 ? $booking->unit_price : (($booking->unit && $booking->unit->price > 0) ? $booking->unit->price : ($booking->base_price > 0 ? $booking->base_price : $booking->final_price))), 2, '.', ',') }}</td>
                     </tr>
                     @if($booking->ppn_amount > 0 || $booking->bphtb_amount > 0 || $booking->ajb_bbn_amount > 0)
                     <tr>

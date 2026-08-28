@@ -35,18 +35,22 @@ class SettingController extends Controller
             ];
         }
 
-        if (!isset($settings['spr_signatures']) || !is_array($settings['spr_signatures'])) {
-            $settings['spr_signatures'] = [
-                'city' => 'Jakarta Selatan',
-                'sig1_title' => 'Sales Manager',
-                'sig1_name' => 'Dhany Nur',
-                'sig1_image' => null,
-                'sig2_title' => 'Direktur',
-                'sig2_name' => 'Luhur Wira Pramudya',
-                'sig2_image' => null,
-                'sig3_title' => 'Pembeli',
-            ];
-        }
+        $defaultSigs = [
+            'city' => 'Jakarta Selatan',
+            'sig1_title' => 'Sales Manager',
+            'sig1_name' => 'Dhany Nur',
+            'sig1_image' => null,
+            'sig2_title' => 'Direktur',
+            'sig2_name' => 'Luhur Wira Pramudya',
+            'sig2_image' => null,
+            'sig3_title' => 'Pemesan Utama',
+            'sig3_name' => '',
+            'sig3_image' => null,
+            'sig4_title' => 'Penanggung Jawab',
+            'sig4_name' => '',
+            'sig4_image' => null,
+        ];
+        $settings['spr_signatures'] = array_merge($defaultSigs, is_array($settings['spr_signatures'] ?? null) ? $settings['spr_signatures'] : []);
 
         if (!isset($settings['spr_bank_info']) || !is_array($settings['spr_bank_info'])) {
             $settings['spr_bank_info'] = [
@@ -112,20 +116,11 @@ class SettingController extends Controller
         }
 
         // 2. Signatures Setup & Uploads
-        $existingSigs = Setting::get('spr_signatures', [
-            'city' => 'Jakarta Selatan',
-            'sig1_title' => 'Sales Manager',
-            'sig1_name' => 'Dhany Nur',
-            'sig1_image' => null,
-            'sig2_title' => 'Direktur',
-            'sig2_name' => 'Luhur Wira Pramudya',
-            'sig2_image' => null,
-            'sig3_title' => 'Pembeli',
-        ]);
-
+        $existingSigs = Setting::get('spr_signatures', []);
         if (!is_array($existingSigs)) {
             $existingSigs = [];
         }
+        $existingSigs = array_merge($defaultSigs, $existingSigs);
 
         $inputSig = $request->input('spr_signatures');
         if (is_string($inputSig)) {
