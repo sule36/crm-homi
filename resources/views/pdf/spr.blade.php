@@ -97,13 +97,14 @@
             font-size: 7.5pt;
             padding: 3.5px 5px;
             border: 1px solid #e5e5e5;
-            text-align: left;
+            text-align: center;
         }
         .schedule-table td {
             padding: 3.5px 5px;
             font-size: 7.5pt;
             border: 1px solid #e5e5e5;
             color: #262626;
+            text-align: center;
         }
         .schedule-table tr.total-row td {
             font-weight: bold;
@@ -568,8 +569,8 @@
             @foreach($summaryRows as $row)
             <tr>
                 <td>{{ $row['label'] }}</td>
-                <td class="text-right">{{ number_format($row['amount'], 2, '.', ',') }}</td>
-                <td class="text-center">{{ $row['date'] }}</td>
+                <td>{{ number_format($row['amount'], 2, '.', ',') }}</td>
+                <td>{{ $row['date'] }}</td>
                 <td>{{ $formattedBank }}</td>
                 <td>{{ $accHolder }}</td>
             </tr>
@@ -578,7 +579,7 @@
         <tfoot>
             <tr class="total-row">
                 <td style="font-weight: bold;">Total Kesepakatan</td>
-                <td class="text-right" style="font-weight: bold;">{{ number_format($booking->final_price, 2, '.', ',') }}</td>
+                <td style="font-weight: bold;">{{ number_format($booking->final_price, 2, '.', ',') }}</td>
                 <td colspan="3"></td>
             </tr>
         </tfoot>
