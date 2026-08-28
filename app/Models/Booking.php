@@ -107,7 +107,11 @@ class Booking extends Model
             }
         }
 
-        $format = Setting::get('spr_number_format', '{seq}/SPR-{code}/{month_roman}/{year}');
+        $format = Setting::get('spr_number_format');
+        if (empty($format) || !str_contains($format, '{month_roman}')) {
+            $format = '{seq}/SPR-{code}/{month_roman}/{year}';
+            Setting::set('spr_number_format', $format);
+        }
 
         return str_replace(
             ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
@@ -118,7 +122,8 @@ class Booking extends Model
 
     public function getSpkNumberAttribute($value): string
     {
-        if (empty($value) || str_contains($value, 'HOMI') || str_starts_with($value, 'SPR-2026-')) {
+        $hasRomanMonth = preg_match('/\\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\\//i', $value ?? '');
+        if (empty($value) || str_contains($value, 'HOMI') || str_starts_with($value, 'SPR-2026-') || !$hasRomanMonth) {
             return static::formatSprNumberForBooking($this);
         }
         return $value;
@@ -156,7 +161,11 @@ class Booking extends Model
         $monthNum = (int)date('n');
         $monthRoman = $romanMonths[$monthNum] ?? 'VIII';
 
-        $format = Setting::get('spr_number_format', '{seq}/SPR-{code}/{month_roman}/{year}');
+        $format = Setting::get('spr_number_format');
+        if (empty($format) || !str_contains($format, '{month_roman}')) {
+            $format = '{seq}/SPR-{code}/{month_roman}/{year}';
+            Setting::set('spr_number_format', $format);
+        }
 
         return str_replace(
             ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
