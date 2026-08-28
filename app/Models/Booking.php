@@ -81,13 +81,24 @@ class Booking extends Model
     {
         $year = date('Y');
         $countThisYear = static::whereYear('created_at', $year)->count();
-        $nextSeq = sprintf('%03d', $countThisYear + 1);
+        $nextSeq3 = sprintf('%03d', $countThisYear + 1);
+        $nextSeq2 = sprintf('%02d', $countThisYear + 1);
 
-        $projectCode = 'HOMI';
+        $projectCode = 'ALC';
+        $project = null;
         if ($projectId) {
             $project = Project::find($projectId);
-            if ($project) {
-                $projectCode = strtoupper($project->code ?: substr(preg_replace('/[^A-Za-z0-9]/', '', $project->name), 0, 3));
+        }
+        if (!$project) {
+            $project = Project::first();
+        }
+
+        if ($project) {
+            if (!empty($project->code)) {
+                $projectCode = strtoupper($project->code);
+            } else {
+                $cleanName = preg_replace('/[^A-Za-z0-9]/', '', $project->name);
+                $projectCode = strtoupper(substr($cleanName, 0, 3)) ?: 'ALC';
             }
         }
 
@@ -101,8 +112,8 @@ class Booking extends Model
         $format = Setting::get('spr_number_format', '{seq}/SPR-{code}/{month_roman}/{year}');
 
         return str_replace(
-            ['{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
-            [$nextSeq, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
+            ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
+            [$nextSeq2, $nextSeq2, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
             $format
         );
     }

@@ -581,29 +581,29 @@
         $sigSlots = [];
         // Slot 1: Sales / Staff
         $sigSlots[] = [
-            'title' => $sigs['sig1_title'] ?? 'Sales Agent',
-            'name' => $sigs['sig1_name'] ?? ($booking->bookedBy->name ?? 'Staff'),
+            'title' => !empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'Sales Agent',
+            'name' => !empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($booking->bookedBy->name ?? 'Staff'),
             'image' => $sig1ImageData,
         ];
         // Slot 2: Management / Direktur
         if (!empty($sigs['sig2_title'])) {
             $sigSlots[] = [
-                'title' => $sigs['sig2_title'] ?? 'Direktur',
-                'name' => $sigs['sig2_name'] ?? 'Luhur Wira Pramudya',
+                'title' => !empty($sigs['sig2_title']) ? $sigs['sig2_title'] : 'Direktur',
+                'name' => !empty($sigs['sig2_name']) ? $sigs['sig2_name'] : 'Luhur Wira Pramudya',
                 'image' => $sig2ImageData,
             ];
         }
-        // Slot 3: Pemesan Utama
+        // Slot 3: Pemesan Utama / Pembeli
         $sigSlots[] = [
-            'title' => $sigs['sig3_title'] ?? 'Pemesan Utama',
-            'name' => $booking->lead->name,
+            'title' => !empty($sigs['sig3_title']) ? $sigs['sig3_title'] : 'Pemesan Utama',
+            'name' => !empty($sigs['sig3_name']) ? $sigs['sig3_name'] : ($booking->lead->name ?? 'Pembeli'),
             'image' => $sig3ImageData,
         ];
         // Slot 4: Penanggung Jawab / Pemesan 2 (if present or configured)
-        if (!empty($booking->secondary_name) || !empty($sigs['sig4_title'])) {
+        if (!empty($sigs['sig4_name']) || !empty($booking->secondary_name) || !empty($sigs['sig4_title']) || !empty($sig4ImageData)) {
             $sigSlots[] = [
-                'title' => $sigs['sig4_title'] ?? ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Pemesan 2'),
-                'name' => $booking->secondary_name ?? ($sigs['sig4_name'] ?? '-'),
+                'title' => !empty($sigs['sig4_title']) ? $sigs['sig4_title'] : ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Penanggung Jawab'),
+                'name' => !empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->secondary_name ?? '-'),
                 'image' => $sig4ImageData,
             ];
         }
