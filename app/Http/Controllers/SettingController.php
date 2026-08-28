@@ -9,6 +9,25 @@ use Illuminate\Support\Facades\Storage;
 
 class SettingController extends Controller
 {
+    private function getDefaultSignatures(): array
+    {
+        return [
+            'city' => 'Jakarta Selatan',
+            'sig1_title' => 'Sales Manager',
+            'sig1_name' => 'Dhany Nur',
+            'sig1_image' => null,
+            'sig2_title' => 'Direktur',
+            'sig2_name' => 'Luhur Wira Pramudya',
+            'sig2_image' => null,
+            'sig3_title' => 'Pemesan Utama',
+            'sig3_name' => '',
+            'sig3_image' => null,
+            'sig4_title' => 'Penanggung Jawab',
+            'sig4_name' => '',
+            'sig4_image' => null,
+        ];
+    }
+
     public function index(Request $request)
     {
         $settingsRaw = Setting::all();
@@ -35,21 +54,7 @@ class SettingController extends Controller
             ];
         }
 
-        $defaultSigs = [
-            'city' => 'Jakarta Selatan',
-            'sig1_title' => 'Sales Manager',
-            'sig1_name' => 'Dhany Nur',
-            'sig1_image' => null,
-            'sig2_title' => 'Direktur',
-            'sig2_name' => 'Luhur Wira Pramudya',
-            'sig2_image' => null,
-            'sig3_title' => 'Pemesan Utama',
-            'sig3_name' => '',
-            'sig3_image' => null,
-            'sig4_title' => 'Penanggung Jawab',
-            'sig4_name' => '',
-            'sig4_image' => null,
-        ];
+        $defaultSigs = $this->getDefaultSignatures();
         $settings['spr_signatures'] = array_merge($defaultSigs, is_array($settings['spr_signatures'] ?? null) ? $settings['spr_signatures'] : []);
 
         if (!isset($settings['spr_bank_info']) || !is_array($settings['spr_bank_info'])) {
@@ -120,6 +125,7 @@ class SettingController extends Controller
         if (!is_array($existingSigs)) {
             $existingSigs = [];
         }
+        $defaultSigs = $this->getDefaultSignatures();
         $existingSigs = array_merge($defaultSigs, $existingSigs);
 
         $inputSig = $request->input('spr_signatures');
