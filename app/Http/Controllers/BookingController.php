@@ -424,11 +424,11 @@ class BookingController extends Controller
             ]);
         } else {
             // Cash Installment / In-House
-            $dpTotal = $booking->dp_amount > 0 ? $booking->dp_amount : 0;
-            $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 0;
+            $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : 0;
+            $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : ($dpTotal > 0 ? 1 : 0);
             $offsetMonths = 0;
 
-            if ($dpTotal > 0 && $dpTenor > 0) {
+            if ($dpTotal > 0) {
                 $dpPerMonth = round($dpTotal / $dpTenor);
                 for ($d = 1; $d <= $dpTenor; $d++) {
                     $amountDp = ($d === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
@@ -441,11 +441,12 @@ class BookingController extends Controller
                     ]);
                 }
                 $offsetMonths = $dpTenor;
-                $remaining = $remaining - $dpTotal;
+                $remaining = max(0, $remaining - $dpTotal);
             }
 
-            $tenor = $booking->installment_months > 0 ? (int)$booking->installment_months : 12;
-            $perMonth = round($remaining / $tenor);
+            $totalMonths = $booking->installment_months > 0 ? (int)$booking->installment_months : 12;
+            $tenor = ($dpTenor > 0 && $totalMonths > $dpTenor) ? ($totalMonths - $dpTenor) : $totalMonths;
+            $perMonth = $tenor > 0 ? round($remaining / $tenor) : $remaining;
 
             for ($i = 1; $i <= $tenor; $i++) {
                 $num = $offsetMonths + $i;
