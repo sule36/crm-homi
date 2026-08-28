@@ -3,7 +3,9 @@
 <head>
     <meta charset="utf-8">
     <title>SPR - {{ $booking->spk_number }}</title>
+    @if(request()->has('html') || request()->query('view') === 'html')
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    @endif
     <style>
         @page {
             margin: 0.5cm 0.8cm;
