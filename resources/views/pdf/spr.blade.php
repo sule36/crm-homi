@@ -505,7 +505,6 @@
                     ];
                 };
 
-            @php
                 $summaryRows = [];
                 $totalKesepakatan = $booking->final_price > 0 ? (float)$booking->final_price : (float)$booking->base_price;
                 $bookingFee = (float)($booking->booking_fee ?? 25000000);
