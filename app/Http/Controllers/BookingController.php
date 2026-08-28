@@ -524,7 +524,7 @@ class BookingController extends Controller
 
             AuditLog::record('booking_rejected', $booking, null, ['reason' => $request->reason]);
 
-            return back()->with('success', 'Booking / SPK telah ditolak. Unit properti otomatis kembali Available.');
+            return back()->with('success', 'Booking / SPR telah ditolak. Unit properti otomatis kembali Available.');
         });
     }
 
@@ -551,7 +551,7 @@ class BookingController extends Controller
 
             AuditLog::record('booking_cancelled', $booking, null, ['reason' => $request->reason]);
 
-            return back()->with('success', 'Booking & SPK telah dibatalkan. Unit properti telah otomatis dikembalikan menjadi Available.');
+            return back()->with('success', 'Booking & SPR telah dibatalkan. Unit properti telah otomatis dikembalikan menjadi Available.');
         });
     }
 
