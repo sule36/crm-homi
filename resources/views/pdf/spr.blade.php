@@ -522,9 +522,10 @@
                     $dpPerMonth = round($dpTotal / $dpTenor);
                     $firstDpDate = date('n/j/Y', strtotime($booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +1 month')) : now()->addMonth()->format('Y-m-d')));
                     
+                    $dpLabel = $dpTenor > 1 ? "Cicilan Uang Muka / DP ({$dpTenor} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")" : "DP 1";
                     $summaryRows[] = [
                         'type' => 'dp',
-                        'label' => "Cicilan Uang Muka / DP ({$dpTenor} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")",
+                        'label' => $dpLabel,
                         'amount' => $dpTotal,
                         'date' => $dpTenor === 1 ? $firstDpDate : "{$firstDpDate} (DP1)",
                     ];
@@ -552,16 +553,16 @@
 
                     if ($dpTotal > 0) {
                         $dpPerMonth = round($dpTotal / $dpTenor);
+                        $dpLabel = $dpTenor > 1 ? "Cicilan Uang Muka / DP ({$dpTenor} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")" : "DP 1";
                         $summaryRows[] = [
                             'type' => 'dp',
-                            'label' => "Cicilan Uang Muka / DP ({$dpTenor} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")",
+                            'label' => $dpLabel,
                             'amount' => $dpTotal,
                             'date' => $dpTenor === 1 ? $firstDpDate : "{$firstDpDate} (DP1)",
                         ];
                     }
 
-                    $totalTenorMonths = $booking->installment_months > 0 ? (int)$booking->installment_months : 60;
-                    $cashTenorMonths = ($dpTenor > 0 && $totalTenorMonths > $dpTenor) ? ($totalTenorMonths - $dpTenor) : $totalTenorMonths;
+                    $cashTenorMonths = $booking->installment_months > 0 ? (int)$booking->installment_months : 60;
                     $cashPlafon = max(0, $totalKesepakatan - $bookingFee - $dpTotal);
                     $cashPerMonth = $cashTenorMonths > 0 ? round($cashPlafon / $cashTenorMonths) : $cashPlafon;
 

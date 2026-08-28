@@ -435,9 +435,10 @@ class BookingController extends Controller
                 $dpPerMonth = round($dpTotal / $dpTenor);
                 for ($d = 1; $d <= $dpTenor; $d++) {
                     $amountDp = ($d === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
+                    $dpLabel = $dpTenor > 1 ? "DP Ke-$d" : "DP 1";
                     $booking->paymentSchedules()->create([
                         'installment_number' => $d,
-                        'label' => "DP Ke-$d",
+                        'label' => $dpLabel,
                         'amount' => $amountDp,
                         'due_date' => $bookingDate->copy()->addMonths($d)->format('Y-m-d'),
                         'status' => 'upcoming',
@@ -447,8 +448,7 @@ class BookingController extends Controller
                 $remaining = max(0, $remaining - $dpTotal);
             }
 
-            $totalMonths = $booking->installment_months > 0 ? (int)$booking->installment_months : 12;
-            $tenor = ($dpTenor > 0 && $totalMonths > $dpTenor) ? ($totalMonths - $dpTenor) : $totalMonths;
+            $tenor = $booking->installment_months > 0 ? (int)$booking->installment_months : 12;
             $perMonth = $tenor > 0 ? round($remaining / $tenor) : $remaining;
 
             for ($i = 1; $i <= $tenor; $i++) {
