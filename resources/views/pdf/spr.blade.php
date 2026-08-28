@@ -532,11 +532,26 @@
                         return $s->installment_number > 0 && (str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
                     });
 
+                    $dpTotal = 0;
+                    $dpCount = 0;
+
                     if ($dpScheds->count() > 0) {
                         $dpCount = $dpScheds->count();
                         $dpTotal = $dpScheds->sum('amount');
                         $dpPerMonth = $dpTotal / $dpCount;
                         $firstDpDate = date('n/j/Y', strtotime($dpScheds->first()->due_date));
+                        $dpDateLabel = $dpCount === 1 ? $firstDpDate : "{$firstDpDate} (DP1)";
+                        $summaryRows[] = [
+                            'type' => 'dp',
+                            'label' => "Cicilan Uang Muka / DP ({$dpCount} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")",
+                            'amount' => $dpTotal,
+                            'date' => $dpDateLabel,
+                        ];
+                    } elseif ($booking->dp_amount > 0) {
+                        $dpTotal = (float)$booking->dp_amount;
+                        $dpCount = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 1;
+                        $dpPerMonth = $dpTotal / $dpCount;
+                        $firstDpDate = date('n/j/Y', strtotime($booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +1 month')) : now()->addMonth()->format('Y-m-d')));
                         $dpDateLabel = $dpCount === 1 ? $firstDpDate : "{$firstDpDate} (DP1)";
                         $summaryRows[] = [
                             'type' => 'dp',
@@ -552,9 +567,17 @@
                     });
 
                     if ($otherScheds->count() > 0) {
-                        $otherCount = $otherScheds->count();
                         $otherTotal = $otherScheds->sum('amount');
-                        $otherPerMonth = $otherCount > 0 ? ($otherTotal / $otherCount) : $otherTotal;
+                        if ($dpScheds->count() == 0 && $booking->dp_amount > 0) {
+                            $otherTotal = max(0, $otherTotal - $booking->dp_amount);
+                        }
+
+                        $otherCount = $otherScheds->count();
+                        if ($dpScheds->count() == 0 && $booking->dp_amount > 0 && $otherCount > $dpCount) {
+                            $otherCount = $otherCount - $dpCount;
+                        }
+
+                        $otherPerMonth = $otherCount > 0 ? round($otherTotal / $otherCount) : $otherTotal;
                         $schemeLabel = $booking->payment_scheme === 'cash_installment' ? 'Cicilan Cash Bertahap' : 'Pelunasan';
                         $firstOtherDate = date('n/j/Y', strtotime($otherScheds->first()->due_date));
                         $otherDateLabel = $otherCount === 1 ? $firstOtherDate : "Bulanan ({$firstOtherDate})";
