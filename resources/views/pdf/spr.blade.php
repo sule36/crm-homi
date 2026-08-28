@@ -3,12 +3,13 @@
 <head>
     <meta charset="utf-8">
     <title>SPR - {{ $booking->spk_number }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         @page {
             margin: 0.5cm 0.8cm;
         }
         body {
-            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-family: 'Montserrat', 'Helvetica', 'Arial', sans-serif;
             font-size: 8.5pt;
             color: #262626;
             line-height: 1.3;
@@ -160,14 +161,14 @@
             margin-bottom: 2px;
         }
         .sig-box {
-            height: 65px;
+            height: 90px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .sig-img {
-            max-height: 60px;
-            max-width: 140px;
+            max-height: 85px;
+            max-width: 180px;
             object-fit: contain;
         }
         .sig-name {
