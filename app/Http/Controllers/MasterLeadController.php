@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\BrokerCompany;
 use App\Models\Commission;
 use App\Models\Booking;
 use App\Models\AuditLog;
@@ -18,25 +19,29 @@ class MasterLeadController extends Controller
         $user = auth()->user();
         $isMasterLead = $user->hasRole('master_lead') || $user->agent_type === 'master_lead';
 
-        // Query Master Lead Users
-        $query = User::withCount(['subAgents'])
-            ->with(['subAgents' => fn($q) => $q->withCount('commissions')->with('brokerCompany')])
+        // 1. Query Master Lead Partners with Sub-Agents
+        $mlQuery = User::withCount(['subAgents'])
+            ->with(['subAgents' => function ($q) {
+                $q->withCount(['commissions'])
+                  ->withSum('commissions', 'amount')
+                  ->with('brokerCompany');
+            }])
             ->where(function ($q) {
                 $q->where('agent_type', 'master_lead')
                   ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
             });
 
         if ($isMasterLead) {
-            $query->where('id', $user->id);
+            $mlQuery->where('id', $user->id);
         }
 
-        $masterLeads = $query
+        $masterLeads = $mlQuery
             ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%"))
             ->latest()
-            ->paginate(15)
+            ->paginate(15, ['*'], 'ml_page')
             ->through(function ($ml) {
                 $teamUserIds = User::where('master_lead_id', $ml->id)->pluck('id')->push($ml->id);
-                
+
                 $totalBookings = Booking::whereIn('booked_by', $teamUserIds)
                     ->whereIn('status', ['approved', 'completed', 'booked'])
                     ->count();
@@ -63,34 +68,90 @@ class MasterLeadController extends Controller
                     'total_bookings' => $totalBookings,
                     'total_revenue' => (float)$totalRevenue,
                     'overriding_commissions' => (float)$overridingCommissions,
-                    'sub_agents' => $ml->subAgents->map(fn($sa) => [
-                        'id' => $sa->id,
-                        'name' => $sa->name,
-                        'email' => $sa->email,
-                        'phone' => $sa->phone,
-                        'agent_type' => $sa->agent_type,
-                        'commission_rate' => $sa->commission_rate,
-                        'broker_company_name' => $sa->brokerCompany?->name,
-                    ]),
+                    'sub_agents' => $ml->subAgents->map(function ($sa) {
+                        $saBookingsCount = Booking::where('booked_by', $sa->id)
+                            ->whereIn('status', ['approved', 'completed', 'booked'])
+                            ->count();
+                        $saRevenue = Booking::where('booked_by', $sa->id)
+                            ->whereIn('status', ['approved', 'completed', 'booked'])
+                            ->sum('final_price');
+
+                        return [
+                            'id' => $sa->id,
+                            'name' => $sa->name,
+                            'email' => $sa->email,
+                            'phone' => $sa->phone,
+                            'agent_type' => $sa->agent_type,
+                            'commission_rate' => $sa->commission_rate,
+                            'broker_company_id' => $sa->broker_company_id,
+                            'broker_company_name' => $sa->brokerCompany?->name,
+                            'broker_company_code' => $sa->brokerCompany?->code,
+                            'bank_name' => $sa->bank_name,
+                            'bank_account_number' => $sa->bank_account_number,
+                            'bank_account_name' => $sa->bank_account_name,
+                            'effective_bank_account' => $sa->effective_bank_account,
+                            'total_bookings' => $saBookingsCount,
+                            'total_revenue' => (float)$saRevenue,
+                            'total_commissions' => (float)($sa->commissions_sum_amount ?? 0),
+                        ];
+                    }),
                     'created_at' => $ml->created_at->format('d M Y'),
                 ];
             });
 
+        // 2. Query Broker Companies (Kantor Agency)
+        $brokerQuery = BrokerCompany::withCount(['agents', 'commissions'])
+            ->withSum('commissions', 'amount')
+            ->withSum(['commissions as paid_commissions_sum' => fn($q) => $q->where('status', 'paid')], 'amount')
+            ->withSum(['commissions as pending_commissions_sum' => fn($q) => $q->where('status', 'unpaid')], 'amount');
+
+        if ($isMasterLead) {
+            $brokerQuery->where('master_lead_id', $user->id);
+        }
+
+        $brokers = $brokerQuery
+            ->when($request->search_agency, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('code', 'like', "%{$s}%"))
+            ->latest()
+            ->paginate(15, ['*'], 'brokers_page');
+
+        // 3. Query All Flat Agents
+        $agentsQuery = User::with(['brokerCompany', 'roles', 'masterLead'])
+            ->where(function ($q) {
+                $q->whereNotNull('agent_type')
+                  ->orWhereHas('roles', fn($rq) => $rq->whereIn('name', ['sales_agent', 'broker', 'sales_manager', 'agent', 'master_lead']));
+            });
+
+        if ($isMasterLead) {
+            $agentsQuery->where('master_lead_id', $user->id);
+        }
+
+        $allAgents = $agentsQuery
+            ->when($request->search_agent, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
+            ->latest()
+            ->paginate(20, ['*'], 'agents_page');
+
+        // Stats summary
         $totalMasterLeads = User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->count();
         $totalSubAgents = User::whereNotNull('master_lead_id')->count();
+        $totalBrokers = BrokerCompany::count();
         $totalMasterLeadRevenue = Booking::whereHas('bookedBy', fn($q) => $q->whereNotNull('master_lead_id')->orWhere('agent_type', 'master_lead'))
             ->whereIn('status', ['approved', 'completed', 'booked'])
             ->sum('final_price');
 
         return Inertia::render('MasterLeads/Index', [
             'masterLeads' => $masterLeads,
+            'brokers' => $brokers,
+            'allAgents' => $allAgents,
+            'brokerList' => BrokerCompany::where('status', 'active')->select('id', 'name', 'code', 'commission_rate')->get(),
+            'masterLeadList' => User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->select('id', 'name', 'phone')->get(),
             'stats' => [
                 'total_master_leads' => $totalMasterLeads,
                 'total_sub_agents' => $totalSubAgents,
+                'total_brokers' => $totalBrokers,
                 'total_revenue' => (float)$totalMasterLeadRevenue,
                 'default_overriding_rate' => \App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5),
             ],
-            'filters' => $request->only(['search']),
+            'filters' => $request->only(['search', 'search_agency', 'search_agent']),
         ]);
     }
 
