@@ -171,9 +171,12 @@ const sendWaTxReceipt = (tx) => {
 };
 
 const whatsappReminderLink = computed(() => {
-    const url = `${window.location.origin}/track/${props.booking.tracking_token}`;
-    const message = `Halo Bapak/Ibu ${props.booking.lead.name}, ini dari tim sales ${props.booking.project.name}. Berikut adalah link untuk memantau progres pesanan dan riwayat pembayaran unit Anda: ${url}. Terima kasih.`;
-    return `https://wa.me/${props.booking.lead.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    const url = `${window.location.origin}/track/${props.booking?.tracking_token || ''}`;
+    const projName = props.booking?.unit?.project?.name || props.booking?.project?.name || 'Homi Developer';
+    const leadName = props.booking?.lead?.name || 'Konsumen';
+    const leadPhone = (props.booking?.lead?.phone || '').replace(/\D/g, '');
+    const message = `Halo Bapak/Ibu ${leadName}, ini dari tim sales ${projName}. Berikut adalah link untuk memantau progres pesanan dan riwayat pembayaran unit Anda: ${url}. Terima kasih.`;
+    return `https://wa.me/${leadPhone}?text=${encodeURIComponent(message)}`;
 });
 
 // Document Upload Logic
