@@ -97,8 +97,8 @@ const deleteUser = (id) => {
         </div>
 
         <!-- USERS TABLE -->
-        <div class="bg-white rounded-2xl border border-slate-100 overflow-x-auto shadow-sm">
-            <table class="w-full text-left border-collapse">
+        <div class="bg-white rounded-2xl border border-slate-100 overflow-x-auto max-w-full touch-pan-x shadow-sm">
+            <table class="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                     <tr class="bg-slate-50 border-b border-slate-100">
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Nama & Email</th>

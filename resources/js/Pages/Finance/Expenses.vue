@@ -225,8 +225,8 @@ const maxTrend = computed(() => {
             </div>
 
             <!-- Table -->
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
+            <div class="overflow-x-auto max-w-full touch-pan-x">
+                <table class="w-full text-left text-xs min-w-[700px]">
                     <thead>
                         <tr class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
                             <th class="px-6 py-4">Tanggal</th>

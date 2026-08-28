@@ -268,9 +268,9 @@ function submitProgressUpdate() {
         </div>
 
         <!-- TABLE VIEW -->
-        <div v-if="viewMode === 'table'" class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+        <div v-if="viewMode === 'table'" class="bg-white rounded-2xl border border-slate-100 overflow-x-auto max-w-full touch-pan-x shadow-sm">
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full min-w-[700px]">
                     <thead>
                         <tr class="bg-slate-50 border-b border-slate-100">
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase">Unit</th>
