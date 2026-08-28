@@ -311,7 +311,7 @@ class BookingController extends Controller
             $effectiveRate = 2.5;
             $promoBonus = 0;
             if ($agent) {
-                $agent->load('brokerCompany');
+                $agent->load(['brokerCompany', 'masterLead']);
                 $effectiveRate = $agent->effective_commission_rate;
                 $promoBonus = (float)($agent->custom_bonus ?? 0);
             }
@@ -319,11 +319,10 @@ class BookingController extends Controller
             $baseCommission = $booking->final_price * ($effectiveRate / 100);
             $totalCommission = $baseCommission + $promoBonus;
 
-            // Record Commission
+            // Record Sub-Agent / Agency Commission
             \App\Models\Commission::updateOrCreate(
-                ['booking_id' => $booking->id],
+                ['booking_id' => $booking->id, 'user_id' => $booking->booked_by],
                 [
-                    'user_id' => $booking->booked_by,
                     'broker_company_id' => $agent?->broker_company_id,
                     'amount' => $totalCommission,
                     'base_commission' => $baseCommission,
@@ -333,6 +332,35 @@ class BookingController extends Controller
                     'status' => 'pending',
                 ]
             );
+
+            // Record Master Lead Overriding Fee if applicable
+            $masterLead = $agent?->masterLead;
+            if (!$masterLead && \App\Models\Setting::get('commission_schema_config.enable_master_lead', true)) {
+                $masterLead = \App\Models\User::where('agent_type', 'master_lead')
+                    ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
+                    ->first();
+            }
+
+            if ($masterLead && $masterLead->id !== $agent?->id) {
+                $masterRate = $masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5);
+                $masterTotalGross = $booking->final_price * ($masterRate / 100);
+                $masterNetFee = max(0, $masterTotalGross - $baseCommission);
+
+                if ($masterNetFee > 0) {
+                    \App\Models\Commission::updateOrCreate(
+                        ['booking_id' => $booking->id, 'user_id' => $masterLead->id],
+                        [
+                            'broker_company_id' => null,
+                            'amount' => $masterNetFee,
+                            'base_commission' => $masterTotalGross,
+                            'promo_bonus' => 0,
+                            'rate_used' => $masterRate,
+                            'payout_recipient' => 'master_lead',
+                            'status' => 'pending',
+                        ]
+                    );
+                }
+            }
 
             $booking->update(['commission_amount' => $totalCommission]);
 

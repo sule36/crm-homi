@@ -49,6 +49,9 @@ class UserController extends Controller
         $role = $request->role ?: 'sales_agent';
         $agentType = $request->agent_type ?: ($request->broker_company_id ? 'agency_agent' : 'inhouse');
 
+        $isMasterLead = auth()->user() && (auth()->user()->hasRole('master_lead') || auth()->user()->agent_type === 'master_lead');
+        $masterLeadId = $isMasterLead ? auth()->id() : ($request->master_lead_id ?: null);
+
         $user = User::create([
             'name' => $request->name,
             'email' => $email,
@@ -56,6 +59,7 @@ class UserController extends Controller
             'phone' => $request->phone,
             'project_id' => $request->project_id,
             'broker_company_id' => $request->broker_company_id,
+            'master_lead_id' => $masterLeadId,
             'agent_type' => $agentType,
             'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : 0,
             'custom_bonus' => is_numeric($request->custom_bonus) ? (float)$request->custom_bonus : 0,
@@ -65,9 +69,10 @@ class UserController extends Controller
             'status' => 'active',
         ]);
 
-        if ($role) {
-            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-            $user->assignRole($role);
+        $assignedRole = $agentType === 'master_lead' ? 'master_lead' : ($role ?: 'sales_agent');
+        if ($assignedRole) {
+            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $assignedRole, 'guard_name' => 'web']);
+            $user->syncRoles([$assignedRole]);
         }
 
         return back()->with('success', 'Agen / Staff baru berhasil mendaftar.');
@@ -80,6 +85,7 @@ class UserController extends Controller
             'role' => 'nullable|string',
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
+            'master_lead_id' => 'nullable|exists:users,id',
             'agent_type' => 'nullable|in:inhouse,inhouse_developer,inhouse_master_lead,agency_agent,independent,master_lead',
             'phone' => 'nullable|string|max:20',
             'status' => 'nullable|in:active,inactive',
@@ -91,29 +97,43 @@ class UserController extends Controller
             'bank_account_name' => 'nullable|string',
         ]);
 
+        $isMasterLead = auth()->user() && (auth()->user()->hasRole('master_lead') || auth()->user()->agent_type === 'master_lead');
+        $masterLeadId = $isMasterLead ? auth()->id() : ($request->has('master_lead_id') ? $request->master_lead_id : $user->master_lead_id);
+
         $data = [
             'name' => $request->name,
             'phone' => $request->phone,
             'project_id' => $request->project_id,
             'broker_company_id' => $request->broker_company_id,
-            'agent_type' => $request->agent_type ?: ($request->broker_company_id ? 'agency_agent' : 'inhouse'),
+            'master_lead_id' => $masterLeadId,
             'status' => $request->status ?: $user->status,
-            'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : 0,
-            'custom_bonus' => is_numeric($request->custom_bonus) ? (float)$request->custom_bonus : 0,
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
         ];
+
+        if ($request->filled('agent_type')) {
+            $data['agent_type'] = $request->agent_type;
+        }
+
+        if ($request->has('commission_rate')) {
+            $data['commission_rate'] = (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : null;
+        }
+
+        if ($request->has('custom_bonus')) {
+            $data['custom_bonus'] = is_numeric($request->custom_bonus) ? (float)$request->custom_bonus : 0;
+        }
 
         if ($request->filled('password')) {
             $data['password'] = Hash::make($request->password);
         }
 
         $user->update($data);
-        
-        if ($request->filled('role')) {
-            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $request->role, 'guard_name' => 'web']);
-            $user->syncRoles([$request->role]);
+
+        $targetRole = ($request->agent_type === 'master_lead' || $user->agent_type === 'master_lead') ? 'master_lead' : ($request->role ?: null);
+        if ($targetRole) {
+            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $targetRole, 'guard_name' => 'web']);
+            $user->syncRoles([$targetRole]);
         }
 
         return back()->with('success', 'Data staff / agen berhasil diperbarui.');

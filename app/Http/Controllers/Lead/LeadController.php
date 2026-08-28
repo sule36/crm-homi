@@ -19,8 +19,13 @@ class LeadController extends Controller
         $user = auth()->user();
         $query = Lead::with(['assignedTo.brokerCompany', 'project', 'campaign', 'brokerCompany']);
 
-        // Sales agents can only see their own leads
-        if ($user->hasRole('sales_agent') || $user->hasRole('broker')) {
+        $isMasterLead = $user->hasRole('master_lead') || $user->agent_type === 'master_lead';
+
+        // Master lead sees their team's leads, sales agents see only own leads
+        if ($isMasterLead) {
+            $teamUserIds = User::where('master_lead_id', $user->id)->pluck('id')->push($user->id);
+            $query->whereIn('assigned_to', $teamUserIds);
+        } elseif ($user->hasRole('sales_agent') || $user->hasRole('broker')) {
             $query->where('assigned_to', $user->id);
         }
 
@@ -36,7 +41,11 @@ class LeadController extends Controller
 
         // Pipeline counts
         $pipeline = Lead::query()
-            ->when($user->hasRole('sales_agent'), fn ($q) => $q->where('assigned_to', $user->id))
+            ->when($isMasterLead, function($q) use ($user) {
+                $teamUserIds = User::where('master_lead_id', $user->id)->pluck('id')->push($user->id);
+                $q->whereIn('assigned_to', $teamUserIds);
+            })
+            ->when($user->hasRole('sales_agent') && !$isMasterLead, fn ($q) => $q->where('assigned_to', $user->id))
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');

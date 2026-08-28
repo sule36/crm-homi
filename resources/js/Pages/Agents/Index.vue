@@ -7,12 +7,13 @@ const props = defineProps({
     brokers: Object,
     agents: Object,
     brokerList: Array,
+    masterLeads: Array,
     defaultRates: Object,
     filters: Object,
 });
 
 const activeTab = ref('agencies'); // 'agencies' | 'agents'
-const agentFilterType = ref('all'); // 'all' | 'agency_agent' | 'independent' | 'inhouse'
+const agentFilterType = ref('all'); // 'all' | 'agency_agent' | 'independent' | 'inhouse' | 'master_lead'
 const searchAgentQuery = ref('');
 const agencySearchQuery = ref('');
 
@@ -37,6 +38,7 @@ const editingAgency = ref(null);
 const agencyForm = useForm({
     name: '',
     code: '',
+    master_lead_id: null,
     contact_person: '',
     phone: '',
     email: '',
@@ -54,6 +56,7 @@ function openAgencyModal(broker = null) {
     if (broker) {
         agencyForm.name = broker.name;
         agencyForm.code = broker.code || '';
+        agencyForm.master_lead_id = broker.master_lead_id || null;
         agencyForm.contact_person = broker.contact_person || '';
         agencyForm.phone = broker.phone || '';
         agencyForm.email = broker.email || '';
@@ -101,6 +104,7 @@ const agentForm = useForm({
     role: 'sales_agent',
     agent_type: 'agency_agent',
     broker_company_id: null,
+    master_lead_id: null,
     commission_rate: '',
     custom_bonus: 0,
     bank_name: '',
