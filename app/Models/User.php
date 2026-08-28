@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'phone', 'avatar', 'project_id', 'broker_company_id', 'agent_type', 'status', 'is_accepting_leads', 'lead_capacity', 'settings', 'last_login_at', 'commission_rate', 'custom_bonus', 'bank_name', 'bank_account_number', 'bank_account_name'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'avatar', 'company_id', 'project_id', 'broker_company_id', 'agent_type', 'status', 'is_accepting_leads', 'lead_capacity', 'settings', 'last_login_at', 'commission_rate', 'custom_bonus', 'bank_name', 'bank_account_number', 'bank_account_name'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -30,6 +30,11 @@ class User extends Authenticatable
     }
 
     // Relationships
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
     public function project()
     {
         return $this->belongsTo(Project::class);

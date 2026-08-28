@@ -118,6 +118,8 @@ const navigationGroups = [
 ];
 
 const bottomNav = [
+    { name: 'SaaS Developer', href: '/super-admin/companies', icon: '🌐', active: route().current('super-admin.companies.*') },
+    { name: 'Hak Akses (RBAC)', href: '/settings/roles', icon: '🔐', active: route().current('settings.roles.*') },
     { name: 'Panduan Penggunaan', href: '/guide', icon: '📖', active: route().current('guide.index') },
     { name: 'Audit Log', href: '/settings/audit-logs', icon: '🕵️', active: route().current('settings.auditLogs') },
     { name: 'Pengaturan', href: '/settings', icon: '⚙️', active: route().current('settings.index') },

@@ -171,6 +171,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/settings', [\App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
     Route::post('/settings/token', [\App\Http\Controllers\SettingController::class, 'generateToken'])->name('settings.token');
     Route::get('/settings/audit-logs', [AuditLogController::class, 'index'])->name('settings.auditLogs');
+
+    // Roles & RBAC Management
+    Route::get('/settings/roles', [\App\Http\Controllers\RoleController::class, 'index'])->name('settings.roles.index');
+    Route::post('/settings/roles', [\App\Http\Controllers\RoleController::class, 'store'])->name('settings.roles.store');
+    Route::put('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'update'])->name('settings.roles.update');
+    Route::delete('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'destroy'])->name('settings.roles.destroy');
+
+    // SaaS Platform Control Tower (Super Admin)
+    Route::get('/super-admin/companies', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'index'])->name('super-admin.companies.index');
+    Route::post('/super-admin/companies', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'store'])->name('super-admin.companies.store');
+    Route::put('/super-admin/companies/{company}', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'update'])->name('super-admin.companies.update');
+    Route::delete('/super-admin/companies/{company}', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'destroy'])->name('super-admin.companies.destroy');
     Route::post('/settings/partner-banks', [\App\Http\Controllers\PartnerBankController::class, 'store'])->name('settings.partnerBanks.store');
     Route::put('/settings/partner-banks/{partnerBank}', [\App\Http\Controllers\PartnerBankController::class, 'update'])->name('settings.partnerBanks.update');
     Route::delete('/settings/partner-banks/{partnerBank}', [\App\Http\Controllers\PartnerBankController::class, 'destroy'])->name('settings.partnerBanks.destroy');
