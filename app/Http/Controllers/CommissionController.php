@@ -33,21 +33,37 @@ class CommissionController extends Controller
             'total_paid' => Commission::where('status', 'paid')->sum('amount'),
             'this_month' => Commission::whereMonth('created_at', now()->month)->sum('amount'),
             'agency_commissions' => Commission::where('payout_recipient', 'agency')->sum('amount'),
-            'inhouse_commissions' => Commission::whereHas('user', fn($q) => $q->where('agent_type', 'inhouse'))->sum('amount'),
+            'inhouse_commissions' => Commission::whereHas('user', fn($q) => $q->whereIn('agent_type', ['inhouse', 'inhouse_developer', 'inhouse_master_lead']))->sum('amount'),
             'independent_commissions' => Commission::whereHas('user', fn($q) => $q->where('agent_type', 'independent'))->sum('amount'),
+            'master_lead_commissions' => Commission::whereHas('user', fn($q) => $q->whereIn('agent_type', ['master_lead']))->sum('amount'),
         ];
 
         $defaultRates = Setting::get('default_commission_rates', [
-            'inhouse' => 2.5,
+            'inhouse_developer' => 1.0,
+            'inhouse_master_lead' => 1.5,
+            'master_lead_overriding' => 4.5,
             'agency' => 3.0,
-            'independent' => 3.0,
+            'independent' => 2.5,
         ]);
+
+        $schemaConfig = Setting::get('commission_schema_config', [
+            'enable_master_lead' => true,
+            'enable_inhouse_developer' => true,
+            'enable_inhouse_master_lead' => true,
+        ]);
+
+        $masterLeads = User::whereHas('roles', fn($q) => $q->where('name', 'master_lead'))
+            ->orWhere('agent_type', 'master_lead')
+            ->select('id', 'name', 'phone')
+            ->get();
 
         return Inertia::render('Commissions/Index', [
             'commissions' => $commissions,
             'stats' => $stats,
             'brokerCompanies' => BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
             'defaultRates' => $defaultRates,
+            'schemaConfig' => $schemaConfig,
+            'masterLeads' => $masterLeads,
             'filters' => $request->only(['status', 'payout_recipient', 'broker_company_id', 'search']),
         ]);
     }
@@ -55,22 +71,35 @@ class CommissionController extends Controller
     public function updateParameters(Request $request)
     {
         $request->validate([
-            'inhouse_rate' => 'required|numeric|min:0|max:100',
-            'agency_rate' => 'required|numeric|min:0|max:100',
-            'independent_rate' => 'required|numeric|min:0|max:100',
+            'inhouse_developer_rate' => 'nullable|numeric|min:0|max:100',
+            'inhouse_master_lead_rate' => 'nullable|numeric|min:0|max:100',
+            'master_lead_overriding_rate' => 'nullable|numeric|min:0|max:100',
+            'agency_rate' => 'nullable|numeric|min:0|max:100',
+            'independent_rate' => 'nullable|numeric|min:0|max:100',
+            'enable_master_lead' => 'nullable|boolean',
+            'enable_inhouse_developer' => 'nullable|boolean',
+            'enable_inhouse_master_lead' => 'nullable|boolean',
         ]);
 
         Setting::set('default_commission_rates', [
-            'inhouse' => (float)$request->inhouse_rate,
-            'agency' => (float)$request->agency_rate,
-            'independent' => (float)$request->independent_rate,
+            'inhouse_developer' => (float)($request->inhouse_developer_rate ?? 1.0),
+            'inhouse_master_lead' => (float)($request->inhouse_master_lead_rate ?? 1.5),
+            'master_lead_overriding' => (float)($request->master_lead_overriding_rate ?? 4.5),
+            'agency' => (float)($request->agency_rate ?? 3.0),
+            'independent' => (float)($request->independent_rate ?? 2.5),
+        ]);
+
+        Setting::set('commission_schema_config', [
+            'enable_master_lead' => (bool)$request->enable_master_lead,
+            'enable_inhouse_developer' => (bool)$request->enable_inhouse_developer,
+            'enable_inhouse_master_lead' => (bool)$request->enable_inhouse_master_lead,
         ]);
 
         AuditLog::record('commission_parameters_updated', null, null, [
-            'rates' => $request->only(['inhouse_rate', 'agency_rate', 'independent_rate'])
+            'rates' => $request->all()
         ]);
 
-        return back()->with('success', 'Parameter komisi bawaan sistem berhasil diperbarui.');
+        return back()->with('success', 'Skema komisi & sakelar Master Lead / In-House berhasil diperbarui.');
     }
 
     public function pay(Request $request, Commission $commission)

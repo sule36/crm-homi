@@ -70,7 +70,7 @@ class RoleController extends Controller
 
     public function destroy(Role $role)
     {
-        if (in_array($role->name, ['super_admin', 'project_manager', 'sales_manager', 'sales_agent', 'finance'])) {
+        if (in_array($role->name, ['super_admin', 'project_manager', 'sales_manager', 'sales_agent', 'master_lead', 'finance', 'broker'])) {
             return back()->with('error', 'Role bawaan sistem tidak dapat dihapus.');
         }
 

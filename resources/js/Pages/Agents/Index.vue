@@ -571,11 +571,13 @@ const filteredAgentsData = computed(() => {
                     </div>
 
                     <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1">Tipe Agen *</label>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Tipe Agen / Partner *</label>
                         <select v-model="agentForm.agent_type" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold">
                             <option value="agency_agent">🏢 Agency Sub-Agent (Bernaung di Kantor Agency)</option>
                             <option value="independent">💼 Freelance / Agen Independen</option>
-                            <option value="inhouse">🏠 In-House Agent (Internal Perusahaan)</option>
+                            <option value="inhouse_developer">🏠 In-House Developer (Tim Internal Perusahaan)</option>
+                            <option value="inhouse_master_lead">🤝 In-House Master Lead (Tim Internal Naungan Master Lead)</option>
+                            <option value="master_lead">👑 Master Lead (Partner / Mitra Pengelola Lead)</option>
                         </select>
                     </div>
 

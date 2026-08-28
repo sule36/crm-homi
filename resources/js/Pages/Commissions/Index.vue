@@ -124,25 +124,75 @@ const simNetCommission = computed(() => {
 
         <!-- MODAL PARAMETER SETTINGS -->
         <div v-if="showParamModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 space-y-4 text-slate-900">
-                <h3 class="text-lg font-black tracking-tight">Pengaturan Parameter Komisi Bawaan</h3>
-                <p class="text-xs text-slate-500">Tentukan persentase fee komisi standar sistem saat agen tidak memiliki override khusus.</p>
+            <div class="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 space-y-4 text-slate-900 animate-in zoom-in duration-150">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-base font-black tracking-tight">Pengaturan Skema Master Lead & Komisi</h3>
+                        <p class="text-xs text-slate-400">Atur sakelar keaktifan fitur dan persentase fee komisi bawaan sistem.</p>
+                    </div>
+                    <button @click="showParamModal = false" class="text-slate-400 hover:text-slate-700">✕</button>
+                </div>
+
                 <form @submit.prevent="submitParameters" class="space-y-4 text-xs font-bold">
-                    <div>
-                        <label class="block uppercase tracking-wider text-slate-400 mb-1">In-House Agent Default Fee (%)</label>
-                        <input v-model.number="paramForm.inhouse_rate" type="number" step="0.1" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+                    <!-- SAKELAR FITUR (FEATURE TOGGLES) -->
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+                        <span class="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">⚙️ SAKELAR KONSEP AGEN & MASTER LEAD</span>
+                        
+                        <label class="flex items-center justify-between cursor-pointer p-2 bg-white rounded-xl border border-slate-100">
+                            <div>
+                                <span class="text-xs font-black text-slate-800 block">👑 Fitur Master Lead</span>
+                                <span class="text-[10px] text-slate-400 font-medium">Transaksi & fee dikendalikan oleh Master Lead</span>
+                            </div>
+                            <input v-model="paramForm.enable_master_lead" type="checkbox" class="w-4 h-4 text-blue-600 rounded" />
+                        </label>
+
+                        <label class="flex items-center justify-between cursor-pointer p-2 bg-white rounded-xl border border-slate-100">
+                            <div>
+                                <span class="text-xs font-black text-slate-800 block">🏠 In-House Developer</span>
+                                <span class="text-[10px] text-slate-400 font-medium">Tim sales internal milik Developer langsung</span>
+                            </div>
+                            <input v-model="paramForm.enable_inhouse_developer" type="checkbox" class="w-4 h-4 text-blue-600 rounded" />
+                        </label>
+
+                        <label class="flex items-center justify-between cursor-pointer p-2 bg-white rounded-xl border border-slate-100">
+                            <div>
+                                <span class="text-xs font-black text-slate-800 block">🤝 In-House Master Lead</span>
+                                <span class="text-[10px] text-slate-400 font-medium">Tim sales internal di bawah naungan Master Lead</span>
+                            </div>
+                            <input v-model="paramForm.enable_inhouse_master_lead" type="checkbox" class="w-4 h-4 text-blue-600 rounded" />
+                        </label>
                     </div>
-                    <div>
-                        <label class="block uppercase tracking-wider text-slate-400 mb-1">Kantor Agency (Broker) Default Fee (%)</label>
-                        <input v-model.number="paramForm.agency_rate" type="number" step="0.1" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+
+                    <!-- FEE RATES -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block uppercase text-[9px] font-black text-slate-400 mb-1">Fee Master Lead (%)</label>
+                            <input v-model.number="paramForm.master_lead_overriding_rate" type="number" step="0.1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                        </div>
+                        <div>
+                            <label class="block uppercase text-[9px] font-black text-slate-400 mb-1">Fee In-House Master Lead (%)</label>
+                            <input v-model.number="paramForm.inhouse_master_lead_rate" type="number" step="0.1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                        </div>
                     </div>
-                    <div>
-                        <label class="block uppercase tracking-wider text-slate-400 mb-1">Freelance / Independen Default Fee (%)</label>
-                        <input v-model.number="paramForm.independent_rate" type="number" step="0.1" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block uppercase text-[9px] font-black text-slate-400 mb-1">In-House Dev (%)</label>
+                            <input v-model.number="paramForm.inhouse_developer_rate" type="number" step="0.1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                        </div>
+                        <div>
+                            <label class="block uppercase text-[9px] font-black text-slate-400 mb-1">Agency Broker (%)</label>
+                            <input v-model.number="paramForm.agency_rate" type="number" step="0.1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                        </div>
+                        <div>
+                            <label class="block uppercase text-[9px] font-black text-slate-400 mb-1">Independen (%)</label>
+                            <input v-model.number="paramForm.independent_rate" type="number" step="0.1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                        </div>
                     </div>
-                    <div class="flex justify-end gap-2 pt-2">
+
+                    <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
                         <button type="button" @click="showParamModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl">Batal</button>
-                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-xl">Simpan Parameter</button>
+                        <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg">Simpan Skema Parameter</button>
                     </div>
                 </form>
             </div>
