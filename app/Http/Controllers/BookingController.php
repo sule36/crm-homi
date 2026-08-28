@@ -241,6 +241,9 @@ class BookingController extends Controller
         ]);
 
         $sprBankInfo = is_array($booking->spr_bank_info) ? $booking->spr_bank_info : [];
+        if (isset($validated['spr_bank_info']) && is_array($validated['spr_bank_info'])) {
+            $sprBankInfo = array_merge($sprBankInfo, $validated['spr_bank_info']);
+        }
 
         if (!empty($validated['bank_account_id'])) {
             $bankAcc = \App\Models\BankAccount::find($validated['bank_account_id']);

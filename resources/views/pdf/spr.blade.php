@@ -303,12 +303,10 @@
             'account_number' => '1200008089893',
             'account_holder' => 'PT. Serangkai Roden Development',
         ];
-        if ($booking->bankAccount) {
-            $bankInfo = [
-                'bank_name' => $booking->bankAccount->bank_name,
-                'account_number' => $booking->bankAccount->account_number,
-                'account_holder' => $booking->bankAccount->account_holder,
-            ];
+        if ($booking->bankAccount && !isset($bankInfo['utj']) && !isset($bankInfo['dp'])) {
+            $bankInfo['bank_name'] = $booking->bankAccount->bank_name;
+            $bankInfo['account_number'] = $booking->bankAccount->account_number;
+            $bankInfo['account_holder'] = $booking->bankAccount->account_holder;
         }
 
         // Special Offer & Benefit

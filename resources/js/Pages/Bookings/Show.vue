@@ -116,6 +116,11 @@ function removeTermItem(index) {
 }
 
 function submitSprTemplate() {
+    handleBankAccountChange();
+    handleUtjBankChange();
+    handleDpBankChange();
+    handleInstallmentBankChange();
+    
     sprTemplateForm.post(`/bookings/${props.booking.id}/spr-template`, {
         preserveScroll: true,
         onSuccess: () => {
