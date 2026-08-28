@@ -114,7 +114,7 @@
 
         /* CATATAN-CATATAN (TERMS) */
         .catatan-section {
-            margin-bottom: 8px;
+            margin-bottom: 12px;
         }
         .catatan-header {
             font-weight: bold;
@@ -136,12 +136,12 @@
 
         /* SIGNATURE SECTION */
         .signature-section {
-            margin-top: 6px;
+            margin-top: 24px;
         }
         .sig-date {
             text-align: right;
             font-size: 8pt;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
             color: #404040;
         }
         .sig-table {
