@@ -396,6 +396,13 @@ const filteredAgentsData = computed(() => {
                         >
                             <span>🏠 Agent In-House</span>
                         </button>
+                        <button 
+                            @click="agentFilterType = 'master_lead'"
+                            :class="agentFilterType === 'master_lead' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+                            class="px-3.5 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5"
+                        >
+                            <span>👑 Master Lead</span>
+                        </button>
                     </div>
 
                     <div class="flex items-center gap-3 w-full sm:w-auto">
@@ -582,6 +589,17 @@ const filteredAgentsData = computed(() => {
                             <option value="inhouse_developer">🏠 In-House Developer (Tim Internal Perusahaan)</option>
                             <option value="inhouse_master_lead">🤝 In-House Master Lead (Tim Internal Naungan Master Lead)</option>
                             <option value="master_lead">👑 Master Lead (Partner / Mitra Pengelola Lead)</option>
+                        </select>
+                    </div>
+
+                    <!-- MASTER LEAD SELECTION DROPDOWN -->
+                    <div v-if="props.masterLeads && props.masterLeads.length > 0 && agentForm.agent_type !== 'master_lead'" class="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl space-y-1">
+                        <label class="block text-xs font-bold text-purple-400">👑 Master Lead Naungan (Opsional)</label>
+                        <select v-model="agentForm.master_lead_id" class="w-full bg-slate-950 border border-purple-500/40 rounded-xl px-3 py-2 text-white font-bold text-xs cursor-pointer">
+                            <option :value="null">-- Directly Under Developer (Tanpa Master Lead) --</option>
+                            <option v-for="ml in props.masterLeads" :key="ml.id" :value="ml.id">
+                                👑 {{ ml.name }} ({{ ml.phone || 'Tanpa Kontak' }})
+                            </option>
                         </select>
                     </div>
 
