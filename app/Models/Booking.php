@@ -77,6 +77,50 @@ class Booking extends Model
         return static::generateSprNumber($projectId);
     }
 
+    public static function formatSprNumberForBooking($booking): string
+    {
+        $createdAt = $booking->created_at ? strtotime($booking->created_at) : time();
+        $year = date('Y', $createdAt);
+        $monthNum = (int)date('n', $createdAt);
+        
+        $romanMonths = [
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'
+        ];
+        $monthRoman = $romanMonths[$monthNum] ?? 'VIII';
+
+        $seqVal = $booking->id ?? 1;
+        $seq3 = sprintf('%03d', $seqVal);
+        $seq2 = sprintf('%02d', $seqVal);
+
+        $projectCode = 'ALC';
+        $project = $booking->project ?? ($booking->unit->project ?? Project::first());
+        if ($project) {
+            if (!empty($project->code)) {
+                $projectCode = strtoupper($project->code);
+            } else {
+                $cleanName = preg_replace('/[^A-Za-z0-9]/', '', $project->name);
+                $projectCode = strtoupper(substr($cleanName, 0, 3)) ?: 'ALC';
+            }
+        }
+
+        $format = Setting::get('spr_number_format', '{seq}/SPR-{code}/{month_roman}/{year}');
+
+        return str_replace(
+            ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
+            [$seq2, $seq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
+            $format
+        );
+    }
+
+    public function getSpkNumberAttribute($value): string
+    {
+        if (empty($value) || str_contains($value, 'HOMI') || str_starts_with($value, 'SPR-2026-')) {
+            return static::formatSprNumberForBooking($this);
+        }
+        return $value;
+    }
+
     public static function generateSprNumber($projectId = null): string
     {
         $year = date('Y');
@@ -113,7 +157,7 @@ class Booking extends Model
 
         return str_replace(
             ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
-            [$nextSeq2, $nextSeq2, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
+            [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
             $format
         );
     }
