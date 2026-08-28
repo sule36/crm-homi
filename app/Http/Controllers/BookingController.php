@@ -512,12 +512,19 @@ class BookingController extends Controller
                 'cancelled_reason' => $request->reason,
             ]);
 
-            // Kembalikan status unit ke available
-            $booking->unit->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+            // Kembalikan status unit ke available (siap dibooking customer lain)
+            if ($booking->unit) {
+                $booking->unit->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+                $booking->unit->project?->recalculateUnits();
+            }
+
+            if ($booking->lead) {
+                $booking->lead->update(['status' => 'negotiation']);
+            }
 
             AuditLog::record('booking_rejected', $booking, null, ['reason' => $request->reason]);
 
-            return back()->with('success', 'Booking telah ditolak.');
+            return back()->with('success', 'Booking / SPK telah ditolak. Unit properti otomatis kembali Available.');
         });
     }
 
@@ -531,15 +538,20 @@ class BookingController extends Controller
                 'cancelled_reason' => $request->reason,
             ]);
 
-            // Kembalikan status unit ke available
-            $booking->unit->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+            // Kembalikan status unit ke available (siap dibooking customer lain)
+            if ($booking->unit) {
+                $booking->unit->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+                $booking->unit->project?->recalculateUnits();
+            }
             
-            // Kembalikan status lead ke negotiation (atau status sebelumnya)
-            $booking->lead->update(['status' => 'negotiation']);
+            // Kembalikan status lead ke negotiation agar sales dapat follow up kembali
+            if ($booking->lead) {
+                $booking->lead->update(['status' => 'negotiation']);
+            }
 
             AuditLog::record('booking_cancelled', $booking, null, ['reason' => $request->reason]);
 
-            return back()->with('success', 'Booking telah dibatalkan.');
+            return back()->with('success', 'Booking & SPK telah dibatalkan. Unit properti telah otomatis dikembalikan menjadi Available.');
         });
     }
 
