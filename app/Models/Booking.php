@@ -78,6 +78,7 @@ class Booking extends Model
     public function paymentSchedules() { return $this->hasMany(PaymentSchedule::class); }
     public function transactions() { return $this->hasMany(Transaction::class); }
     public function documents() { return $this->hasMany(BookingDocument::class); }
+    public function bankAccount() { return $this->belongsTo(BankAccount::class); }
 
     // Auto-generate SPR number
     public static function generateSpkNumber($projectId = null): string
