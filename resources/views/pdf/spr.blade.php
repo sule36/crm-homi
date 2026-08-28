@@ -160,14 +160,14 @@
             margin-bottom: 2px;
         }
         .sig-box {
-            height: 38px;
+            height: 65px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .sig-img {
-            max-height: 36px;
-            max-width: 100px;
+            max-height: 60px;
+            max-width: 140px;
             object-fit: contain;
         }
         .sig-name {
