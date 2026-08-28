@@ -157,97 +157,129 @@ class MasterLeadController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
-            'phone' => 'nullable|string|max:20',
-            'password' => 'required|string|min:6',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'bank_name' => 'nullable|string|max:100',
-            'bank_account_number' => 'nullable|string|max:100',
-            'bank_account_name' => 'nullable|string|max:255',
-        ]);
-
-        $plainPassword = $request->password;
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'company_id' => auth()->user()?->company_id,
-            'phone' => $validated['phone'] ?? null,
-            'password' => Hash::make($plainPassword),
-            'agent_type' => 'master_lead',
-            'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : 4.5,
-            'bank_name' => $validated['bank_name'] ?? null,
-            'bank_account_number' => $validated['bank_account_number'] ?? null,
-            'bank_account_name' => $validated['bank_account_name'] ?? null,
-            'status' => 'active',
-        ]);
-
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'master_lead', 'guard_name' => 'web']);
-        $user->assignRole('master_lead');
-
-        AuditLog::record('master_lead_created', $user, null, $user->toArray());
-
-        $loginUrl = url('/login');
-
-        return back()->with('success', 'Akun Master Lead baru berhasil dibuat.')
-            ->with('new_credentials', [
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'password' => $plainPassword,
-                'login_url' => $loginUrl,
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|max:255|unique:users,email',
+                'phone' => 'nullable|string|max:20',
+                'password' => 'required|string|min:6',
+                'commission_rate' => 'nullable|numeric|min:0|max:100',
+                'bank_name' => 'nullable|string|max:100',
+                'bank_account_number' => 'nullable|string|max:100',
+                'bank_account_name' => 'nullable|string|max:255',
             ]);
+
+            $plainPassword = $request->password;
+
+            $companyId = auth()->user()?->company_id;
+            if (!$companyId && \App\Models\Company::exists()) {
+                $companyId = \App\Models\Company::first()->id;
+            }
+
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'company_id' => $companyId,
+                'phone' => $validated['phone'] ?? null,
+                'password' => Hash::make($plainPassword),
+                'agent_type' => 'master_lead',
+                'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : 4.5,
+                'bank_name' => $validated['bank_name'] ?? null,
+                'bank_account_number' => $validated['bank_account_number'] ?? null,
+                'bank_account_name' => $validated['bank_account_name'] ?? null,
+                'status' => 'active',
+            ]);
+
+            try {
+                \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'master_lead', 'guard_name' => 'web']);
+                $user->assignRole('master_lead');
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Spatie role assign fallback: ' . $e->getMessage());
+            }
+
+            try {
+                AuditLog::record('master_lead_created', $user, null, $user->toArray());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('AuditLog record fallback: ' . $e->getMessage());
+            }
+
+            $loginUrl = url('/login');
+
+            return back()->with('success', 'Akun Master Lead baru berhasil dibuat.')
+                ->with('new_credentials', [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'password' => $plainPassword,
+                    'login_url' => $loginUrl,
+                ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('MasterLeadController store failed: ' . $e->getMessage());
+            return back()->with('error', 'Gagal membuat Master Lead: ' . $e->getMessage());
+        }
     }
 
     public function update(Request $request, User $user)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'password' => 'nullable|string|min:6',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
-            'status' => 'required|in:active,inactive',
-            'bank_name' => 'nullable|string|max:100',
-            'bank_account_number' => 'nullable|string|max:100',
-            'bank_account_name' => 'nullable|string|max:255',
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'phone' => 'nullable|string|max:20',
+                'password' => 'nullable|string|min:6',
+                'commission_rate' => 'nullable|numeric|min:0|max:100',
+                'status' => 'required|in:active,inactive',
+                'bank_name' => 'nullable|string|max:100',
+                'bank_account_number' => 'nullable|string|max:100',
+                'bank_account_name' => 'nullable|string|max:255',
+            ]);
 
-        $data = [
-            'name' => $validated['name'],
-            'phone' => $validated['phone'] ?? null,
-            'status' => $validated['status'],
-            'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : $user->commission_rate,
-            'bank_name' => $validated['bank_name'] ?? null,
-            'bank_account_number' => $validated['bank_account_number'] ?? null,
-            'bank_account_name' => $validated['bank_account_name'] ?? null,
-        ];
+            $data = [
+                'name' => $validated['name'],
+                'phone' => $validated['phone'] ?? null,
+                'status' => $validated['status'],
+                'commission_rate' => (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : $user->commission_rate,
+                'bank_name' => $validated['bank_name'] ?? null,
+                'bank_account_number' => $validated['bank_account_number'] ?? null,
+                'bank_account_name' => $validated['bank_account_name'] ?? null,
+            ];
 
-        if ($request->filled('password')) {
-            $data['password'] = Hash::make($request->password);
+            if ($request->filled('password')) {
+                $data['password'] = Hash::make($request->password);
+            }
+
+            $old = $user->toArray();
+            $user->update($data);
+
+            try {
+                AuditLog::record('master_lead_updated', $user, $old, $user->toArray());
+            } catch (\Throwable $e) {}
+
+            return back()->with('success', 'Data Master Lead berhasil diperbarui.');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('MasterLeadController update failed: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memperbarui Master Lead: ' . $e->getMessage());
         }
-
-        $old = $user->toArray();
-        $user->update($data);
-
-        AuditLog::record('master_lead_updated', $user, $old, $user->toArray());
-
-        return back()->with('success', 'Data Master Lead berhasil diperbarui.');
     }
 
     public function destroy(User $user)
     {
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'Tidak bisa menghapus akun Anda sendiri.');
+        try {
+            if ($user->id === auth()->id()) {
+                return back()->with('error', 'Tidak bisa menghapus akun Anda sendiri.');
+            }
+
+            try {
+                AuditLog::record('master_lead_deleted', $user, $user->toArray(), null);
+            } catch (\Throwable $e) {}
+
+            // Disassociate sub agents
+            User::where('master_lead_id', $user->id)->update(['master_lead_id' => null]);
+            $user->delete();
+
+            return back()->with('success', 'Akun Master Lead berhasil dihapus.');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('MasterLeadController destroy failed: ' . $e->getMessage());
+            return back()->with('error', 'Gagal menghapus Master Lead: ' . $e->getMessage());
         }
-
-        AuditLog::record('master_lead_deleted', $user, $user->toArray(), null);
-
-        // Disassociate sub agents
-        User::where('master_lead_id', $user->id)->update(['master_lead_id' => null]);
-        $user->delete();
-
-        return back()->with('success', 'Akun Master Lead berhasil dihapus.');
     }
 }
