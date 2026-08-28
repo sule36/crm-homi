@@ -295,10 +295,17 @@
         ];
 
         $bankInfo = $settings['spr_bank_info'] ?? [
-            'bank_name' => 'BCA / BSI',
-            'account_number' => '542-539-2929 / 732-694-3422',
+            'bank_name' => 'MANDIRI',
+            'account_number' => '1200008089893',
             'account_holder' => 'PT. Serangkai Roden Development',
         ];
+        if ($booking->bankAccount) {
+            $bankInfo = [
+                'bank_name' => $booking->bankAccount->bank_name,
+                'account_number' => $booking->bankAccount->account_number,
+                'account_holder' => $booking->bankAccount->account_holder,
+            ];
+        }
 
         // Special Offer & Benefit
         $so = $settings['spr_special_offer'] ?? [

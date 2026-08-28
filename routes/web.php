@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/booking-documents/{document}', [\App\Http\Controllers\BookingDocumentController::class, 'destroy'])->name('bookings.documents.destroy');
     Route::post('/bookings/{booking}/regenerate-schedule', [\App\Http\Controllers\BookingController::class, 'regenerateSchedule'])->name('bookings.regenerateSchedule');
     Route::post('/bookings/{booking}/schedules', [\App\Http\Controllers\BookingController::class, 'addScheduleRow'])->name('bookings.schedules.store');
+    Route::post('/bookings/{booking}/spr-template', [\App\Http\Controllers\BookingController::class, 'updateSprTemplate'])->name('bookings.update-spr-template');
     Route::put('/payment-schedules/{paymentSchedule}', [\App\Http\Controllers\BookingController::class, 'updateScheduleRow'])->name('bookings.schedules.update');
     Route::delete('/payment-schedules/{paymentSchedule}', [\App\Http\Controllers\BookingController::class, 'deleteScheduleRow'])->name('bookings.schedules.destroy');
     Route::post('/payment-schedules/{paymentSchedule}/send-email', [\App\Http\Controllers\BookingController::class, 'sendScheduleEmail'])->name('bookings.schedules.sendEmail');

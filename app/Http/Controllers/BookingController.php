@@ -178,14 +178,49 @@ class BookingController extends Controller
         }
 
         $booking->load([
-            'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy',
+            'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy', 'bankAccount',
             'paymentSchedules' => fn ($q) => $q->orderBy('installment_number', 'asc')->orderBy('id', 'asc'),
             'transactions', 'documents'
         ]);
 
         return Inertia::render('Bookings/Show', [
             'booking' => $booking,
+            'bank_accounts_all' => \App\Models\BankAccount::latest()->get(),
         ]);
+    }
+
+    public function updateSprTemplate(Request $request, Booking $booking)
+    {
+        $validated = $request->validate([
+            'spk_number' => 'nullable|string|max:100',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'spr_terms_conditions' => 'nullable|array',
+            'spr_bank_info' => 'nullable|array',
+            'spr_special_offer' => 'nullable|array',
+            'sig1_title' => 'nullable|string|max:100',
+            'sig1_name' => 'nullable|string|max:255',
+            'sig2_title' => 'nullable|string|max:100',
+            'sig2_name' => 'nullable|string|max:255',
+            'sig3_title' => 'nullable|string|max:100',
+            'sig3_name' => 'nullable|string|max:255',
+            'sig4_title' => 'nullable|string|max:100',
+            'sig4_name' => 'nullable|string|max:255',
+        ]);
+
+        if (!empty($validated['bank_account_id'])) {
+            $bankAcc = \App\Models\BankAccount::find($validated['bank_account_id']);
+            if ($bankAcc) {
+                $validated['spr_bank_info'] = [
+                    'bank_name' => $bankAcc->bank_name,
+                    'account_number' => $bankAcc->account_number,
+                    'account_holder' => $bankAcc->account_holder,
+                ];
+            }
+        }
+
+        $booking->update($validated);
+
+        return back()->with('success', 'Template & Parameter SPR khusus booking ini berhasil diperbarui.');
     }
 
     public function approve(Booking $booking)

@@ -5,12 +5,85 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
-    booking: Object
+    booking: Object,
+    bank_accounts_all: {
+        type: Array,
+        default: () => []
+    }
 });
 
 const showPaymentModal = ref(false);
 const selectedSchedule = ref(null);
 const showSpkPreview = ref(false);
+const showSprTemplateModal = ref(false);
+const activeSprTab = ref('bank');
+
+const defaultTerms = [
+    "Pembeli menyatakan telah mengerti dan menyetujui serta akan tunduk kepada persyaratan dan ketentuan serta kebijakan yang ditetapkan oleh Pengembang dalam SPR",
+    "Dalam hal pembelian rumah melalui KPR, jumlah DP dan persyaratan KPR lainnya tunduk pada ketentuan Bank pemberi KPR",
+    "Dalam hal terjadi penolakan dari pihak Bank atau KPR tidak disetujui, maka Uang Tanda Jadi akan dikembalikan 100%",
+    "Dalam hal KPR yang telah disetujui oleh Bank, maka Akad Kredit wajib dilaksanakan selambat-lambatnya 1 bulan sejak diterimanya down payment oleh Pengembang",
+    "Dalam hal terjadi pembatalan sepihak oleh pembeli dalam masa pembangunan unit sesuai pilihan pembeli dalam SPR ini, maka seluruh pembayaran dari Pembeli akan hangus 100%",
+    "Pembeli diperkenankan untuk memilih cara pembayaran selain KPR dengan syarat dan ketentuan dari Pengembang",
+    "Pembayaran segala bentuk cicilan kepada Pengembang yang melebihi waktu yang telah ditentukan dalam SPR ini, akan dikenakan denda sebesar 1% per hari dengan denda maksimal 5% dari jumlah kewajiban yang terlambat",
+    "Pembeli tidak diperkenankan untuk mengalihkan pembelian tanah dan bangunan, pengalihan pembelian akan dikenakan denda sebesar 2.5% dari harga jual final",
+    "Nilai Uang Tanda Jadi ditetapkan sebesar Rp. 15.000.000,- (lima belas juta rupiah)",
+    "Jangka waktu perjanjian ini berakhir sesuai tanggal akhir pelunasan pembayaran oleh Pembeli, kecuali untuk KPR sesuai pelunasan dari Bank setelah Serah Terima unit kepada Pembeli",
+    "SPR ini akan batal dengan sendirinya dalam hal terjadinya kondisi yang dijelaskan pada pasal 3 dan 5, Pembatalan SPR dalam bentuk tertulis antara Pengembang dan Pembeli dibuat 3 rangkap dimana 1 rangkapnya milik Pemilik Tanah",
+    "Penandatanganan SPR dilakukan setelah seluruh pasal didalamnya disepakati oleh masing-masing pihak"
+];
+
+const sprTemplateForm = useForm({
+    spk_number: props.booking.spk_number || '',
+    bank_account_id: props.booking.bank_account_id || '',
+    spr_bank_info: props.booking.spr_bank_info || {
+        bank_name: 'MANDIRI',
+        account_number: '1200008089893',
+        account_holder: 'PT. Serangkai Roden Development'
+    },
+    spr_terms_conditions: props.booking.spr_terms_conditions && props.booking.spr_terms_conditions.length > 0 ? [...props.booking.spr_terms_conditions] : [...defaultTerms],
+    sig1_title: props.booking.sig1_title || 'AGENT COORDINATOR',
+    sig1_name: props.booking.sig1_name || '',
+    sig2_title: props.booking.sig2_title || 'DIREKTUR',
+    sig2_name: props.booking.sig2_name || '',
+    sig3_title: props.booking.sig3_title || 'SALES',
+    sig3_name: props.booking.sig3_name || '',
+    sig4_title: props.booking.sig4_title || '',
+    sig4_name: props.booking.sig4_name || '',
+});
+
+function openSprTemplateModal() {
+    showSprTemplateModal.value = true;
+}
+
+function handleBankAccountChange() {
+    if (!sprTemplateForm.bank_account_id) return;
+    const selectedBank = props.bank_accounts_all.find(b => b.id === sprTemplateForm.bank_account_id);
+    if (selectedBank) {
+        sprTemplateForm.spr_bank_info = {
+            bank_name: selectedBank.bank_name,
+            account_number: selectedBank.account_number,
+            account_holder: selectedBank.account_holder
+        };
+    }
+}
+
+function addTermItem() {
+    sprTemplateForm.spr_terms_conditions.push('Poin persyaratan baru...');
+}
+
+function removeTermItem(index) {
+    sprTemplateForm.spr_terms_conditions.splice(index, 1);
+}
+
+function submitSprTemplate() {
+    sprTemplateForm.post(`/bookings/${props.booking.id}/spr-template`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showSprTemplateModal.value = false;
+        }
+    });
+}
 
 const paymentForm = useForm({
     booking_id: props.booking.id,
@@ -251,11 +324,14 @@ const docTypeLabels = {
                     Reject
                 </button>
             </div>
-            <div v-else-if="booking.status === 'approved'" class="flex gap-2">
-                <button @click="showSpkPreview = true" class="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
+            <div v-else-if="booking.status === 'approved'" class="flex flex-wrap gap-2">
+                <button @click="openSprTemplateModal" class="px-5 py-2.5 bg-amber-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                    ⚙️ Edit Template SPR
+                </button>
+                <button @click="showSpkPreview = true" class="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     👁️ Tinjau SPR
                 </button>
-                <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-6 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Download SPR (PDF)
                 </a>
@@ -764,6 +840,153 @@ const docTypeLabels = {
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- EDIT SPR TEMPLATE MODAL (PER BOOKING) -->
+        <div v-if="showSprTemplateModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showSprTemplateModal = false"></div>
+            <div class="relative bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                <!-- Modal Header -->
+                <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-black uppercase tracking-wider text-amber-400">⚙️ Edit Template & Parameter SPR</h3>
+                        <p class="text-xs text-slate-400">Kustomisasi Khusus Unit {{ booking.unit?.block }}{{ booking.unit?.number }} ({{ booking.lead?.name }})</p>
+                    </div>
+                    <button @click="showSprTemplateModal = false" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+                </div>
+
+                <!-- Tabs Bar -->
+                <div class="flex border-b border-slate-100 bg-slate-50 px-6 gap-2 pt-2">
+                    <button type="button" @click="activeSprTab = 'bank'" :class="activeSprTab === 'bank' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                        💳 Bank Developer (LOV)
+                    </button>
+                    <button type="button" @click="activeSprTab = 'terms'" :class="activeSprTab === 'terms' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                        📋 Catatan-catatan (Syarat)
+                    </button>
+                    <button type="button" @click="activeSprTab = 'signatures'" :class="activeSprTab === 'signatures' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                        🖊️ Penanda Tangan (4 TTD)
+                    </button>
+                </div>
+
+                <!-- Modal Body Scrollable -->
+                <div class="p-6 overflow-y-auto space-y-4 flex-1">
+                    <form id="spr-template-form" @submit.prevent="submitSprTemplate">
+                        <!-- TAB 1: BANK DEVELOPER LOV & NO SPR -->
+                        <div v-if="activeSprTab === 'bank'" class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nomor Surat SPR</label>
+                                <input v-model="sprTemplateForm.spk_number" type="text" placeholder="002/SPR-ALN/VIII/2026" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-800" />
+                                <p class="text-[10px] text-slate-400 mt-1">Format penomoran surat khusus untuk unit booking ini.</p>
+                            </div>
+
+                            <div class="pt-3 border-t border-slate-100">
+                                <label class="block text-[10px] font-black text-blue-600 uppercase mb-1 flex items-center gap-1.5">
+                                    <span>🏦</span> <span>Pilih Rekening Bank Developer (LOV Register)</span>
+                                </label>
+                                <select v-model="sprTemplateForm.bank_account_id" @change="handleBankAccountChange" class="w-full px-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900 cursor-pointer">
+                                    <option value="">-- Pilih Dari Rekening Bank Terdaftar (LOV) --</option>
+                                    <option v-for="b in bank_accounts_all" :key="b.id" :value="b.id">
+                                        {{ b.bank_name }} - {{ b.account_number }} (a.n {{ b.account_holder }})
+                                    </option>
+                                </select>
+                                <p class="text-[10px] text-slate-400 mt-1">Pilih dari daftar rekening bank terdaftar di atas, atau isi detail rekening manual di bawah ini.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Bank</label>
+                                    <input v-model="sprTemplateForm.spr_bank_info.bank_name" type="text" placeholder="MANDIRI / BCA / BSI" class="w-full px-3 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor Rekening</label>
+                                    <input v-model="sprTemplateForm.spr_bank_info.account_number" type="text" placeholder="1200008089893" class="w-full px-3 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Pemilik Rekening</label>
+                                    <input v-model="sprTemplateForm.spr_bank_info.account_holder" type="text" placeholder="PT. Serangkai Roden Development" class="w-full px-3 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: CATATAN-CATATAN (SYARAT & KETENTUAN) -->
+                        <div v-if="activeSprTab === 'terms'" class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-black text-slate-700 uppercase">Daftar Poin Catatan-catatan (SPR)</span>
+                                <button type="button" @click="addTermItem" class="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg hover:bg-blue-100 transition-all">
+                                    + Tambah Poin Catatan
+                                </button>
+                            </div>
+
+                            <div v-for="(term, idx) in sprTemplateForm.spr_terms_conditions" :key="idx" class="flex items-start gap-2">
+                                <span class="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center text-xs font-bold text-slate-600 mt-1 flex-shrink-0">{{ idx + 1 }}</span>
+                                <textarea v-model="sprTemplateForm.spr_terms_conditions[idx]" rows="2" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium resize-y focus:ring-2 focus:ring-blue-500/20"></textarea>
+                                <button type="button" @click="removeTermItem(idx)" class="p-2 text-rose-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 flex-shrink-0 mt-1">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: PENANDA TANGAN (4 SLOT TTD) -->
+                        <div v-if="activeSprTab === 'signatures'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                                <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Slot TTD 1 (Sales / Staff)</span>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Judul Jabatan</label>
+                                    <input v-model="sprTemplateForm.sig1_title" type="text" placeholder="AGENT COORDINATOR" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama Pejabat</label>
+                                    <input v-model="sprTemplateForm.sig1_name" type="text" placeholder="Maulizar Hamid" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                            </div>
+
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                                <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Slot TTD 2 (Management / Direktur)</span>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Judul Jabatan</label>
+                                    <input v-model="sprTemplateForm.sig2_title" type="text" placeholder="DIREKTUR" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama Pejabat</label>
+                                    <input v-model="sprTemplateForm.sig2_name" type="text" placeholder="Ch. Bramantyo P. S" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                            </div>
+
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                                <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Slot TTD 3 (Sales Agent)</span>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Judul Jabatan</label>
+                                    <input v-model="sprTemplateForm.sig3_title" type="text" placeholder="SALES" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama Pejabat</label>
+                                    <input v-model="sprTemplateForm.sig3_name" type="text" placeholder="Mawardi KanaProject" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                            </div>
+
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                                <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Slot TTD 4 (Pemesan / Penanggung Jawab)</span>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Judul Jabatan</label>
+                                    <input v-model="sprTemplateForm.sig4_title" type="text" placeholder="Penanggung Jawab (Orang Tua)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama Pejabat</label>
+                                    <input v-model="sprTemplateForm.sig4_name" type="text" placeholder="Fatimah Rafiuddin" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button type="button" @click="showSprTemplateModal = false" class="px-4 py-2.5 bg-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-300 transition-all">Batal</button>
+                    <button type="submit" form="spr-template-form" :disabled="sprTemplateForm.processing" class="px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl shadow-lg shadow-blue-500/20 uppercase hover:-translate-y-0.5 transition-all">
+                        {{ sprTemplateForm.processing ? 'MEMPROSES...' : 'SIMPAN TEMPLATE KHUSUS BOOKING INI' }}
+                    </button>
+                </div>
             </div>
         </div>
     </teleport>

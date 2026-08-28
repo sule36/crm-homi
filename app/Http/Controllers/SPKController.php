@@ -9,20 +9,31 @@ use Illuminate\Http\Request;
 
 class SPKController extends Controller
 {
-    private function getSettings()
+    private function getSettingsForBooking(Booking $booking)
     {
         $settingsRaw = Setting::all();
         $settings = [];
         foreach ($settingsRaw as $s) {
             $settings[$s->key] = Setting::get($s->key);
         }
+
+        if (!empty($booking->spr_terms_conditions) && is_array($booking->spr_terms_conditions)) {
+            $settings['spr_terms_conditions'] = $booking->spr_terms_conditions;
+        }
+        if (!empty($booking->spr_bank_info) && is_array($booking->spr_bank_info)) {
+            $settings['spr_bank_info'] = $booking->spr_bank_info;
+        }
+        if (!empty($booking->spr_special_offer) && is_array($booking->spr_special_offer)) {
+            $settings['spr_special_offer'] = $booking->spr_special_offer;
+        }
+
         return $settings;
     }
 
     public function download(Booking $booking)
     {
-        $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']);
-        $settings = $this->getSettings();
+        $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules', 'bankAccount']);
+        $settings = $this->getSettingsForBooking($booking);
         $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);
 
         $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'))
@@ -36,8 +47,8 @@ class SPKController extends Controller
 
     public function stream(Booking $booking)
     {
-        $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']);
-        $settings = $this->getSettings();
+        $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules', 'bankAccount']);
+        $settings = $this->getSettingsForBooking($booking);
 
         if (request()->has('html') || request()->query('view') === 'html' || !request()->has('pdf')) {
             return view('pdf.spr', compact('booking', 'settings'));

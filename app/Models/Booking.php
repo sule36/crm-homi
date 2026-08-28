@@ -40,6 +40,8 @@ class Booking extends Model
         // Per-Booking Signature Overrides
         'sig1_title', 'sig1_name', 'sig2_title', 'sig2_name',
         'sig3_title', 'sig3_name', 'sig4_title', 'sig4_name',
+        // Per-Booking SPR Template Customization & Developer Bank Account
+        'bank_account_id', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer',
     ];
 
     protected function casts(): array
@@ -62,6 +64,9 @@ class Booking extends Model
             'kpr_akad_date' => 'date',
             'special_bonus_items' => 'array',
             'special_package_items' => 'array',
+            'spr_terms_conditions' => 'array',
+            'spr_bank_info' => 'array',
+            'spr_special_offer' => 'array',
         ];
     }
 
