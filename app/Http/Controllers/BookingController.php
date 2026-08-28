@@ -559,4 +559,32 @@ class BookingController extends Controller
 
         return back()->with('success', 'Progres KPR berhasil diperbarui.');
     }
+
+    public function destroy(Booking $booking)
+    {
+        return DB::transaction(function () use ($booking) {
+            // 1. Kembalikan status unit ke available (siap dibooking kembali)
+            if ($booking->unit) {
+                $booking->unit->update([
+                    'status' => 'available',
+                    'held_by' => null,
+                    'held_until' => null,
+                ]);
+                $booking->unit->project?->recalculateUnits();
+            }
+
+            // 2. Kembalikan status lead ke negotiation agar sales tetap bisa follow up
+            if ($booking->lead) {
+                $booking->lead->update(['status' => 'negotiation']);
+            }
+
+            // 3. Catat ke audit log untuk keandalan jejak riwayat
+            AuditLog::record('deleted', $booking, $booking->toArray());
+
+            // 4. Lakukan Soft Delete (tidak menghapus permanen agar riwayat transaksi/laporan tetap utuh)
+            $booking->delete();
+
+            return redirect()->route('bookings.index')->with('success', 'Booking berhasil dihapus. Unit properti telah dilepas kembali menjadi Available.');
+        });
+    }
 }

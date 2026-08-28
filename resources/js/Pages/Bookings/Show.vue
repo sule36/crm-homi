@@ -85,6 +85,12 @@ function submitSprTemplate() {
     });
 }
 
+function deleteBooking() {
+    if (confirm('Apakah Anda yakin ingin menghapus booking ini? Unit properti terkait akan dikembalikan statusnya menjadi Available.')) {
+        router.delete(`/bookings/${props.booking.id}`);
+    }
+}
+
 const paymentForm = useForm({
     booking_id: props.booking.id,
     payment_schedule_id: null,
@@ -337,6 +343,9 @@ const docTypeLabels = {
                 </a>
                 <button @click="openReasonModal('cancel')" class="px-4 py-2.5 text-slate-400 text-xs font-bold hover:text-rose-600 transition-all">
                     Batalkan Pesanan
+                </button>
+                <button @click="deleteBooking" class="px-4 py-2.5 text-rose-500 text-xs font-bold hover:bg-rose-50 rounded-xl transition-all border border-rose-200">
+                    🗑️ Hapus Booking
                 </button>
             </div>
         </div>

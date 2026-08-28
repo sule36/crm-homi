@@ -48,6 +48,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/bookings/create', [\App\Http\Controllers\BookingController::class, 'create'])->name('bookings.create');
     Route::post('/bookings', [\App\Http\Controllers\BookingController::class, 'store'])->name('bookings.store');
     Route::get('/bookings/{booking}', [\App\Http\Controllers\BookingController::class, 'show'])->name('bookings.show');
+    Route::delete('/bookings/{booking}', [\App\Http\Controllers\BookingController::class, 'destroy'])->name('bookings.destroy');
     Route::post('/bookings/{booking}/approve', [\App\Http\Controllers\BookingController::class, 'approve'])->name('bookings.approve');
     Route::post('/bookings/{booking}/reject', [\App\Http\Controllers\BookingController::class, 'reject'])->name('bookings.reject');
     Route::post('/bookings/{booking}/cancel', [\App\Http\Controllers\BookingController::class, 'cancel'])->name('bookings.cancel');
