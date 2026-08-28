@@ -177,11 +177,15 @@ class BookingController extends Controller
             }
         }
 
-        $booking->load([
-            'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy', 'bankAccount',
+        $relations = [
+            'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy',
             'paymentSchedules' => fn ($q) => $q->orderBy('installment_number', 'asc')->orderBy('id', 'asc'),
             'transactions', 'documents'
-        ]);
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {
+            $relations[] = 'bankAccount';
+        }
+        $booking->load($relations);
 
         return Inertia::render('Bookings/Show', [
             'booking' => $booking,

@@ -32,7 +32,11 @@ class SPKController extends Controller
 
     public function download(Booking $booking)
     {
-        $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules', 'bankAccount']);
+        $relations = ['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {
+            $relations[] = 'bankAccount';
+        }
+        $booking->load($relations);
         $settings = $this->getSettingsForBooking($booking);
         $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);
 
@@ -47,7 +51,11 @@ class SPKController extends Controller
 
     public function stream(Booking $booking)
     {
-        $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules', 'bankAccount']);
+        $relations = ['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {
+            $relations[] = 'bankAccount';
+        }
+        $booking->load($relations);
         $settings = $this->getSettingsForBooking($booking);
 
         if (request()->has('html') || request()->query('view') === 'html' || !request()->has('pdf')) {
