@@ -8,6 +8,44 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
 
+// TEMPORARY DEBUG - remove after fixing
+Route::get('/debug-booking-2', function () {
+    try {
+        $booking = \App\Models\Booking::findOrFail(2);
+        
+        // Test relationships one by one
+        $results = ['id' => $booking->id, 'status' => $booking->status];
+        
+        try { $results['unit'] = $booking->unit ? 'OK' : 'null'; } catch (\Throwable $e) { $results['unit'] = 'ERR: '.$e->getMessage(); }
+        try { $results['lead'] = $booking->lead ? 'OK' : 'null'; } catch (\Throwable $e) { $results['lead'] = 'ERR: '.$e->getMessage(); }
+        try { $results['bookedBy'] = $booking->bookedBy ? 'OK' : 'null'; } catch (\Throwable $e) { $results['bookedBy'] = 'ERR: '.$e->getMessage(); }
+        try { $results['approvedBy'] = $booking->approvedBy ? 'OK' : 'null'; } catch (\Throwable $e) { $results['approvedBy'] = 'ERR: '.$e->getMessage(); }
+        try { $results['spk_number'] = $booking->spk_number; } catch (\Throwable $e) { $results['spk_number'] = 'ERR: '.$e->getMessage(); }
+        try { $results['bankAccount_col'] = \Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id') ? 'yes' : 'no'; } catch (\Throwable $e) { $results['bankAccount_col'] = 'ERR: '.$e->getMessage(); }
+        try { $results['spr_terms_col'] = \Illuminate\Support\Facades\Schema::hasColumn('bookings', 'spr_terms_conditions') ? 'yes' : 'no'; } catch (\Throwable $e) { $results['spr_terms_col'] = 'ERR: '.$e->getMessage(); }
+        try { $results['bank_accounts_table'] = \Illuminate\Support\Facades\Schema::hasTable('bank_accounts') ? 'yes' : 'no'; } catch (\Throwable $e) { $results['bank_accounts_table'] = 'ERR: '.$e->getMessage(); }
+        try { $results['spr_signatures_col'] = \Illuminate\Support\Facades\Schema::hasColumn('bookings', 'sig1_title') ? 'yes' : 'no'; } catch (\Throwable $e) { $results['spr_signatures_col'] = 'ERR: '.$e->getMessage(); }
+        
+        // Test full controller flow
+        try {
+            $controller = app(\App\Http\Controllers\BookingController::class);
+            $response = $controller->show($booking);
+            $results['controller_show'] = 'OK - status ' . ($response->status ?? 'unknown');
+        } catch (\Throwable $e) {
+            $results['controller_show'] = 'ERR: '.$e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+        }
+        
+        return response()->json($results);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => collect($e->getTrace())->take(5)->map(fn($t) => ($t['file'] ?? '?') . ':' . ($t['line'] ?? '?') . ' ' . ($t['class'] ?? '') . '::' . ($t['function'] ?? ''))->toArray(),
+        ]);
+    }
+});
+
 Route::get('/', function () {
     return redirect()->route('login');
 });
