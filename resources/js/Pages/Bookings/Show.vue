@@ -36,6 +36,19 @@ const defaultTerms = [
 const sprTemplateForm = useForm({
     spk_number: props.booking.spk_number || '',
     bank_account_id: props.booking.bank_account_id || '',
+    bank_account_utj_id: props.booking.bank_account_utj_id || '',
+    bank_account_dp_id: props.booking.bank_account_dp_id || '',
+    bank_account_installment_id: props.booking.bank_account_installment_id || '',
+    buyer_nik: props.booking.buyer_nik || props.booking.lead?.identity_number || '',
+    buyer_npwp: props.booking.buyer_npwp || props.booking.lead?.npwp || '',
+    buyer_address: props.booking.buyer_address || props.booking.lead?.address || '',
+    buyer_job: props.booking.buyer_job || props.booking.lead?.job || '',
+    secondary_name: props.booking.secondary_name || '',
+    secondary_nik: props.booking.secondary_nik || '',
+    secondary_phone: props.booking.secondary_phone || '',
+    secondary_relationship: props.booking.secondary_relationship || 'Orang Tua',
+    secondary_address: props.booking.secondary_address || '',
+    secondary_email: props.booking.secondary_email || '',
     spr_bank_info: props.booking.spr_bank_info || {
         bank_name: 'MANDIRI',
         account_number: '1200008089893',
@@ -60,11 +73,37 @@ function handleBankAccountChange() {
     if (!sprTemplateForm.bank_account_id) return;
     const selectedBank = props.bank_accounts_all.find(b => b.id === sprTemplateForm.bank_account_id);
     if (selectedBank) {
-        sprTemplateForm.spr_bank_info = {
-            bank_name: selectedBank.bank_name,
-            account_number: selectedBank.account_number,
-            account_holder: selectedBank.account_holder
-        };
+        if (!sprTemplateForm.spr_bank_info) sprTemplateForm.spr_bank_info = {};
+        sprTemplateForm.spr_bank_info.bank_name = selectedBank.bank_name;
+        sprTemplateForm.spr_bank_info.account_number = selectedBank.account_number;
+        sprTemplateForm.spr_bank_info.account_holder = selectedBank.account_holder;
+    }
+}
+
+function handleUtjBankChange() {
+    if (!sprTemplateForm.bank_account_utj_id) return;
+    const b = props.bank_accounts_all.find(x => x.id === sprTemplateForm.bank_account_utj_id);
+    if (b) {
+        if (!sprTemplateForm.spr_bank_info) sprTemplateForm.spr_bank_info = {};
+        sprTemplateForm.spr_bank_info.utj = { bank_name: b.bank_name, account_number: b.account_number, account_holder: b.account_holder };
+    }
+}
+
+function handleDpBankChange() {
+    if (!sprTemplateForm.bank_account_dp_id) return;
+    const b = props.bank_accounts_all.find(x => x.id === sprTemplateForm.bank_account_dp_id);
+    if (b) {
+        if (!sprTemplateForm.spr_bank_info) sprTemplateForm.spr_bank_info = {};
+        sprTemplateForm.spr_bank_info.dp = { bank_name: b.bank_name, account_number: b.account_number, account_holder: b.account_holder };
+    }
+}
+
+function handleInstallmentBankChange() {
+    if (!sprTemplateForm.bank_account_installment_id) return;
+    const b = props.bank_accounts_all.find(x => x.id === sprTemplateForm.bank_account_installment_id);
+    if (b) {
+        if (!sprTemplateForm.spr_bank_info) sprTemplateForm.spr_bank_info = {};
+        sprTemplateForm.spr_bank_info.installment = { bank_name: b.bank_name, account_number: b.account_number, account_holder: b.account_holder };
     }
 }
 
@@ -868,7 +907,10 @@ const docTypeLabels = {
                 <!-- Tabs Bar -->
                 <div class="flex border-b border-slate-100 bg-slate-50 px-6 gap-2 pt-2">
                     <button type="button" @click="activeSprTab = 'bank'" :class="activeSprTab === 'bank' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
-                        💳 Bank Developer (LOV)
+                        💳 Bank Developer (Per-Baris LOV)
+                    </button>
+                    <button type="button" @click="activeSprTab = 'consumer'" :class="activeSprTab === 'consumer' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                        👤 Data Konsumen & Pemesan 2
                     </button>
                     <button type="button" @click="activeSprTab = 'terms'" :class="activeSprTab === 'terms' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
                         📋 Catatan-catatan (Syarat)
@@ -889,31 +931,103 @@ const docTypeLabels = {
                                 <p class="text-[10px] text-slate-400 mt-1">Format penomoran surat khusus untuk unit booking ini.</p>
                             </div>
 
-                            <div class="pt-3 border-t border-slate-100">
-                                <label class="block text-[10px] font-black text-blue-600 uppercase mb-1 flex items-center gap-1.5">
-                                    <span>🏦</span> <span>Pilih Rekening Bank Developer (LOV Register)</span>
-                                </label>
-                                <select v-model="sprTemplateForm.bank_account_id" @change="handleBankAccountChange" class="w-full px-4 py-3 bg-blue-50/50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900 cursor-pointer">
+                            <!-- LOV PER-BARIS PEMBAYARAN -->
+                            <div class="p-4 bg-blue-50/40 rounded-2xl border border-blue-100 space-y-3">
+                                <span class="text-[10px] font-black text-blue-900 uppercase tracking-wider block">🏦 PER-BARIS REKENING BANK PENCAIRAN (UTJ / DP / CICILAN)</span>
+                                
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">1. Rekening Booking Fee (UTJ)</label>
+                                    <select v-model="sprTemplateForm.bank_account_utj_id" @change="handleUtjBankChange" class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-800">
+                                        <option value="">-- Gunakan Bank Default --</option>
+                                        <option v-for="b in bank_accounts_all" :key="b.id" :value="b.id">
+                                            {{ b.bank_name }} - {{ b.account_number }} (a.n {{ b.account_holder }})
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">2. Rekening Uang Muka (DP)</label>
+                                    <select v-model="sprTemplateForm.bank_account_dp_id" @change="handleDpBankChange" class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-800">
+                                        <option value="">-- Gunakan Bank Default --</option>
+                                        <option v-for="b in bank_accounts_all" :key="b.id" :value="b.id">
+                                            {{ b.bank_name }} - {{ b.account_number }} (a.n {{ b.account_holder }})
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">3. Rekening Cicilan Bertahap / Pelunasan KPR</label>
+                                    <select v-model="sprTemplateForm.bank_account_installment_id" @change="handleInstallmentBankChange" class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl text-xs font-bold text-slate-800">
+                                        <option value="">-- Gunakan Bank Default --</option>
+                                        <option v-for="b in bank_accounts_all" :key="b.id" :value="b.id">
+                                            {{ b.bank_name }} - {{ b.account_number }} (a.n {{ b.account_holder }})
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="pt-2 border-t border-slate-100">
+                                <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Rekening Bank Utama (Default)</label>
+                                <select v-model="sprTemplateForm.bank_account_id" @change="handleBankAccountChange" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 cursor-pointer">
                                     <option value="">-- Pilih Dari Rekening Bank Terdaftar (LOV) --</option>
                                     <option v-for="b in bank_accounts_all" :key="b.id" :value="b.id">
                                         {{ b.bank_name }} - {{ b.account_number }} (a.n {{ b.account_holder }})
                                     </option>
                                 </select>
-                                <p class="text-[10px] text-slate-400 mt-1">Pilih dari daftar rekening bank terdaftar di atas, atau isi detail rekening manual di bawah ini.</p>
+                            </div>
+                        </div>
+
+                        <!-- TAB CONSUMER: DATA KONSUMEN & PEMESAN 2 -->
+                        <div v-if="activeSprTab === 'consumer'" class="space-y-4">
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest block">👤 Pemesan Utama</span>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">NIK KTP</label>
+                                        <input v-model="sprTemplateForm.buyer_nik" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">NPWP</label>
+                                        <input v-model="sprTemplateForm.buyer_npwp" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pekerjaan</label>
+                                        <input v-model="sprTemplateForm.buyer_job" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Alamat KTP</label>
+                                        <input v-model="sprTemplateForm.buyer_address" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Bank</label>
-                                    <input v-model="sprTemplateForm.spr_bank_info.bank_name" type="text" placeholder="MANDIRI / BCA / BSI" class="w-full px-3 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor Rekening</label>
-                                    <input v-model="sprTemplateForm.spr_bank_info.account_number" type="text" placeholder="1200008089893" class="w-full px-3 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Pemilik Rekening</label>
-                                    <input v-model="sprTemplateForm.spr_bank_info.account_holder" type="text" placeholder="PT. Serangkai Roden Development" class="w-full px-3 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                            <div class="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-3">
+                                <span class="text-[10px] font-black text-amber-800 uppercase tracking-widest block">🤝 Penanggung Jawab / Pemesan 2</span>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">Nama Pemesan 2</label>
+                                        <input v-model="sprTemplateForm.secondary_name" type="text" placeholder="Nama Lengkap" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">NIK KTP Pemesan 2</label>
+                                        <input v-model="sprTemplateForm.secondary_nik" type="text" placeholder="NIK KTP" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">Hubungan</label>
+                                        <input v-model="sprTemplateForm.secondary_relationship" type="text" placeholder="Orang Tua / Pasangan" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">No. HP / WA Pemesan 2</label>
+                                        <input v-model="sprTemplateForm.secondary_phone" type="text" placeholder="08..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">Alamat KTP Pemesan 2</label>
+                                        <input v-model="sprTemplateForm.secondary_address" type="text" placeholder="Jl. Iskandarsyah..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">Email Pemesan 2</label>
+                                        <input v-model="sprTemplateForm.secondary_email" type="email" placeholder="email@domain.com" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
                                 </div>
                             </div>
                         </div>

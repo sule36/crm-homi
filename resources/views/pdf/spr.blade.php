@@ -487,8 +487,24 @@
         </thead>
         <tbody>
             @php
-                $formattedBank = ($bankInfo['bank_name'] ?? 'BCA') . ' ' . ($bankInfo['account_number'] ?? '');
-                $accHolder = $bankInfo['account_holder'] ?? 'PT. Serangkai Roden Development';
+                $defaultBankName = $bankInfo['bank_name'] ?? 'Mandiri';
+                $defaultAccNo = $bankInfo['account_number'] ?? '1200008089893';
+                $defaultAccHolder = $bankInfo['account_holder'] ?? 'PT. Serangkai Roden Development';
+
+                $getBankForRow = function($type) use ($bankInfo, $defaultBankName, $defaultAccNo, $defaultAccHolder) {
+                    if (isset($bankInfo[$type]) && is_array($bankInfo[$type]) && !empty($bankInfo[$type]['bank_name'])) {
+                        $b = $bankInfo[$type];
+                        return [
+                            'bank_acc' => ($b['bank_name'] ?? '') . ' ' . ($b['account_number'] ?? ''),
+                            'holder' => $b['account_holder'] ?? $defaultAccHolder
+                        ];
+                    }
+                    return [
+                        'bank_acc' => $defaultBankName . ' ' . $defaultAccNo,
+                        'holder' => $defaultAccHolder
+                    ];
+                };
+
                 $schedules = $booking->paymentSchedules;
                 $summaryRows = [];
 
@@ -497,13 +513,15 @@
                     $utjSched = $schedules->firstWhere('installment_number', 0);
                     if ($utjSched) {
                         $summaryRows[] = [
-                            'label' => $utjSched->label ?: 'Uang Tanda Jadi (UTJ)',
+                            'type' => 'utj',
+                            'label' => $utjSched->label ?: 'Booking Fee (UTJ)',
                             'amount' => $utjSched->amount,
                             'date' => date('n/j/Y', strtotime($utjSched->due_date)),
                         ];
                     } else {
                         $summaryRows[] = [
-                            'label' => 'Uang Tanda Jadi (UTJ)',
+                            'type' => 'utj',
+                            'label' => 'Booking Fee (UTJ)',
                             'amount' => $booking->booking_fee,
                             'date' => date('n/j/Y', strtotime($booking->booking_date ?? $booking->created_at)),
                         ];
@@ -512,13 +530,16 @@
                     // 2. DP Schedules (if any)
                     $dpScheds = $schedules->filter(function($s) {
                         return $s->installment_number > 0 && (str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
-                    });                    if ($dpScheds->count() > 0) {
+                    });
+
+                    if ($dpScheds->count() > 0) {
                         $dpCount = $dpScheds->count();
                         $dpTotal = $dpScheds->sum('amount');
                         $dpPerMonth = $dpTotal / $dpCount;
                         $firstDpDate = date('n/j/Y', strtotime($dpScheds->first()->due_date));
                         $dpDateLabel = $dpCount === 1 ? $firstDpDate : "{$firstDpDate} (DP1)";
                         $summaryRows[] = [
+                            'type' => 'dp',
                             'label' => "Cicilan Uang Muka / DP ({$dpCount} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")",
                             'amount' => $dpTotal,
                             'date' => $dpDateLabel,
@@ -540,12 +561,14 @@
                         
                         if ($booking->payment_scheme === 'kpr' && $otherCount === 1) {
                             $summaryRows[] = [
+                                'type' => 'installment',
                                 'label' => 'Pelunasan Akad KPR (Pencairan Bank)',
                                 'amount' => $otherTotal,
                                 'date' => 'Saat Akad Kredit',
                             ];
                         } else {
                             $summaryRows[] = [
+                                'type' => 'installment',
                                 'label' => "{$schemeLabel} ({$otherCount} Bulan @ Rp " . number_format($otherPerMonth, 0, ',', '.') . ")",
                                 'amount' => $otherTotal,
                                 'date' => $otherDateLabel,
@@ -555,13 +578,15 @@
                 } else {
                     // Fallback
                     $summaryRows[] = [
-                        'label' => 'Uang Tanda Jadi (UTJ)',
+                        'type' => 'utj',
+                        'label' => 'Booking Fee (UTJ)',
                         'amount' => $booking->booking_fee,
                         'date' => date('n/j/Y', strtotime($booking->booking_date ?? $booking->created_at)),
                     ];
                     $remAmount = $booking->final_price - $booking->booking_fee;
                     $schemeLabel = $booking->payment_scheme === 'cash_installment' ? 'Cicilan Cash Bertahap' : 'Pelunasan';
                     $summaryRows[] = [
+                        'type' => 'installment',
                         'label' => "{$schemeLabel} " . ($booking->installment_months ? "({$booking->installment_months} Bulan)" : ''),
                         'amount' => $remAmount,
                         'date' => 'Bulanan',
@@ -570,12 +595,15 @@
             @endphp
 
             @foreach($summaryRows as $row)
+            @php
+                $bInfo = $getBankForRow($row['type'] ?? 'main');
+            @endphp
             <tr>
                 <td>{{ $row['label'] }}</td>
                 <td>{{ number_format($row['amount'], 2, '.', ',') }}</td>
                 <td>{{ $row['date'] }}</td>
-                <td>{{ $formattedBank }}</td>
-                <td>{{ $accHolder }}</td>
+                <td>{{ $bInfo['bank_acc'] }}</td>
+                <td>{{ $bInfo['holder'] }}</td>
             </tr>
             @endforeach
         </tbody>

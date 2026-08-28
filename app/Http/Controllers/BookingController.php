@@ -117,6 +117,8 @@ class BookingController extends Controller
                 'secondary_nik' => $validated['secondary_nik'] ?? null,
                 'secondary_phone' => $validated['secondary_phone'] ?? null,
                 'secondary_relationship' => $validated['secondary_relationship'] ?? null,
+                'secondary_address' => $validated['secondary_address'] ?? null,
+                'secondary_email' => $validated['secondary_email'] ?? null,
                 'status' => 'pending',
                 'notes' => $validated['notes'],
                 'commission_amount' => $commissionAmount,
@@ -212,6 +214,19 @@ class BookingController extends Controller
         $validated = $request->validate([
             'spk_number' => 'nullable|string|max:100',
             'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'bank_account_utj_id' => 'nullable|exists:bank_accounts,id',
+            'bank_account_dp_id' => 'nullable|exists:bank_accounts,id',
+            'bank_account_installment_id' => 'nullable|exists:bank_accounts,id',
+            'buyer_nik' => 'nullable|string|max:50',
+            'buyer_npwp' => 'nullable|string|max:50',
+            'buyer_address' => 'nullable|string',
+            'buyer_job' => 'nullable|string|max:100',
+            'secondary_name' => 'nullable|string|max:255',
+            'secondary_nik' => 'nullable|string|max:50',
+            'secondary_phone' => 'nullable|string|max:20',
+            'secondary_relationship' => 'nullable|string|max:100',
+            'secondary_address' => 'nullable|string',
+            'secondary_email' => 'nullable|email|max:255',
             'spr_terms_conditions' => 'nullable|array',
             'spr_bank_info' => 'nullable|array',
             'spr_special_offer' => 'nullable|array',
@@ -225,17 +240,56 @@ class BookingController extends Controller
             'sig4_name' => 'nullable|string|max:255',
         ]);
 
+        $sprBankInfo = is_array($booking->spr_bank_info) ? $booking->spr_bank_info : [];
+
         if (!empty($validated['bank_account_id'])) {
             $bankAcc = \App\Models\BankAccount::find($validated['bank_account_id']);
             if ($bankAcc) {
-                $validated['spr_bank_info'] = [
+                $sprBankInfo['main'] = [
                     'bank_name' => $bankAcc->bank_name,
                     'account_number' => $bankAcc->account_number,
                     'account_holder' => $bankAcc->account_holder,
                 ];
+                $sprBankInfo['bank_name'] = $bankAcc->bank_name;
+                $sprBankInfo['account_number'] = $bankAcc->account_number;
+                $sprBankInfo['account_holder'] = $bankAcc->account_holder;
             }
         }
 
+        if (!empty($validated['bank_account_utj_id'])) {
+            $bankAccUtj = \App\Models\BankAccount::find($validated['bank_account_utj_id']);
+            if ($bankAccUtj) {
+                $sprBankInfo['utj'] = [
+                    'bank_name' => $bankAccUtj->bank_name,
+                    'account_number' => $bankAccUtj->account_number,
+                    'account_holder' => $bankAccUtj->account_holder,
+                ];
+            }
+        }
+
+        if (!empty($validated['bank_account_dp_id'])) {
+            $bankAccDp = \App\Models\BankAccount::find($validated['bank_account_dp_id']);
+            if ($bankAccDp) {
+                $sprBankInfo['dp'] = [
+                    'bank_name' => $bankAccDp->bank_name,
+                    'account_number' => $bankAccDp->account_number,
+                    'account_holder' => $bankAccDp->account_holder,
+                ];
+            }
+        }
+
+        if (!empty($validated['bank_account_installment_id'])) {
+            $bankAccInst = \App\Models\BankAccount::find($validated['bank_account_installment_id']);
+            if ($bankAccInst) {
+                $sprBankInfo['installment'] = [
+                    'bank_name' => $bankAccInst->bank_name,
+                    'account_number' => $bankAccInst->account_number,
+                    'account_holder' => $bankAccInst->account_holder,
+                ];
+            }
+        }
+
+        $validated['spr_bank_info'] = $sprBankInfo;
         $booking->update($validated);
 
         return back()->with('success', 'Template & Parameter SPR khusus booking ini berhasil diperbarui.');
