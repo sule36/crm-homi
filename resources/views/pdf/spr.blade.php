@@ -137,7 +137,7 @@
 
         /* SIGNATURE SECTION */
         .signature-section {
-            margin-top: 24px;
+            margin-top: 48px;
         }
         .sig-date {
             text-align: right;
