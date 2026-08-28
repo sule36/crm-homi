@@ -173,6 +173,7 @@ class MasterLeadController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'company_id' => auth()->user()?->company_id,
             'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($plainPassword),
             'agent_type' => 'master_lead',
