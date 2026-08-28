@@ -152,6 +152,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/commissions/parameters', [\App\Http\Controllers\CommissionController::class, 'updateParameters'])->name('commissions.updateParameters');
     Route::post('/commissions/{commission}/pay', [\App\Http\Controllers\CommissionController::class, 'pay'])->name('commissions.pay');
 
+    // Master Lead Management Module
+    Route::get('/master-leads', [\App\Http\Controllers\MasterLeadController::class, 'index'])->name('master-leads.index');
+    Route::post('/master-leads', [\App\Http\Controllers\MasterLeadController::class, 'store'])->name('master-leads.store');
+    Route::put('/master-leads/{user}', [\App\Http\Controllers\MasterLeadController::class, 'update'])->name('master-leads.update');
+    Route::delete('/master-leads/{user}', [\App\Http\Controllers\MasterLeadController::class, 'destroy'])->name('master-leads.destroy');
+
     // Agents & Agency Office Management
     Route::get('/agents', [\App\Http\Controllers\BrokerCompanyController::class, 'index'])->name('agents.index');
     Route::post('/settings/brokers', [\App\Http\Controllers\BrokerCompanyController::class, 'store'])->name('settings.brokers.store');
