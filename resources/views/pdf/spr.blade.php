@@ -309,26 +309,28 @@
             $bankInfo['account_holder'] = $booking->bankAccount->account_holder;
         }
 
-        // Special Offer & Benefit
-        $so = $settings['spr_special_offer'] ?? [
-            'enabled' => true,
-            'title' => 'Special Offer & Benefit ' . ($project->name ?? 'Umala Andara'),
-            'bonus_furniture' => [
-                'Kitchen Set',
-                'Kitchen Island',
-                'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
-                'Bench',
-                'Wall Cabinet TV',
-            ],
-            'grand_launching_package' => [
-                'Free BPHTB ((khusus aset perolehan pertama)',
-                'Free AJB',
-                'Free Balik Nama',
-                'Free Biaya Notaris',
-                'Extra Cashback 50 Juta',
-            ],
-            'promo_valid_until' => '30 September 2024',
-        ];
+        // Special Offer & Benefit (prioritize per-booking overrides)
+        $so = !empty($booking->spr_special_offer) && is_array($booking->spr_special_offer) 
+            ? array_merge(($settings['spr_special_offer'] ?? []), $booking->spr_special_offer) 
+            : ($settings['spr_special_offer'] ?? [
+                'enabled' => true,
+                'title' => 'Special Offer & Benefit ' . ($project->name ?? 'Umala Andara'),
+                'bonus_furniture' => [
+                    'Kitchen Set',
+                    'Kitchen Island',
+                    'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
+                    'Bench',
+                    'Wall Cabinet TV',
+                ],
+                'grand_launching_package' => [
+                    'Free BPHTB (khusus aset perolehan pertama)',
+                    'Free AJB',
+                    'Free Balik Nama',
+                    'Free Biaya Notaris',
+                    'Extra Cashback 50 Juta',
+                ],
+                'promo_valid_until' => '30 September 2026',
+            ]);
 
         // Prepare Base64 Signature Images
         $sig1ImageData = $getSafeBase64($sigs['sig1_image'] ?? null);

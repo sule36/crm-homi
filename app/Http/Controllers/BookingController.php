@@ -233,6 +233,8 @@ class BookingController extends Controller
             'spr_terms_conditions' => 'nullable|array',
             'spr_bank_info' => 'nullable|array',
             'spr_special_offer' => 'nullable|array',
+            'special_bonus_items' => 'nullable|array',
+            'special_package_items' => 'nullable|array',
             'sig1_title' => 'nullable|string|max:100',
             'sig1_name' => 'nullable|string|max:255',
             'sig2_title' => 'nullable|string|max:100',

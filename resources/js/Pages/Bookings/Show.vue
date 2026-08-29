@@ -33,6 +33,22 @@ const defaultTerms = [
     "Penandatanganan SPR dilakukan setelah seluruh pasal didalamnya disepakati oleh masing-masing pihak"
 ];
 
+const defaultBonusItems = [
+    'Kitchen Set',
+    'Kitchen Island',
+    'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
+    'Bench',
+    'Wall Cabinet TV',
+];
+
+const defaultPackageItems = [
+    'Free BPHTB (khusus aset perolehan pertama)',
+    'Free AJB',
+    'Free Balik Nama',
+    'Free Biaya Notaris',
+    'Extra Cashback 50 Juta',
+];
+
 const sprTemplateForm = useForm({
     spk_number: props.booking.spk_number || '',
     bank_account_id: props.booking.bank_account_id || '',
@@ -59,6 +75,17 @@ const sprTemplateForm = useForm({
         account_number: '1200008089893',
         account_holder: 'PT. Serangkai Roden Development'
     },
+    spr_special_offer: props.booking.spr_special_offer || {
+        enabled: true,
+        title: 'Special Offer & Benefit ' + (props.booking.unit?.project?.name || 'Umala Andara'),
+        promo_valid_until: '30 September 2026',
+    },
+    special_bonus_items: props.booking.special_bonus_items && props.booking.special_bonus_items.length > 0 
+        ? [...props.booking.special_bonus_items] 
+        : (props.booking.spr_special_offer?.bonus_furniture ? [...props.booking.spr_special_offer.bonus_furniture] : [...defaultBonusItems]),
+    special_package_items: props.booking.special_package_items && props.booking.special_package_items.length > 0 
+        ? [...props.booking.special_package_items] 
+        : (props.booking.spr_special_offer?.grand_launching_package ? [...props.booking.spr_special_offer.grand_launching_package] : [...defaultPackageItems]),
     spr_terms_conditions: props.booking.spr_terms_conditions && props.booking.spr_terms_conditions.length > 0 ? [...props.booking.spr_terms_conditions] : [...defaultTerms],
     sig1_title: props.booking.sig1_title || 'AGENT COORDINATOR',
     sig1_name: props.booking.sig1_name || '',
@@ -118,6 +145,24 @@ function addTermItem() {
 
 function removeTermItem(index) {
     sprTemplateForm.spr_terms_conditions.splice(index, 1);
+}
+
+function addBonusItem() {
+    if (!sprTemplateForm.special_bonus_items) sprTemplateForm.special_bonus_items = [];
+    sprTemplateForm.special_bonus_items.push('Item bonus furniture baru...');
+}
+
+function removeBonusItem(idx) {
+    sprTemplateForm.special_bonus_items.splice(idx, 1);
+}
+
+function addPackageItem() {
+    if (!sprTemplateForm.special_package_items) sprTemplateForm.special_package_items = [];
+    sprTemplateForm.special_package_items.push('Item paket promo baru...');
+}
+
+function removePackageItem(idx) {
+    sprTemplateForm.special_package_items.splice(idx, 1);
 }
 
 function submitSprTemplate() {
@@ -928,6 +973,9 @@ const docTypeLabels = {
                     <button type="button" @click="activeSprTab = 'signatures'" :class="activeSprTab === 'signatures' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
                         🖊️ Penanda Tangan (4 TTD)
                     </button>
+                    <button type="button" @click="activeSprTab = 'special_offer'" :class="activeSprTab === 'special_offer' ? 'bg-white text-purple-600 border-b-2 border-purple-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                        🎁 Special Offer & Benefit (Hal 2)
+                    </button>
                 </div>
 
                 <!-- Modal Body Scrollable -->
@@ -1157,6 +1205,64 @@ const docTypeLabels = {
                                     </div>
                                 </div>
                             </div>
+
+                        <!-- TAB 5: SPECIAL OFFER & BENEFIT (LAMPIRAN HALAMAN 2) -->
+                        <div v-if="activeSprTab === 'special_offer'" class="space-y-4">
+                            <div class="p-4 bg-purple-50/60 rounded-2xl border border-purple-200/80 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] font-black text-purple-900 uppercase tracking-widest block">🎁 Pengaturan Halaman 2 Special Offer & Benefit</span>
+                                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-purple-900">
+                                        <input v-model="sprTemplateForm.spr_special_offer.enabled" type="checkbox" class="w-4 h-4 text-purple-600 rounded" />
+                                        <span>Aktifkan Halaman Lampiran Special Offer</span>
+                                    </label>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Judul Dokumen Special Offer</label>
+                                        <input v-model="sprTemplateForm.spr_special_offer.title" type="text" placeholder="Special Offer & Benefit..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Masa Berlaku Promo</label>
+                                        <input v-model="sprTemplateForm.spr_special_offer.promo_valid_until" type="text" placeholder="30 September 2026" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SPECIAL BONUS FURNITURE LIST -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-black text-slate-700 uppercase">🛋️ Special Bonus Furniture</span>
+                                    <button type="button" @click="addBonusItem" class="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-200 transition-all">
+                                        + Tambah Bonus Item
+                                    </button>
+                                </div>
+                                <div v-for="(item, idx) in sprTemplateForm.special_bonus_items" :key="'bonus-' + idx" class="flex items-center gap-2">
+                                    <span class="text-xs text-slate-400 font-bold w-5 text-right">{{ idx + 1 }}.</span>
+                                    <input v-model="sprTemplateForm.special_bonus_items[idx]" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold" />
+                                    <button type="button" @click="removeBonusItem(idx)" class="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- SPECIAL GRAND LAUNCHING PACKAGE LIST -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-black text-slate-700 uppercase">📦 Special Grand Launching Package</span>
+                                    <button type="button" @click="addPackageItem" class="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-200 transition-all">
+                                        + Tambah Paket Item
+                                    </button>
+                                </div>
+                                <div v-for="(pkg, idx) in sprTemplateForm.special_package_items" :key="'pkg-' + idx" class="flex items-center gap-2">
+                                    <span class="text-xs text-slate-400 font-bold w-5 text-right">{{ idx + 1 }}.</span>
+                                    <input v-model="sprTemplateForm.special_package_items[idx]" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold" />
+                                    <button type="button" @click="removePackageItem(idx)" class="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         </div>
                     </form>
                 </div>
