@@ -49,6 +49,27 @@ const defaultPackageItems = [
     'Extra Cashback 50 Juta',
 ];
 
+const rawSo = props.booking.spr_special_offer;
+const isSoObj = rawSo && typeof rawSo === 'object' && !Array.isArray(rawSo);
+
+const initialSo = {
+    enabled: isSoObj && rawSo.enabled !== undefined ? Boolean(rawSo.enabled) : true,
+    title: (isSoObj && rawSo.title) ? rawSo.title : ('Special Offer & Benefit ' + (props.booking.unit?.project?.name || 'Umala Andara')),
+    promo_valid_until: (isSoObj && rawSo.promo_valid_until) ? rawSo.promo_valid_until : '30 September 2026',
+};
+
+const initialBonusItems = Array.isArray(props.booking.special_bonus_items) && props.booking.special_bonus_items.length > 0
+    ? [...props.booking.special_bonus_items]
+    : (isSoObj && Array.isArray(rawSo.bonus_furniture) && rawSo.bonus_furniture.length > 0
+        ? [...rawSo.bonus_furniture]
+        : [...defaultBonusItems]);
+
+const initialPackageItems = Array.isArray(props.booking.special_package_items) && props.booking.special_package_items.length > 0
+    ? [...props.booking.special_package_items]
+    : (isSoObj && Array.isArray(rawSo.grand_launching_package) && rawSo.grand_launching_package.length > 0
+        ? [...rawSo.grand_launching_package]
+        : [...defaultPackageItems]);
+
 const sprTemplateForm = useForm({
     spk_number: props.booking.spk_number || '',
     bank_account_id: props.booking.bank_account_id || '',
@@ -69,24 +90,20 @@ const sprTemplateForm = useForm({
     unit_certificate_status: props.booking.unit?.certificate_status || 'Dalam Proses',
     unit_certificate_number: props.booking.unit?.certificate_number || '',
     spr_date: props.booking.spr_date ? props.booking.spr_date.substring(0, 10) : (props.booking.booking_date ? props.booking.booking_date.substring(0, 10) : ''),
-    spr_schedule_dates: props.booking.spr_schedule_dates || { utj_date: '', dp_date: '', installment_date: '' },
-    spr_bank_info: props.booking.spr_bank_info || {
-        bank_name: 'MANDIRI',
-        account_number: '1200008089893',
-        account_holder: 'PT. Serangkai Roden Development'
-    },
-    spr_special_offer: props.booking.spr_special_offer || {
-        enabled: true,
-        title: 'Special Offer & Benefit ' + (props.booking.unit?.project?.name || 'Umala Andara'),
-        promo_valid_until: '30 September 2026',
-    },
-    special_bonus_items: props.booking.special_bonus_items && props.booking.special_bonus_items.length > 0 
-        ? [...props.booking.special_bonus_items] 
-        : (props.booking.spr_special_offer?.bonus_furniture ? [...props.booking.spr_special_offer.bonus_furniture] : [...defaultBonusItems]),
-    special_package_items: props.booking.special_package_items && props.booking.special_package_items.length > 0 
-        ? [...props.booking.special_package_items] 
-        : (props.booking.spr_special_offer?.grand_launching_package ? [...props.booking.spr_special_offer.grand_launching_package] : [...defaultPackageItems]),
-    spr_terms_conditions: props.booking.spr_terms_conditions && props.booking.spr_terms_conditions.length > 0 ? [...props.booking.spr_terms_conditions] : [...defaultTerms],
+    spr_schedule_dates: (props.booking.spr_schedule_dates && typeof props.booking.spr_schedule_dates === 'object' && !Array.isArray(props.booking.spr_schedule_dates))
+        ? { utj_date: '', dp_date: '', installment_date: '', ...props.booking.spr_schedule_dates }
+        : { utj_date: '', dp_date: '', installment_date: '' },
+    spr_bank_info: (props.booking.spr_bank_info && typeof props.booking.spr_bank_info === 'object' && !Array.isArray(props.booking.spr_bank_info))
+        ? props.booking.spr_bank_info
+        : {
+            bank_name: 'MANDIRI',
+            account_number: '1200008089893',
+            account_holder: 'PT. Serangkai Roden Development'
+        },
+    spr_special_offer: initialSo,
+    special_bonus_items: initialBonusItems,
+    special_package_items: initialPackageItems,
+    spr_terms_conditions: Array.isArray(props.booking.spr_terms_conditions) && props.booking.spr_terms_conditions.length > 0 ? [...props.booking.spr_terms_conditions] : [...defaultTerms],
     sig1_title: props.booking.sig1_title || 'AGENT COORDINATOR',
     sig1_name: props.booking.sig1_name || '',
     sig2_title: props.booking.sig2_title || 'DIREKTUR',
