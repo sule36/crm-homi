@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -24,12 +24,17 @@ const searchMl = ref(props.filters?.search || '');
 const searchAgency = ref(props.filters?.search_agency || '');
 const searchAgent = ref(props.filters?.search_agent || '');
 
+let searchTimeout = null;
 function searchMasterLeads() {
     router.get(route('master-leads.index'), { 
         search: searchMl.value, 
         search_agency: searchAgency.value,
         search_agent: searchAgent.value 
     }, { preserveState: true, replace: true });
+}
+function debouncedSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => searchMasterLeads(), 400);
 }
 
 function formatCurrency(val) {
@@ -426,6 +431,7 @@ function deleteAgency(broker) {
                         <input 
                             v-model="searchMl"
                             @keyup.enter="searchMasterLeads"
+                            @input="debouncedSearch"
                             type="text" 
                             placeholder="🔍 Cari Master Lead nama/email/wa..."
                             class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
@@ -504,7 +510,7 @@ function deleteAgency(broker) {
                     </div>
 
                     <!-- Level 3: Nested Sub-Agents Table -->
-                    <div v-if="expandedMasterLeadIds.includes(ml.id) || true" class="p-4 bg-white dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800">
+                    <div v-if="expandedMasterLeadIds.includes(ml.id)" class="p-4 bg-white dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800">
                         <div class="flex items-center justify-between mb-3 px-1">
                             <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                 <span>↳ Sub-Agent yang bernaung di bawah</span>
@@ -587,7 +593,21 @@ function deleteAgency(broker) {
             <!-- TAB 2: KANTOR AGENCY (BROKER COMPANIES) -->
             <!-- ========================================================================= -->
             <div v-if="activeTab === 'agencies'" class="space-y-4">
-                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <!-- Search bar for agencies -->
+                <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div class="relative w-full sm:w-96">
+                        <input 
+                            v-model="searchAgency"
+                            @keyup.enter="searchMasterLeads"
+                            @input="debouncedSearch"
+                            type="text" 
+                            placeholder="🔍 Cari kantor agency nama/kode..."
+                            class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                        />
+                    </div>
+                </div>
+
+                <div v-if="brokers.data && brokers.data.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                         <thead class="bg-slate-100 dark:bg-slate-900 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200 dark:border-slate-800">
                             <tr>
@@ -629,13 +649,31 @@ function deleteAgency(broker) {
                                     <div v-else class="text-slate-400 italic">Belum set</div>
                                 </td>
                                 <td class="p-4 text-right">
-                                    <button @click="openAgencyModal(b)" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl font-semibold">
-                                        Edit
-                                    </button>
+                                    <div class="flex items-center justify-end gap-2">
+                                        <button @click="openAgencyModal(b)" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl font-semibold">
+                                            Edit
+                                        </button>
+                                        <button @click="deleteAgency(b)" class="px-3 py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl font-semibold text-[11px]">
+                                            Hapus
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Pagination -->
+                    <div v-if="brokers.last_page > 1" class="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                        <div class="text-[11px] text-slate-500">Menampilkan {{ brokers.from }}-{{ brokers.to }} dari {{ brokers.total }} kantor agency</div>
+                        <div class="flex items-center gap-1">
+                            <button v-for="link in brokers.links" :key="link.label" @click="link.url && router.get(link.url, {}, { preserveState: true })" :disabled="!link.url" :class="[link.active ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100', !link.url ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer']" class="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-200 dark:border-slate-700" v-html="link.label"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty state -->
+                <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    Belum ada Kantor Agency yang terdaftar. Klik "Daftar Kantor Agency" untuk mendaftarkan kantor pertama.
                 </div>
             </div>
 
@@ -643,7 +681,21 @@ function deleteAgency(broker) {
             <!-- TAB 3: FLAT ALL AGENTS DIRECTORY -->
             <!-- ========================================================================= -->
             <div v-if="activeTab === 'agents'" class="space-y-4">
-                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <!-- Search bar for agents -->
+                <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div class="relative w-full sm:w-96">
+                        <input 
+                            v-model="searchAgent"
+                            @keyup.enter="searchMasterLeads"
+                            @input="debouncedSearch"
+                            type="text" 
+                            placeholder="🔍 Cari agen sales nama/email..."
+                            class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                        />
+                    </div>
+                </div>
+
+                <div v-if="allAgents.data && allAgents.data.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                         <thead class="bg-slate-100 dark:bg-slate-900 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200 dark:border-slate-800">
                             <tr>
@@ -698,6 +750,19 @@ function deleteAgency(broker) {
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Pagination -->
+                    <div v-if="allAgents.last_page > 1" class="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                        <div class="text-[11px] text-slate-500">Menampilkan {{ allAgents.from }}-{{ allAgents.to }} dari {{ allAgents.total }} agen sales</div>
+                        <div class="flex items-center gap-1">
+                            <button v-for="link in allAgents.links" :key="link.label" @click="link.url && router.get(link.url, {}, { preserveState: true })" :disabled="!link.url" :class="[link.active ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100', !link.url ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer']" class="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-200 dark:border-slate-700" v-html="link.label"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty state -->
+                <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    Belum ada agen sales yang terdaftar. Klik "Tambah Sub-Agent" untuk mendaftarkan agen pertama.
                 </div>
             </div>
         </div>
@@ -943,6 +1008,16 @@ function deleteAgency(broker) {
                             <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Kode Agency</label>
                             <input v-model="agencyForm.code" type="text" placeholder="misal: RW-CLD" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white uppercase font-mono" />
                         </div>
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-purple-600 dark:text-purple-400 mb-1">👑 Master Lead Penaungan (Opsional)</label>
+                        <select v-model="agencyForm.master_lead_id" class="w-full bg-slate-50 dark:bg-slate-950 border border-purple-300 dark:border-purple-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-bold cursor-pointer">
+                            <option :value="null">-- Langsung di Bawah Developer --</option>
+                            <option v-for="ml in props.masterLeadList" :key="ml.id" :value="ml.id">
+                                👑 {{ ml.name }} ({{ ml.phone || 'No WA' }})
+                            </option>
+                        </select>
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">

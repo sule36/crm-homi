@@ -96,8 +96,7 @@ const navigationGroups = [
         title: 'Transaksi & Tim',
         items: [
             { name: 'Booking & KPR', href: '/bookings', icon: '📝', active: route().current('bookings.*') },
-            { name: 'Master Lead', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') },
-            { name: 'Kantor & Manajemen Agen', href: '/agents', icon: '🏢', active: route().current('agents.*') },
+            { name: 'Jaringan Keagenan', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') },
             { name: 'Staff / Pengguna', href: '/users', icon: '👔', active: route().current('users.*') },
             { name: 'Monitor Agen', href: '/agent-monitoring', icon: '👀', active: route().current('agent-monitoring.*') },
             { name: 'Komisi Agen', href: '/commissions', icon: '💸', active: route().current('commissions.*') },
