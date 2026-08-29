@@ -1227,6 +1227,7 @@ const docTypeLabels = {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
                         <!-- TAB 5: SPECIAL OFFER & BENEFIT (LAMPIRAN HALAMAN 2) -->
                         <div v-if="activeSprTab === 'special_offer'" class="space-y-4">
@@ -1284,7 +1285,6 @@ const docTypeLabels = {
                                     </button>
                                 </div>
                             </div>
-                        </div>
                         </div>
                     </form>
                 </div>
