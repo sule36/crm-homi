@@ -157,6 +157,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/master-leads', [\App\Http\Controllers\MasterLeadController::class, 'store'])->name('master-leads.store');
     Route::put('/master-leads/{user}', [\App\Http\Controllers\MasterLeadController::class, 'update'])->name('master-leads.update');
     Route::delete('/master-leads/{user}', [\App\Http\Controllers\MasterLeadController::class, 'destroy'])->name('master-leads.destroy');
+    Route::post('/master-leads/commissions/{commission}/pay-sub-agent', [\App\Http\Controllers\MasterLeadController::class, 'paySubAgentCommission'])->name('master-leads.pay-sub-agent');
 
     // Agents & Agency Office Management
     Route::get('/agents', [\App\Http\Controllers\MasterLeadController::class, 'index'])->name('agents.index');

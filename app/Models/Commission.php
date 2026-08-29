@@ -9,7 +9,8 @@ class Commission extends Model
     protected $fillable = [
         'user_id', 'broker_company_id', 'booking_id', 'amount',
         'base_commission', 'promo_bonus', 'rate_used', 'payout_recipient',
-        'status', 'paid_at', 'notes', 'receipt_number'
+        'status', 'paid_at', 'notes', 'receipt_number',
+        'ml_payout_status', 'ml_paid_at', 'ml_receipt_number'
     ];
 
     public function user() { return $this->belongsTo(User::class); }

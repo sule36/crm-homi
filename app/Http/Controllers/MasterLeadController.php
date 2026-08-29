@@ -130,6 +130,33 @@ class MasterLeadController extends Controller
             ->latest()
             ->paginate(20, ['*'], 'agents_page');
 
+        // 4. Ledger & Sub-Agent Payout Query
+        $ledgerQuery = Commission::with(['user.masterLead', 'user.brokerCompany', 'booking.lead', 'booking.unit.project'])
+            ->whereHas('user', function($q) use ($isMasterLead, $user) {
+                $q->whereNotNull('master_lead_id');
+                if ($isMasterLead) {
+                    $q->where('master_lead_id', $user->id);
+                }
+            });
+
+        $subAgentCommissions = (clone $ledgerQuery)
+            ->when($request->search_ledger, function ($q, $s) {
+                $q->whereHas('user', fn($uq) => $uq->where('name', 'like', "%{$s}%"))
+                  ->orWhereHas('booking.lead', fn($lq) => $lq->where('name', 'like', "%{$s}%"))
+                  ->orWhere('ml_receipt_number', 'like', "%{$s}%");
+            })
+            ->latest()
+            ->paginate(15, ['*'], 'ledger_page');
+
+        // Cashflow stats for Master Lead
+        $allMlOverridingCommissions = Commission::where('payout_recipient', 'master_lead')
+            ->when($isMasterLead, fn($q) => $q->where('user_id', $user->id))
+            ->sum('amount');
+
+        $subAgentTotalPotency = (clone $ledgerQuery)->sum('amount');
+        $subAgentPaidOutflow = (clone $ledgerQuery)->where('ml_payout_status', 'paid')->sum('amount');
+        $subAgentPendingOutflow = (clone $ledgerQuery)->where(fn($q) => $q->where('ml_payout_status', 'unpaid')->orWhereNull('ml_payout_status'))->sum('amount');
+
         // Stats summary
         $totalMasterLeads = User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->count();
         $totalSubAgents = User::whereNotNull('master_lead_id')->count();
@@ -142,6 +169,7 @@ class MasterLeadController extends Controller
             'masterLeads' => $masterLeads,
             'brokers' => $brokers,
             'allAgents' => $allAgents,
+            'subAgentCommissions' => $subAgentCommissions,
             'brokerList' => BrokerCompany::where('status', 'active')->select('id', 'name', 'code', 'commission_rate')->get(),
             'masterLeadList' => User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->select('id', 'name', 'phone')->get(),
             'stats' => [
@@ -149,9 +177,13 @@ class MasterLeadController extends Controller
                 'total_sub_agents' => $totalSubAgents,
                 'total_brokers' => $totalBrokers,
                 'total_revenue' => (float)$totalMasterLeadRevenue,
+                'net_overriding_ml' => (float)$allMlOverridingCommissions,
+                'sub_agent_total_potency' => (float)$subAgentTotalPotency,
+                'sub_agent_paid_outflow' => (float)$subAgentPaidOutflow,
+                'sub_agent_pending_outflow' => (float)$subAgentPendingOutflow,
                 'default_overriding_rate' => \App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5),
             ],
-            'filters' => $request->only(['search', 'search_agency', 'search_agent']),
+            'filters' => $request->only(['search', 'search_agency', 'search_agent', 'search_ledger']),
         ]);
     }
 
@@ -280,6 +312,34 @@ class MasterLeadController extends Controller
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('MasterLeadController destroy failed: ' . $e->getMessage());
             return back()->with('error', 'Gagal menghapus Master Lead: ' . $e->getMessage());
+        }
+    }
+
+    public function paySubAgentCommission(Request $request, Commission $commission)
+    {
+        try {
+            $validated = $request->validate([
+                'receipt_number' => 'nullable|string|max:100',
+                'notes' => 'nullable|string|max:500',
+            ]);
+
+            $receipt = $validated['receipt_number'] ?: ('TRF-ML-' . strtoupper(uniqid()));
+
+            $commission->update([
+                'ml_payout_status' => 'paid',
+                'ml_paid_at' => now(),
+                'ml_receipt_number' => $receipt,
+                'notes' => $validated['notes'] ?? $commission->notes,
+            ]);
+
+            try {
+                AuditLog::record('master_lead_sub_agent_paid', $commission, null, $commission->toArray());
+            } catch (\Throwable $e) {}
+
+            return back()->with('success', "Penyaluran komisi ke Sub-Agent berhasil dicatat. No. Ref: {$receipt}");
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('MasterLeadController paySubAgentCommission failed: ' . $e->getMessage());
+            return back()->with('error', 'Gagal mencatat transfer ke Sub-Agent: ' . $e->getMessage());
         }
     }
 }

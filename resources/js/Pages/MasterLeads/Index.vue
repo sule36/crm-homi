@@ -7,6 +7,7 @@ const props = defineProps({
     masterLeads: Object,
     brokers: Object,
     allAgents: Object,
+    subAgentCommissions: Object,
     brokerList: Array,
     masterLeadList: Array,
     stats: Object,
@@ -23,13 +24,15 @@ const activeTab = ref('hierarchy');
 const searchMl = ref(props.filters?.search || '');
 const searchAgency = ref(props.filters?.search_agency || '');
 const searchAgent = ref(props.filters?.search_agent || '');
+const searchLedger = ref(props.filters?.search_ledger || '');
 
 let searchTimeout = null;
 function searchMasterLeads() {
     router.get(route('master-leads.index'), { 
         search: searchMl.value, 
         search_agency: searchAgency.value,
-        search_agent: searchAgent.value 
+        search_agent: searchAgent.value,
+        search_ledger: searchLedger.value,
     }, { preserveState: true, replace: true });
 }
 function debouncedSearch() {
@@ -308,6 +311,30 @@ function deleteAgency(broker) {
         router.delete(route('settings.brokers.destroy', broker.id));
     }
 }
+
+// -------------------------------------------------------------
+// MODAL 5: CATAT TRANSFER KOMISI SUB-AGENT (MASTER LEAD -> SUB AGENT)
+// -------------------------------------------------------------
+const showPaySubAgentModal = ref(false);
+const selectedSubAgentComm = ref(null);
+const paySubAgentForm = useForm({
+    receipt_number: '',
+    notes: '',
+});
+
+function openPaySubAgentModal(comm) {
+    selectedSubAgentComm.value = comm;
+    paySubAgentForm.receipt_number = 'TRF-ML-' + Math.floor(100000 + Math.random() * 900000);
+    paySubAgentForm.notes = '';
+    showPaySubAgentModal.value = true;
+}
+
+function submitPaySubAgent() {
+    if (!selectedSubAgentComm.value) return;
+    paySubAgentForm.post(route('master-leads.pay-sub-agent', selectedSubAgentComm.value.id), {
+        onSuccess: () => { showPaySubAgentModal.value = false; }
+    });
+}
 </script>
 
 <template>
@@ -418,6 +445,15 @@ function deleteAgency(broker) {
                 >
                     <span>👤 Semua Direktori Agen Sales</span>
                     <span class="px-2 py-0.5 rounded-full text-[10px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold">{{ allAgents.total }}</span>
+                </button>
+
+                <button 
+                    @click="activeTab = 'ledger'"
+                    :class="activeTab === 'ledger' ? 'border-blue-600 text-blue-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 font-medium'"
+                    class="py-3 px-1 border-b-2 text-xs transition-all flex items-center gap-2"
+                >
+                    <span>💵 Neraca & Arus Kas Master Lead</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold">{{ subAgentCommissions?.total || 0 }} Trx</span>
                 </button>
             </div>
 
@@ -765,6 +801,130 @@ function deleteAgency(broker) {
                     Belum ada agen sales yang terdaftar. Klik "Tambah Sub-Agent" untuk mendaftarkan agen pertama.
                 </div>
             </div>
+
+            <!-- ========================================================================= -->
+            <!-- TAB 4: NERACA KEUANGAN & ARUS KAS MASTER LEAD (TRANSFER SUB-AGENT) -->
+            <!-- ========================================================================= -->
+            <div v-if="activeTab === 'ledger'" class="space-y-6">
+                <!-- Summary Metrics Bar for Master Lead Cashflow -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-semibold text-slate-500 uppercase">👑 Net Profit ML (Overriding)</div>
+                        <div class="text-lg font-black text-purple-600 dark:text-purple-400 mt-1">{{ formatCurrency(stats.net_overriding_ml) }}</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Pendapatan Bersih Master Lead</div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-semibold text-slate-500 uppercase">📥 Tot. Komisi Sub-Agent</div>
+                        <div class="text-lg font-black text-slate-900 dark:text-white mt-1">{{ formatCurrency(stats.sub_agent_total_potency) }}</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Alokasi Komisi Tim Sub-Agent</div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-semibold text-slate-500 uppercase">✅ Dana Salur Selesai</div>
+                        <div class="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1">{{ formatCurrency(stats.sub_agent_paid_outflow) }}</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Sudah Ditransfer ke Sub-Agent</div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-semibold text-slate-500 uppercase">⏳ Kewajiban Pending</div>
+                        <div class="text-lg font-black text-amber-600 dark:text-amber-400 mt-1">{{ formatCurrency(stats.sub_agent_pending_outflow) }}</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Belum Ditransfer ke Sub-Agent</div>
+                    </div>
+                </div>
+
+                <!-- Search bar for ledger -->
+                <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
+                    <div class="relative w-full sm:w-96">
+                        <input 
+                            v-model="searchLedger"
+                            @keyup.enter="searchMasterLeads"
+                            @input="debouncedSearch"
+                            type="text" 
+                            placeholder="🔍 Cari transaksi/sub-agent/konsumen..."
+                            class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                        />
+                    </div>
+                    <div class="text-xs text-slate-500 hidden sm:block">
+                        Buku Kas Penyaluran Komisi: <span class="font-bold text-slate-700 dark:text-slate-300">Developer ➔ Master Lead ➔ Sub-Agent</span>
+                    </div>
+                </div>
+
+                <!-- Ledger Table -->
+                <div v-if="subAgentCommissions && subAgentCommissions.data && subAgentCommissions.data.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                        <thead class="bg-slate-100 dark:bg-slate-900 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200 dark:border-slate-800">
+                            <tr>
+                                <th class="p-4">Sub-Agent Penerima</th>
+                                <th class="p-4">Unit Booking & Proyek</th>
+                                <th class="p-4">Hak Komisi Sub-Agent</th>
+                                <th class="p-4">Pencairan Dev ➔ ML</th>
+                                <th class="p-4">Transfer ML ➔ Sub-Agent</th>
+                                <th class="p-4">No. Ref Transfer ML</th>
+                                <th class="p-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tr v-for="c in subAgentCommissions.data" :key="c.id" class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                <td class="p-4">
+                                    <div class="font-bold text-slate-900 dark:text-white text-sm">{{ c.user?.name }}</div>
+                                    <div class="text-[11px] text-purple-600 dark:text-purple-400 font-semibold">👑 ML: {{ c.user?.master_lead?.name || 'Master Lead' }}</div>
+                                </td>
+                                <td class="p-4">
+                                    <div class="font-semibold text-slate-800 dark:text-slate-200">
+                                        {{ c.booking?.unit ? ('Blok ' + c.booking.unit.block + ' No. ' + c.booking.unit.number) : 'Unit Booking' }}
+                                    </div>
+                                    <div class="text-[11px] text-slate-400">{{ c.booking?.lead?.name || '-' }} • {{ c.booking?.unit?.project?.name || '' }}</div>
+                                </td>
+                                <td class="p-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                                    {{ formatCurrency(c.amount) }}
+                                </td>
+                                <td class="p-4">
+                                    <span v-if="c.status === 'paid'" class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-full font-bold text-[10px]">
+                                        🟢 Dev Paid
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-full font-bold text-[10px]">
+                                        ⏳ Dev Pending
+                                    </span>
+                                </td>
+                                <td class="p-4">
+                                    <span v-if="c.ml_payout_status === 'paid'" class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-full font-bold text-[10px]">
+                                        ✅ Sudah Salur
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800 rounded-full font-bold text-[10px]">
+                                        🔴 Belum Ditransfer
+                                    </span>
+                                </td>
+                                <td class="p-4 font-mono text-[11px]">
+                                    <div v-if="c.ml_receipt_number" class="text-blue-600 dark:text-blue-400 font-bold">{{ c.ml_receipt_number }}</div>
+                                    <div v-else class="text-slate-400 italic">Belum disalurkan</div>
+                                </td>
+                                <td class="p-4 text-right">
+                                    <button 
+                                        v-if="c.ml_payout_status !== 'paid'"
+                                        @click="openPaySubAgentModal(c)" 
+                                        class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-md shadow-emerald-600/20 text-[11px] flex items-center gap-1.5 ml-auto"
+                                    >
+                                        <span>💳</span>
+                                        <span>Transfer ke Sub-Agent</span>
+                                    </button>
+                                    <span v-else class="text-xs text-slate-400 font-semibold italic">✓ Selesai</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Pagination -->
+                    <div v-if="subAgentCommissions.last_page > 1" class="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                        <div class="text-[11px] text-slate-500">Menampilkan {{ subAgentCommissions.from }}-{{ subAgentCommissions.to }} dari {{ subAgentCommissions.total }} komisi sub-agent</div>
+                        <div class="flex items-center gap-1">
+                            <button v-for="link in subAgentCommissions.links" :key="link.label" @click="link.url && router.get(link.url, {}, { preserveState: true })" :disabled="!link.url" :class="[link.active ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100', !link.url ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer']" class="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-slate-200 dark:border-slate-700" v-html="link.label"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    Belum ada transaksi pencairan komisi untuk Sub-Agent.
+                </div>
+            </div>
         </div>
 
         <!-- ========================================================================= -->
@@ -1058,6 +1218,56 @@ function deleteAgency(broker) {
                         <button type="button" @click="showAgencyModal = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl">Batal</button>
                         <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20">
                             Simpan Kantor Agency
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 5: CATAT TRANSFER KE SUB-AGENT -->
+        <div v-if="showPaySubAgentModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>💳</span>
+                        <span>Catat Transfer ke Sub-Agent</span>
+                    </h3>
+                    <button @click="showPaySubAgentModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold">&times;</button>
+                </div>
+
+                <div v-if="selectedSubAgentComm" class="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                    <div>
+                        <span class="text-slate-400">Penerima Komisi:</span>
+                        <div class="font-bold text-slate-900 dark:text-white text-sm">{{ selectedSubAgentComm.user?.name }}</div>
+                    </div>
+                    <div class="flex justify-between border-t border-slate-200 dark:border-slate-900 pt-2">
+                        <span class="text-slate-400">Jumlah Komisi Sub-Agent:</span>
+                        <span class="font-black text-emerald-600 dark:text-emerald-400 text-sm">{{ formatCurrency(selectedSubAgentComm.amount) }}</span>
+                    </div>
+                    <div class="border-t border-slate-200 dark:border-slate-900 pt-2 text-[11px]">
+                        <span class="text-slate-400 block mb-0.5">Rekening Tujuan Sub-Agent:</span>
+                        <div class="font-semibold text-slate-700 dark:text-slate-300">
+                            {{ selectedSubAgentComm.user?.effective_bank_account?.bank_name || 'Bank' }} - {{ selectedSubAgentComm.user?.effective_bank_account?.bank_account_number || '-' }}
+                            (a.n {{ selectedSubAgentComm.user?.effective_bank_account?.bank_account_name || selectedSubAgentComm.user?.name }})
+                        </div>
+                    </div>
+                </div>
+
+                <form @submit.prevent="submitPaySubAgent" class="space-y-4 text-xs">
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">No. Referensi Transfer Bank *</label>
+                        <input v-model="paySubAgentForm.receipt_number" required type="text" placeholder="misal: TRF-BCA-98721" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white font-mono font-bold" />
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Catatan Tambahan (Opsional)</label>
+                        <textarea v-model="paySubAgentForm.notes" rows="2" placeholder="Catatan bukti transfer..." class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-white"></textarea>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" @click="showPaySubAgentModal = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl">Batal</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20">
+                            Konfirmasi Transfer Selesai
                         </button>
                     </div>
                 </form>
