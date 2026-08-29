@@ -45,10 +45,15 @@ const sprTemplateForm = useForm({
     buyer_job: props.booking.buyer_job || props.booking.lead?.job || '',
     secondary_name: props.booking.secondary_name || '',
     secondary_nik: props.booking.secondary_nik || '',
+    secondary_npwp: props.booking.secondary_npwp || '',
     secondary_phone: props.booking.secondary_phone || '',
     secondary_relationship: props.booking.secondary_relationship || 'Orang Tua',
     secondary_address: props.booking.secondary_address || '',
     secondary_email: props.booking.secondary_email || '',
+    unit_certificate_status: props.booking.unit?.certificate_status || 'Dalam Proses',
+    unit_certificate_number: props.booking.unit?.certificate_number || '',
+    spr_date: props.booking.spr_date ? props.booking.spr_date.substring(0, 10) : (props.booking.booking_date ? props.booking.booking_date.substring(0, 10) : ''),
+    spr_schedule_dates: props.booking.spr_schedule_dates || { utj_date: '', dp_date: '', installment_date: '' },
     spr_bank_info: props.booking.spr_bank_info || {
         bank_name: 'MANDIRI',
         account_number: '1200008089893',
@@ -980,6 +985,21 @@ const docTypeLabels = {
                                     </option>
                                 </select>
                             </div>
+
+                            <!-- INFORMASI LEGALITAS & SERTIFIKAT UNIT -->
+                            <div class="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 space-y-3">
+                                <span class="text-[10px] font-black text-emerald-900 uppercase tracking-widest block">📜 Status & No. Sertifikat Unit Properti</span>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-emerald-900 uppercase mb-1">Status Sertifikat</label>
+                                        <input v-model="sprTemplateForm.unit_certificate_status" type="text" placeholder="SHM / HGB / Dalam Proses" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-emerald-900 uppercase mb-1">No. Sertifikat</label>
+                                        <input v-model="sprTemplateForm.unit_certificate_number" type="text" placeholder="No. Sertifikat Hak Milik..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- TAB CONSUMER: DATA KONSUMEN & PEMESAN 2 -->
@@ -1016,6 +1036,10 @@ const docTypeLabels = {
                                     <div>
                                         <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">NIK KTP Pemesan 2</label>
                                         <input v-model="sprTemplateForm.secondary_nik" type="text" placeholder="NIK KTP" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">NPWP Pemesan 2</label>
+                                        <input v-model="sprTemplateForm.secondary_npwp" type="text" placeholder="NPWP Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
                                     </div>
                                     <div>
                                         <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1">Hubungan</label>
@@ -1102,6 +1126,35 @@ const docTypeLabels = {
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-500 mb-1">Nama Pejabat</label>
                                     <input v-model="sprTemplateForm.sig4_name" type="text" placeholder="Fatimah Rafiuddin" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                            </div>
+
+                            <!-- PENGATURAN TANGGAL & TTD OVERRIDES -->
+                            <div class="col-span-1 md:col-span-2 p-4 bg-blue-50/60 rounded-2xl border border-blue-200/80 space-y-3">
+                                <span class="text-[10px] font-black text-blue-900 uppercase tracking-widest block">📅 Tanggal TTD SPR & Override Jadwal Pembayaran</span>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Tanggal TTD SPR (Di Atas Kolom TTD)</label>
+                                        <input v-model="sprTemplateForm.spr_date" type="date" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
+                                </div>
+
+                                <div class="pt-2 border-t border-blue-100">
+                                    <span class="text-[10px] font-black text-blue-900 uppercase tracking-wider block mb-2">🗓️ Custom Tanggal Jadwal Pembayaran di Tabel SPR (Opsional Override)</span>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-600 mb-1">Tgl UTJ / Booking Fee</label>
+                                            <input v-model="sprTemplateForm.spr_schedule_dates.utj_date" type="text" placeholder="misal: 25 Agustus 2026" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-600 mb-1">Tgl DP / Uang Muka</label>
+                                            <input v-model="sprTemplateForm.spr_schedule_dates.dp_date" type="text" placeholder="misal: 25 September 2026" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-600 mb-1">Tgl Pelunasan / Akad KPR</label>
+                                            <input v-model="sprTemplateForm.spr_schedule_dates.installment_date" type="text" placeholder="misal: Saat Akad Kredit" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

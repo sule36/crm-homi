@@ -223,10 +223,13 @@ class BookingController extends Controller
             'buyer_job' => 'nullable|string|max:100',
             'secondary_name' => 'nullable|string|max:255',
             'secondary_nik' => 'nullable|string|max:50',
+            'secondary_npwp' => 'nullable|string|max:50',
             'secondary_phone' => 'nullable|string|max:20',
             'secondary_relationship' => 'nullable|string|max:100',
             'secondary_address' => 'nullable|string',
             'secondary_email' => 'nullable|email|max:255',
+            'spr_date' => 'nullable|date',
+            'spr_schedule_dates' => 'nullable|array',
             'spr_terms_conditions' => 'nullable|array',
             'spr_bank_info' => 'nullable|array',
             'spr_special_offer' => 'nullable|array',
@@ -238,7 +241,25 @@ class BookingController extends Controller
             'sig3_name' => 'nullable|string|max:255',
             'sig4_title' => 'nullable|string|max:100',
             'sig4_name' => 'nullable|string|max:255',
+            'unit_certificate_status' => 'nullable|string|max:100',
+            'unit_certificate_number' => 'nullable|string|max:100',
         ]);
+
+        if (array_key_exists('unit_certificate_status', $validated) || array_key_exists('unit_certificate_number', $validated)) {
+            if ($booking->unit) {
+                $unitUpdates = [];
+                if (isset($validated['unit_certificate_status'])) {
+                    $unitUpdates['certificate_status'] = $validated['unit_certificate_status'];
+                }
+                if (isset($validated['unit_certificate_number'])) {
+                    $unitUpdates['certificate_number'] = $validated['unit_certificate_number'];
+                }
+                if (!empty($unitUpdates)) {
+                    $booking->unit->update($unitUpdates);
+                }
+            }
+            unset($validated['unit_certificate_status'], $validated['unit_certificate_number']);
+        }
 
         $sprBankInfo = is_array($booking->spr_bank_info) ? $booking->spr_bank_info : [];
         if (isset($validated['spr_bank_info']) && is_array($validated['spr_bank_info'])) {
