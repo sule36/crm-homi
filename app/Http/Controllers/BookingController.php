@@ -319,19 +319,21 @@ class BookingController extends Controller
             $baseCommission = $booking->final_price * ($effectiveRate / 100);
             $totalCommission = $baseCommission + $promoBonus;
 
-            // Record Sub-Agent / Agency Commission
-            \App\Models\Commission::updateOrCreate(
-                ['booking_id' => $booking->id, 'user_id' => $booking->booked_by],
-                [
-                    'broker_company_id' => $agent?->broker_company_id,
-                    'amount' => $totalCommission,
-                    'base_commission' => $baseCommission,
-                    'promo_bonus' => $promoBonus,
-                    'rate_used' => $effectiveRate,
-                    'payout_recipient' => $agent?->broker_company_id ? 'agency' : 'agent',
-                    'status' => 'pending',
-                ]
-            );
+            if ($booking->booked_by) {
+                // Record Sub-Agent / Agency Commission
+                \App\Models\Commission::updateOrCreate(
+                    ['booking_id' => $booking->id, 'user_id' => $booking->booked_by],
+                    [
+                        'broker_company_id' => $agent?->broker_company_id,
+                        'amount' => $totalCommission,
+                        'base_commission' => $baseCommission,
+                        'promo_bonus' => $promoBonus,
+                        'rate_used' => $effectiveRate,
+                        'payout_recipient' => $agent?->broker_company_id ? 'agency' : 'agent',
+                        'status' => 'pending',
+                    ]
+                );
+            }
 
             // Record Master Lead Overriding Fee if applicable
             $masterLead = $agent?->masterLead;
