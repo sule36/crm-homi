@@ -95,6 +95,7 @@ const sprTemplateForm = useForm({
     sig3_name: props.booking.sig3_name || '',
     sig4_title: props.booking.sig4_title || '',
     sig4_name: props.booking.sig4_name || '',
+    sigs_city: props.booking.sigs_city || props.booking.spr_signatures?.city || 'Jakarta Selatan',
 });
 
 function openSprTemplateModal() {
@@ -1181,6 +1182,10 @@ const docTypeLabels = {
                             <div class="col-span-1 md:col-span-2 p-4 bg-blue-50/60 rounded-2xl border border-blue-200/80 space-y-3">
                                 <span class="text-[10px] font-black text-blue-900 uppercase tracking-widest block">📅 Tanggal TTD SPR & Override Jadwal Pembayaran</span>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Kota Penandatanganan SPR</label>
+                                        <input v-model="sprTemplateForm.sigs_city" type="text" placeholder="misal: Jakarta Selatan" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                    </div>
                                     <div>
                                         <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Tanggal TTD SPR (Di Atas Kolom TTD)</label>
                                         <input v-model="sprTemplateForm.spr_date" type="date" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />

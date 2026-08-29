@@ -51,6 +51,8 @@ class BookingSprTest extends TestCase
             'secondary_nik' => '3171012345678901',
             'secondary_npwp' => '99.888.777.6-543.000',
             'secondary_email' => '',
+            'sig4_name' => 'Fatimah',
+            'sigs_city' => 'Tangerang Selatan',
             'spr_date' => '',
             'unit_certificate_status' => 'SHM',
             'unit_certificate_number' => 'SHM-99999',
@@ -76,6 +78,7 @@ class BookingSprTest extends TestCase
 
         $this->assertEquals('Fatimah', $booking->secondary_name);
         $this->assertEquals('99.888.777.6-543.000', $booking->secondary_npwp);
+        $this->assertEquals('Tangerang Selatan', $booking->sigs_city);
         $this->assertNull($booking->spr_date);
         $this->assertEquals('SHM', $unit->certificate_status);
         $this->assertEquals('SHM-99999', $unit->certificate_number);

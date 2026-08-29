@@ -704,6 +704,10 @@
 
         $colWidth = floor(100 / count($sigSlots));
 
+        $displaySigCity = !empty($booking->sigs_city) 
+            ? $booking->sigs_city 
+            : (!empty($sigs['city']) ? $sigs['city'] : 'Jakarta Selatan');
+
         $displaySigDate = !empty($booking->spr_date) 
             ? date('j F Y', strtotime($booking->spr_date)) 
             : date('j F Y', strtotime($booking->booking_date ?? $booking->created_at ?? now()));
@@ -711,7 +715,7 @@
 
     <div class="signature-section">
         <div class="sig-date">
-            {{ $sigs['city'] ?? 'Jakarta Selatan' }}, {{ $displaySigDate }}
+            {{ $displaySigCity }}, {{ $displaySigDate }}
         </div>
         <table class="sig-table">
             <tr>

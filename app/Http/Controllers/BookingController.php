@@ -243,6 +243,7 @@ class BookingController extends Controller
             'sig3_name' => 'nullable|string|max:255',
             'sig4_title' => 'nullable|string|max:100',
             'sig4_name' => 'nullable|string|max:255',
+            'sigs_city' => 'nullable|string|max:100',
             'unit_certificate_status' => 'nullable|string|max:100',
             'unit_certificate_number' => 'nullable|string|max:100',
         ]);

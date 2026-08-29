@@ -39,7 +39,7 @@ class Booking extends Model
         'special_bonus_items', 'special_package_items',
         // Per-Booking Signature Overrides
         'sig1_title', 'sig1_name', 'sig2_title', 'sig2_name',
-        'sig3_title', 'sig3_name', 'sig4_title', 'sig4_name',
+        'sig3_title', 'sig3_name', 'sig4_title', 'sig4_name', 'sigs_city',
         // Per-Booking SPR Template Customization & Developer Bank Account
         'bank_account_id', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', 'spr_date', 'spr_schedule_dates',
     ];
