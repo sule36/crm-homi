@@ -75,7 +75,14 @@ class TransactionController extends Controller
 
     public function receipt(Transaction $transaction)
     {
-        $transaction->load(['booking.lead', 'booking.unit.project', 'recordedBy', 'bankAccount', 'paymentSchedule']);
+        $transaction->load([
+            'booking.lead',
+            'booking.unit.project',
+            'booking.bankAccount',
+            'recordedBy',
+            'bankAccount',
+            'paymentSchedule'
+        ]);
         
         $spelledText = ucwords(trim($this->terbilang($transaction->amount))) . " Rupiah";
         $settingsRaw = \App\Models\Setting::all();

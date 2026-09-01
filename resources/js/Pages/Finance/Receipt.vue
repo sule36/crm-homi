@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
     transaction: Object,
@@ -10,6 +10,58 @@ const props = defineProps({
 
 const wetForm = useForm({
     wet_receipt_file: null,
+});
+
+// Determine Effective Payment Date
+const paymentDateFormatted = computed(() => {
+    const rawDate = props.transaction.payment_schedule?.paid_date || props.transaction.created_at;
+    if (!rawDate) return '-';
+    return new Date(rawDate).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+});
+
+// Determine Effective Destination Bank Account
+const effectiveBankAccount = computed(() => {
+    // 1. Direct transaction bank account
+    if (props.transaction.bank_account) {
+        const ba = props.transaction.bank_account;
+        return `${ba.bank_name || ba.name} - ${ba.account_number} a.n. ${ba.account_name}`;
+    }
+    if (props.transaction.bank_name) {
+        return `${props.transaction.bank_name} ${props.transaction.reference_number ? ('(Ref: ' + props.transaction.reference_number + ')') : ''}`;
+    }
+
+    // 2. Booking Bank Account matching label (UTJ, DP, Installment)
+    const bk = props.transaction.booking;
+    const label = (props.transaction.payment_schedule?.label || props.transaction.notes || '').toLowerCase();
+    if (bk) {
+        if (label.includes('utj') || label.includes('booking')) {
+            const acc = bk.bank_account_utj || bk.bank_account;
+            if (acc) return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+        }
+        if (label.includes('dp') || label.includes('down payment')) {
+            const acc = bk.bank_account_dp || bk.bank_account;
+            if (acc) return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+        }
+        if (label.includes('cicilan') || label.includes('angsuran')) {
+            const acc = bk.bank_account_installment || bk.bank_account;
+            if (acc) return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+        }
+        if (bk.bank_account) {
+            const acc = bk.bank_account;
+            return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+        }
+    }
+
+    // 3. Setting / Company fallback
+    if (props.settings?.company_bank_name && props.settings?.company_bank_account) {
+        return `${props.settings.company_bank_name} - ${props.settings.company_bank_account} a.n. ${props.settings.company_bank_holder || companyName}`;
+    }
+
+    return null;
 });
 
 const handleWetUpload = (e) => {
@@ -198,14 +250,26 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
                     </div>
                 </div>
 
-                <!-- Row 4: Metode & Akun Bank -->
+                <!-- Row 4: Tanggal Pembayaran -->
                 <div class="flex flex-col sm:flex-row border-b border-slate-100 pb-3">
-                    <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Metode & Rekening</span>
-                    <span class="text-xs font-bold text-slate-700">
-                        {{ transaction.payment_method?.toUpperCase() }} 
-                        <span v-if="transaction.bank_account"> ({{ transaction.bank_account?.name }} - {{ transaction.bank_account?.account_number }})</span>
-                        <span v-else-if="transaction.bank_name"> ({{ transaction.bank_name }} - {{ transaction.reference_number || '-' }})</span>
+                    <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Tanggal Pembayaran</span>
+                    <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>📅</span> <span>{{ paymentDateFormatted }}</span>
                     </span>
+                </div>
+
+                <!-- Row 5: Metode & Rekening Tujuan -->
+                <div class="flex flex-col sm:flex-row border-b border-slate-100 pb-3">
+                    <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Metode & Rekening Tujuan</span>
+                    <div class="text-xs font-bold text-slate-800">
+                        <span class="uppercase font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 mr-2">{{ transaction.payment_method?.toUpperCase() || 'TRANSFER' }}</span>
+                        <span v-if="effectiveBankAccount" class="text-slate-900 font-black">
+                            💳 {{ effectiveBankAccount }}
+                        </span>
+                        <span v-else class="text-slate-500 italic">
+                            (Pembayaran Tunai Kasir)
+                        </span>
+                    </div>
                 </div>
             </div>
 
