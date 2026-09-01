@@ -25,13 +25,21 @@ const paymentDateFormatted = computed(() => {
 
 // Determine Effective Destination Bank Account
 const effectiveBankAccount = computed(() => {
+    const getHolder = (ba) => {
+        if (!ba) return '';
+        const h = ba.account_holder || ba.account_name || ba.holder_name || '';
+        return h ? ` a.n. ${h}` : '';
+    };
+
     // 1. Direct transaction bank account
     if (props.transaction.bank_account) {
         const ba = props.transaction.bank_account;
-        return `${ba.bank_name || ba.name} - ${ba.account_number} a.n. ${ba.account_name}`;
+        const bName = ba.bank_name || ba.name || 'Bank';
+        return `${bName} - ${ba.account_number || '-'}${getHolder(ba)}`;
     }
     if (props.transaction.bank_name) {
-        return `${props.transaction.bank_name} ${props.transaction.reference_number ? ('(Ref: ' + props.transaction.reference_number + ')') : ''}`;
+        const refStr = props.transaction.reference_number ? ` (Ref: ${props.transaction.reference_number})` : '';
+        return `${props.transaction.bank_name}${refStr}`;
     }
 
     // 2. Booking Bank Account matching label (UTJ, DP, Installment)
@@ -40,25 +48,36 @@ const effectiveBankAccount = computed(() => {
     if (bk) {
         if (label.includes('utj') || label.includes('booking')) {
             const acc = bk.bank_account_utj || bk.bank_account;
-            if (acc) return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+            if (acc) {
+                const bName = acc.bank_name || acc.name || 'Bank';
+                return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
+            }
         }
         if (label.includes('dp') || label.includes('down payment')) {
             const acc = bk.bank_account_dp || bk.bank_account;
-            if (acc) return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+            if (acc) {
+                const bName = acc.bank_name || acc.name || 'Bank';
+                return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
+            }
         }
         if (label.includes('cicilan') || label.includes('angsuran')) {
             const acc = bk.bank_account_installment || bk.bank_account;
-            if (acc) return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+            if (acc) {
+                const bName = acc.bank_name || acc.name || 'Bank';
+                return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
+            }
         }
         if (bk.bank_account) {
             const acc = bk.bank_account;
-            return `${acc.bank_name || acc.name} - ${acc.account_number} a.n. ${acc.account_name}`;
+            const bName = acc.bank_name || acc.name || 'Bank';
+            return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
         }
     }
 
     // 3. Setting / Company fallback
     if (props.settings?.company_bank_name && props.settings?.company_bank_account) {
-        return `${props.settings.company_bank_name} - ${props.settings.company_bank_account} a.n. ${props.settings.company_bank_holder || companyName}`;
+        const holder = props.settings.company_bank_holder || companyName;
+        return `${props.settings.company_bank_name} - ${props.settings.company_bank_account}${holder ? (' a.n. ' + holder) : ''}`;
     }
 
     return null;
