@@ -8,6 +8,7 @@ const props = defineProps({
     brokers: Object,
     allAgents: Object,
     subAgentCommissions: Object,
+    mlOverridingCommissions: Array,
     brokerList: Array,
     masterLeadList: Array,
     stats: Object,
@@ -17,8 +18,9 @@ const props = defineProps({
 const page = usePage();
 const flashCredentials = computed(() => page.props.flash?.new_credentials || null);
 
-// Tabs: 'hierarchy' | 'agencies' | 'agents'
+// Tabs: 'hierarchy' | 'agencies' | 'agents' | 'ledger'
 const activeTab = ref('hierarchy');
+const ledgerSubTab = ref('sub_agent'); // 'sub_agent' | 'master_lead'
 
 // Search & Filter State
 const searchMl = ref(props.filters?.search || '');
@@ -808,15 +810,22 @@ function submitPaySubAgent() {
             <div v-if="activeTab === 'ledger'" class="space-y-6">
                 <!-- Summary Metrics Bar for Master Lead Cashflow -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
-                        <div class="text-[11px] font-semibold text-slate-500 uppercase">👑 Net Profit ML (Overriding)</div>
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl relative group">
+                        <div class="text-[11px] font-semibold text-slate-500 uppercase flex items-center justify-between">
+                            <span>👑 Net Profit ML (Overriding)</span>
+                            <span class="cursor-help text-purple-500 font-bold" title="Rumus: Gross Fee ML (4.5%) - Komisi Sub-Agent (3.0%) = Net ML (1.5%)">ℹ️</span>
+                        </div>
                         <div class="text-lg font-black text-purple-600 dark:text-purple-400 mt-1">{{ formatCurrency(stats.net_overriding_ml) }}</div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">Pendapatan Bersih Master Lead</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Pendapatan Bersih (1.5% Net Overriding)</div>
+                        <!-- Formula Explainer Tooltip -->
+                        <div class="mt-2 p-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/50 rounded-xl text-[9px] text-purple-900 dark:text-purple-300 font-medium leading-tight">
+                            💡 Gross 4.5% (Rp 153Jt) - Sub-Agent 3.0% (Rp 102Jt) = <b>Net ML 1.5% (Rp 51Jt/unit)</b>
+                        </div>
                     </div>
                     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
                         <div class="text-[11px] font-semibold text-slate-500 uppercase">📥 Tot. Komisi Sub-Agent</div>
                         <div class="text-lg font-black text-slate-900 dark:text-white mt-1">{{ formatCurrency(stats.sub_agent_total_potency) }}</div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">Alokasi Komisi Tim Sub-Agent</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Alokasi Komisi Tim Sub-Agent (3.0%)</div>
                     </div>
                     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
                         <div class="text-[11px] font-semibold text-slate-500 uppercase">✅ Dana Salur Selesai</div>
@@ -830,9 +839,26 @@ function submitPaySubAgent() {
                     </div>
                 </div>
 
-                <!-- Search bar for ledger -->
-                <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
-                    <div class="relative w-full sm:w-96">
+                <!-- Sub-Tab Toggle & Search bar for ledger -->
+                <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                        <button 
+                            @click="ledgerSubTab = 'sub_agent'"
+                            :class="ledgerSubTab === 'sub_agent' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'"
+                            class="px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                        >
+                            📥 Kewajiban Salur Sub-Agent (Mawardi - 3.0%)
+                        </button>
+                        <button 
+                            @click="ledgerSubTab = 'master_lead'"
+                            :class="ledgerSubTab === 'master_lead' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300'"
+                            class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                        >
+                            <span>👑</span> <span>Pendapatan Net Overriding ML (KANAHOMI - 1.5%)</span>
+                        </button>
+                    </div>
+
+                    <div class="relative w-full sm:w-80">
                         <input 
                             v-model="searchLedger"
                             @keyup.enter="searchMasterLeads"
@@ -842,13 +868,11 @@ function submitPaySubAgent() {
                             class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
                         />
                     </div>
-                    <div class="text-xs text-slate-500 hidden sm:block">
-                        Buku Kas Penyaluran Komisi: <span class="font-bold text-slate-700 dark:text-slate-300">Developer ➔ Master Lead ➔ Sub-Agent</span>
-                    </div>
                 </div>
 
-                <!-- Ledger Table -->
-                <div v-if="subAgentCommissions && subAgentCommissions.data && subAgentCommissions.data.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <!-- SUB-AGENT PAYOUT TABLE -->
+                <div v-if="ledgerSubTab === 'sub_agent'">
+                    <div v-if="subAgentCommissions && subAgentCommissions.data && subAgentCommissions.data.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                         <thead class="bg-slate-100 dark:bg-slate-900 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200 dark:border-slate-800">
                             <tr>
@@ -924,6 +948,65 @@ function submitPaySubAgent() {
                 <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                     Belum ada transaksi pencairan komisi untuk Sub-Agent.
                 </div>
+            </div>
+
+            <!-- MASTER LEAD OVERRIDING INCOME TABLE -->
+            <div v-if="ledgerSubTab === 'master_lead'">
+                <div v-if="mlOverridingCommissions && mlOverridingCommissions.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                        <thead class="bg-purple-50/60 dark:bg-purple-950/40 text-purple-900 dark:text-purple-300 font-semibold uppercase text-[10px] border-b border-purple-200 dark:border-purple-800">
+                            <tr>
+                                <th class="p-4">Master Lead Penerima</th>
+                                <th class="p-4">Unit Booking & Proyek</th>
+                                <th class="p-4">Skema Breakdown Fee</th>
+                                <th class="p-4">Gross ML Fee (4.5%)</th>
+                                <th class="p-4">Sub-Agent Share (3.0%)</th>
+                                <th class="p-4 text-right">Net Profit ML (1.5%)</th>
+                                <th class="p-4 text-center">Status Dev</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tr v-for="mc in mlOverridingCommissions" :key="mc.id" class="hover:bg-purple-50/30 transition-colors">
+                                <td class="p-4">
+                                    <div class="font-bold text-slate-900 dark:text-white text-sm">👑 {{ mc.user?.name || 'KANAHOMI' }}</div>
+                                    <div class="text-[10px] text-purple-600 dark:text-purple-400 font-medium">Master Lead Partner</div>
+                                </td>
+                                <td class="p-4">
+                                    <div class="font-bold text-slate-800 dark:text-slate-200">
+                                        {{ mc.booking?.unit ? ('Blok ' + mc.booking.unit.block + ' No. ' + mc.booking.unit.number) : 'Unit Booking' }}
+                                    </div>
+                                    <div class="text-[11px] text-slate-400">{{ mc.booking?.lead?.name || '-' }} • {{ mc.booking?.unit?.project?.name || '' }}</div>
+                                </td>
+                                <td class="p-4">
+                                    <div class="text-[10px] font-mono space-y-0.5">
+                                        <span class="px-2 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 rounded font-bold">Rate: {{ mc.rate_used || 4.5 }}% Overriding</span>
+                                    </div>
+                                </td>
+                                <td class="p-4 font-mono text-slate-500">
+                                    {{ formatCurrency(mc.base_commission || (mc.amount * 3)) }}
+                                </td>
+                                <td class="p-4 font-mono text-amber-600 dark:text-amber-400">
+                                    - {{ formatCurrency((mc.base_commission || (mc.amount * 3)) - mc.amount) }}
+                                </td>
+                                <td class="p-4 text-right font-black text-purple-600 dark:text-purple-400 text-sm">
+                                    {{ formatCurrency(mc.amount) }}
+                                </td>
+                                <td class="p-4 text-center">
+                                    <span v-if="mc.status === 'paid'" class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-full font-bold text-[10px]">
+                                        🟢 Dev Paid
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-full font-bold text-[10px]">
+                                        ⏳ Dev Pending
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    Belum ada riwayat pendapatan overriding Master Lead.
+                </div>
+            </div>
             </div>
         </div>
 

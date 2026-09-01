@@ -166,11 +166,19 @@ class MasterLeadController extends Controller
             ->whereIn('status', ['approved', 'completed', 'booked'])
             ->sum('final_price');
 
+        $mlOverridingCommissions = Commission::with(['user', 'booking.lead', 'booking.unit.project'])
+            ->where('payout_recipient', 'master_lead')
+            ->whereHas('booking')
+            ->when($isMasterLead, fn($q) => $q->where('user_id', $user->id))
+            ->latest()
+            ->get();
+
         return Inertia::render('MasterLeads/Index', [
             'masterLeads' => $masterLeads,
             'brokers' => $brokers,
             'allAgents' => $allAgents,
             'subAgentCommissions' => $subAgentCommissions,
+            'mlOverridingCommissions' => $mlOverridingCommissions,
             'brokerList' => BrokerCompany::where('status', 'active')->select('id', 'name', 'code', 'commission_rate')->get(),
             'masterLeadList' => User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->select('id', 'name', 'phone')->get(),
             'stats' => [
