@@ -46,17 +46,32 @@ const printReceipt = () => {
     window.print();
 };
 
+const bookingReceiptSettings = props.transaction.booking?.receipt_settings || {};
+
 const projectLogo = props.transaction.booking?.unit?.project?.logo || null;
 const logoImage = projectLogo || props.settings?.company_logo || null;
 const companyName = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Homi Developer';
 const projectCode = props.transaction.booking?.unit?.project?.code || 'HOMI';
 const txYear = new Date(props.transaction.created_at).getFullYear();
 const paddedId = String(props.transaction.id).padStart(4, '0');
-const receiptNumber = props.transaction.receipt_number || `KW/${projectCode.toUpperCase()}/${txYear}/${paddedId}`;
-const cityName = props.settings?.spr_signatures?.city || 'Jakarta';
-const sigImage = props.settings?.spr_signatures?.sig1_image || null;
-const officerTitle = props.settings?.spr_signatures?.sig1_title || 'Kasir & Keuangan';
-const officerName = props.settings?.spr_signatures?.sig1_name || props.transaction.recorded_by_user?.name || 'Keuangan Homi';
+
+let receiptNumber = props.transaction.receipt_number;
+if (!receiptNumber) {
+    if (bookingReceiptSettings.receipt_number_custom) {
+        receiptNumber = bookingReceiptSettings.receipt_number_custom;
+    } else if (bookingReceiptSettings.receipt_number_prefix) {
+        receiptNumber = `${bookingReceiptSettings.receipt_number_prefix}/${txYear}/${paddedId}`;
+    } else {
+        receiptNumber = `KW/${projectCode.toUpperCase()}/${txYear}/${paddedId}`;
+    }
+}
+
+const headerTitle = bookingReceiptSettings.receipt_header_title || 'Bukti Pembayaran Resmi';
+const cityName = bookingReceiptSettings.receipt_city || props.transaction.booking?.sigs_city || props.settings?.spr_signatures?.city || 'Jakarta';
+const sigImage = bookingReceiptSettings.receipt_sig_image || props.settings?.spr_signatures?.sig1_image || null;
+const officerTitle = bookingReceiptSettings.receipt_sig_title || props.settings?.spr_signatures?.sig1_title || 'Kasir & Keuangan';
+const officerName = bookingReceiptSettings.receipt_sig_name || props.settings?.spr_signatures?.sig1_name || props.transaction.recorded_by_user?.name || 'Keuangan Homi';
+const receiptNotes = bookingReceiptSettings.receipt_notes || null;
 </script>
 
 <template>
@@ -124,7 +139,7 @@ const officerName = props.settings?.spr_signatures?.sig1_name || props.transacti
                     </div>
                     <div>
                         <h2 class="text-lg font-black text-slate-900 tracking-tight leading-none">{{ companyName }}</h2>
-                        <p class="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1">Bukti Pembayaran Resmi</p>
+                        <p class="text-[10px] text-blue-500 font-bold uppercase tracking-wider mt-1">{{ headerTitle }}</p>
                     </div>
                 </div>
                 <div class="text-right sm:text-right">
@@ -201,6 +216,12 @@ const officerName = props.settings?.spr_signatures?.sig1_name || props.transacti
                         <p class="text-xs font-black text-slate-800 border-t border-slate-200 pt-1.5">{{ officerName }}</p>
                     </div>
                 </div>
+            </div>
+
+            <!-- Footer Notes / Disclaimer -->
+            <div v-if="receiptNotes" class="mt-8 pt-4 border-t border-slate-100 text-[10px] text-slate-500 italic">
+                <span class="font-bold text-slate-600 not-italic block uppercase tracking-wider mb-0.5">Catatan & Ketentuan:</span>
+                <p class="whitespace-pre-line">{{ receiptNotes }}</p>
             </div>
         </div>
     </div>

@@ -41,7 +41,7 @@ class Booking extends Model
         'sig1_title', 'sig1_name', 'sig2_title', 'sig2_name',
         'sig3_title', 'sig3_name', 'sig4_title', 'sig4_name', 'sigs_city',
         // Per-Booking SPR Template Customization & Developer Bank Account
-        'bank_account_id', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', 'spr_date', 'spr_schedule_dates',
+        'bank_account_id', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', 'spr_date', 'spr_schedule_dates', 'receipt_settings',
     ];
 
     protected function casts(): array
@@ -69,6 +69,7 @@ class Booking extends Model
             'spr_bank_info' => 'array',
             'spr_special_offer' => 'array',
             'spr_schedule_dates' => 'array',
+            'receipt_settings' => 'array',
         ];
     }
 

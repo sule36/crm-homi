@@ -246,6 +246,7 @@ class BookingController extends Controller
             'sigs_city' => 'nullable|string|max:100',
             'unit_certificate_status' => 'nullable|string|max:100',
             'unit_certificate_number' => 'nullable|string|max:100',
+            'receipt_settings' => 'nullable|array',
         ]);
 
         if (array_key_exists('unit_certificate_status', $validated) || array_key_exists('unit_certificate_number', $validated)) {

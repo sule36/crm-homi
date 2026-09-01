@@ -111,8 +111,26 @@ const sprTemplateForm = useForm({
     sig3_title: props.booking.sig3_title || 'SALES',
     sig3_name: props.booking.sig3_name || '',
     sig4_title: props.booking.sig4_title || '',
-    sig4_name: props.booking.sig4_name || '',
     sigs_city: props.booking.sigs_city || props.booking.spr_signatures?.city || 'Jakarta Selatan',
+    receipt_settings: (props.booking.receipt_settings && typeof props.booking.receipt_settings === 'object')
+        ? {
+            receipt_number_prefix: props.booking.receipt_settings.receipt_number_prefix || '',
+            receipt_number_custom: props.booking.receipt_settings.receipt_number_custom || '',
+            receipt_city: props.booking.receipt_settings.receipt_city || props.booking.sigs_city || 'Jakarta Selatan',
+            receipt_sig_title: props.booking.receipt_settings.receipt_sig_title || 'Kasir & Keuangan',
+            receipt_sig_name: props.booking.receipt_settings.receipt_sig_name || props.booking.sig1_name || '',
+            receipt_header_title: props.booking.receipt_settings.receipt_header_title || 'Bukti Pembayaran Resmi',
+            receipt_notes: props.booking.receipt_settings.receipt_notes || 'Pembayaran ini dianggap sah apabila telah dibubuhi stempel & TTD resmi.',
+        }
+        : {
+            receipt_number_prefix: '',
+            receipt_number_custom: '',
+            receipt_city: props.booking.sigs_city || 'Jakarta Selatan',
+            receipt_sig_title: 'Kasir & Keuangan',
+            receipt_sig_name: props.booking.sig1_name || '',
+            receipt_header_title: 'Bukti Pembayaran Resmi',
+            receipt_notes: 'Pembayaran ini dianggap sah apabila telah dibubuhi stempel & TTD resmi.',
+        },
 });
 
 function openSprTemplateModal() {
@@ -971,28 +989,31 @@ const docTypeLabels = {
                 <!-- Modal Header -->
                 <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
                     <div>
-                        <h3 class="text-sm font-black uppercase tracking-wider text-amber-400">⚙️ Edit Template & Parameter SPR</h3>
+                        <h3 class="text-sm font-black uppercase tracking-wider text-amber-400">⚙️ Edit Setting & Parameter SPR / Kwitansi</h3>
                         <p class="text-xs text-slate-400">Kustomisasi Khusus Unit {{ booking.unit?.block }}{{ booking.unit?.number }} ({{ booking.lead?.name }})</p>
                     </div>
                     <button @click="showSprTemplateModal = false" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
                 </div>
 
                 <!-- Tabs Bar -->
-                <div class="flex border-b border-slate-100 bg-slate-50 px-6 gap-2 pt-2">
-                    <button type="button" @click="activeSprTab = 'bank'" :class="activeSprTab === 'bank' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                <div class="flex border-b border-slate-100 bg-slate-50 px-6 gap-2 pt-2 overflow-x-auto">
+                    <button type="button" @click="activeSprTab = 'bank'" :class="activeSprTab === 'bank' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0">
                         💳 Bank Developer (Per-Baris LOV)
                     </button>
-                    <button type="button" @click="activeSprTab = 'consumer'" :class="activeSprTab === 'consumer' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                    <button type="button" @click="activeSprTab = 'consumer'" :class="activeSprTab === 'consumer' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0">
                         👤 Data Konsumen & Pemesan 2
                     </button>
-                    <button type="button" @click="activeSprTab = 'terms'" :class="activeSprTab === 'terms' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                    <button type="button" @click="activeSprTab = 'terms'" :class="activeSprTab === 'terms' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0">
                         📋 Catatan-catatan (Syarat)
                     </button>
-                    <button type="button" @click="activeSprTab = 'signatures'" :class="activeSprTab === 'signatures' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                    <button type="button" @click="activeSprTab = 'signatures'" :class="activeSprTab === 'signatures' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0">
                         🖊️ Penanda Tangan (4 TTD)
                     </button>
-                    <button type="button" @click="activeSprTab = 'special_offer'" :class="activeSprTab === 'special_offer' ? 'bg-white text-purple-600 border-b-2 border-purple-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all">
+                    <button type="button" @click="activeSprTab = 'special_offer'" :class="activeSprTab === 'special_offer' ? 'bg-white text-purple-600 border-b-2 border-purple-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0">
                         🎁 Special Offer & Benefit (Hal 2)
+                    </button>
+                    <button type="button" @click="activeSprTab = 'receipt'" :class="activeSprTab === 'receipt' ? 'bg-white text-emerald-600 border-b-2 border-emerald-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0">
+                        🧾 Parameter Kwitansi
                     </button>
                 </div>
 
@@ -1283,6 +1304,90 @@ const docTypeLabels = {
                                     <button type="button" @click="removePackageItem(idx)" class="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg">
                                         🗑️
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 6: SETTING PARAMETER KWITANSI -->
+                        <div v-if="activeSprTab === 'receipt'" class="space-y-4">
+                            <div class="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl">
+                                <h4 class="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                    <span>🧾</span> <span>Kustomisasi Parameter Kwitansi Pembayaran</span>
+                                </h4>
+                                <p class="text-xs text-emerald-700">
+                                    Atur format penomoran, lokasi/kota penerbitan, penanda tangan, serta catatan khusus yang akan tampil saat cetak/kirim Kwitansi untuk booking ini.
+                                </p>
+                            </div>
+
+                            <!-- Format Nomor & Override Kwitansi -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Prefix / Awalan Format No. Kwitansi</label>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_number_prefix" type="text" placeholder="Contoh: KW/HOMI-ALN atau KW/SRD" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                    <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor otomatis menjadi: Prefix/Tahun/ID (Contoh: KW/HOMI-ALN/2026/0001)</p>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nomor Kwitansi Override Manual (Opsional)</label>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_number_custom" type="text" placeholder="Contoh: KW-SPECIAL-001" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                    <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor ini meng-override seluruh nomor kwitansi otomatis pada unit ini.</p>
+                                </div>
+                            </div>
+
+                            <!-- Header Label & Kota -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Sub-Judul / Label Kwitansi</label>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_header_title" type="text" placeholder="Bukti Pembayaran Resmi" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Kota Penerbitan Kwitansi</label>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_city" type="text" placeholder="Contoh: Jakarta Selatan" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                </div>
+                            </div>
+
+                            <!-- Penanda Tangan Kwitansi -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Jabatan Penanda Tangan Kwitansi</label>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_sig_title" type="text" placeholder="Contoh: Kasir & Keuangan" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Penanda Tangan Kwitansi</label>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_sig_name" type="text" placeholder="Contoh: Keuangan Homi Developer" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                </div>
+                            </div>
+
+                            <!-- Catatan / Syarat Ketentuan Kwitansi -->
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Catatan Kaki / Catatan Penting Kwitansi</label>
+                                <textarea v-model="sprTemplateForm.receipt_settings.receipt_notes" rows="3" placeholder="Contoh: Pembayaran dianggap sah apabila telah dibubuhi stempel & TTD resmi." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-emerald-500"></textarea>
+                                <p class="text-[10px] text-slate-400 mt-1">Catatan ini akan tampil di bagian bawah lembar kwitansi cetak.</p>
+                            </div>
+
+                            <!-- Live Preview Box -->
+                            <div class="mt-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                                <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                    <span>👁️</span> <span>Preview Parameter Kwitansi</span>
+                                </div>
+                                <div class="p-3 bg-slate-50 rounded-xl text-xs space-y-1.5">
+                                    <div class="flex justify-between border-b border-slate-200 pb-1">
+                                        <span class="font-bold text-slate-600">Sub-Judul:</span>
+                                        <span class="font-black text-slate-800">{{ sprTemplateForm.receipt_settings.receipt_header_title || 'Bukti Pembayaran Resmi' }}</span>
+                                    </div>
+                                    <div class="flex justify-between border-b border-slate-200 pb-1">
+                                        <span class="font-bold text-slate-600">No. Kwitansi Sample:</span>
+                                        <span class="font-mono font-bold text-emerald-700">
+                                            {{ sprTemplateForm.receipt_settings.receipt_number_custom || ((sprTemplateForm.receipt_settings.receipt_number_prefix || 'KW/HOMI') + '/2026/0001') }}
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between border-b border-slate-200 pb-1">
+                                        <span class="font-bold text-slate-600">TTD Oleh:</span>
+                                        <span class="font-bold text-slate-800">{{ sprTemplateForm.receipt_settings.receipt_city || 'Jakarta' }}, {{ sprTemplateForm.receipt_settings.receipt_sig_name || 'Keuangan' }} ({{ sprTemplateForm.receipt_settings.receipt_sig_title || 'Kasir & Keuangan' }})</span>
+                                    </div>
+                                    <div v-if="sprTemplateForm.receipt_settings.receipt_notes" class="pt-1">
+                                        <span class="font-bold text-slate-600 block">Catatan:</span>
+                                        <p class="text-[11px] text-slate-500 italic">{{ sprTemplateForm.receipt_settings.receipt_notes }}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
