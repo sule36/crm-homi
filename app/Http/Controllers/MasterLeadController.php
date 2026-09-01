@@ -132,6 +132,7 @@ class MasterLeadController extends Controller
 
         // 4. Ledger & Sub-Agent Payout Query
         $ledgerQuery = Commission::with(['user.masterLead', 'user.brokerCompany', 'booking.lead', 'booking.unit.project'])
+            ->whereHas('booking')
             ->whereHas('user', function($q) use ($isMasterLead, $user) {
                 $q->whereNotNull('master_lead_id');
                 if ($isMasterLead) {
