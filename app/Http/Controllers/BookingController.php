@@ -361,7 +361,7 @@ class BookingController extends Controller
             }
 
             // Record Master Lead Overriding Fee if applicable
-            $masterLead = $agent?->masterLead;
+            $masterLead = $agent?->masterLead ?? $agent?->brokerCompany?->masterLead;
             if (!$masterLead && \App\Models\Setting::get('commission_schema_config.enable_master_lead', true)) {
                 $masterLead = \App\Models\User::where('agent_type', 'master_lead')
                     ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
