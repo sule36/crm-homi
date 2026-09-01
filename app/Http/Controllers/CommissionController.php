@@ -15,7 +15,9 @@ class CommissionController extends Controller
 {
     public function index(Request $request)
     {
-        $commissions = Commission::with(['user.brokerCompany', 'brokerCompany', 'booking.lead', 'booking.unit.project'])
+        $payoutThresholdPercent = (float) Setting::get('commission_payout_threshold_percent', 25.0);
+
+        $commissions = Commission::with(['user.brokerCompany', 'brokerCompany', 'booking.lead', 'booking.unit.project', 'booking.transactions', 'bankAccount'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->payout_recipient, fn($q) => $q->where('payout_recipient', $request->payout_recipient))
             ->when($request->broker_company_id, fn($q) => $q->where('broker_company_id', $request->broker_company_id))
@@ -28,6 +30,21 @@ class CommissionController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        $commissions->getCollection()->transform(function ($comm) use ($payoutThresholdPercent) {
+            $buyerPaidAmount = $comm->booking?->transactions?->sum('amount') ?? 0;
+            $finalPrice = $comm->booking?->final_price > 0 ? $comm->booking->final_price : ($comm->booking?->unit_price ?? 0);
+            $buyerPaidPercent = $finalPrice > 0 ? round(($buyerPaidAmount / $finalPrice) * 100, 1) : 0;
+            $isEligible = $buyerPaidPercent >= $payoutThresholdPercent;
+
+            $comm->buyer_paid_amount = $buyerPaidAmount;
+            $comm->booking_final_price = $finalPrice;
+            $comm->buyer_paid_percent = $buyerPaidPercent;
+            $comm->payout_threshold_percent = $payoutThresholdPercent;
+            $comm->is_payout_eligible = $isEligible;
+
+            return $comm;
+        });
+
         $stats = [
             'total_pending' => Commission::where('status', 'pending')->sum('amount'),
             'total_paid' => Commission::where('status', 'paid')->sum('amount'),
@@ -36,6 +53,7 @@ class CommissionController extends Controller
             'inhouse_commissions' => Commission::whereHas('user', fn($q) => $q->whereIn('agent_type', ['inhouse', 'inhouse_developer', 'inhouse_master_lead']))->sum('amount'),
             'independent_commissions' => Commission::whereHas('user', fn($q) => $q->where('agent_type', 'independent'))->sum('amount'),
             'master_lead_commissions' => Commission::whereHas('user', fn($q) => $q->whereIn('agent_type', ['master_lead']))->sum('amount'),
+            'eligible_count' => $commissions->getCollection()->filter(fn($c) => $c->status === 'pending' && $c->is_payout_eligible)->count(),
         ];
 
         $defaultRates = Setting::get('default_commission_rates', [
@@ -57,6 +75,8 @@ class CommissionController extends Controller
             ->select('id', 'name', 'phone')
             ->get();
 
+        $bankAccounts = \App\Models\BankAccount::where('is_active', true)->get();
+
         return Inertia::render('Commissions/Index', [
             'commissions' => $commissions,
             'stats' => $stats,
@@ -64,6 +84,8 @@ class CommissionController extends Controller
             'defaultRates' => $defaultRates,
             'schemaConfig' => $schemaConfig,
             'masterLeads' => $masterLeads,
+            'bankAccounts' => $bankAccounts,
+            'payoutThresholdPercent' => $payoutThresholdPercent,
             'filters' => $request->only(['status', 'payout_recipient', 'broker_company_id', 'search']),
         ]);
     }
@@ -76,6 +98,7 @@ class CommissionController extends Controller
             'master_lead_overriding_rate' => 'nullable|numeric|min:0|max:100',
             'agency_rate' => 'nullable|numeric|min:0|max:100',
             'independent_rate' => 'nullable|numeric|min:0|max:100',
+            'payout_threshold_percent' => 'nullable|numeric|min:0|max:100',
             'enable_master_lead' => 'nullable|boolean',
             'enable_inhouse_developer' => 'nullable|boolean',
             'enable_inhouse_master_lead' => 'nullable|boolean',
@@ -89,6 +112,8 @@ class CommissionController extends Controller
             'independent' => (float)($request->independent_rate ?? 2.5),
         ]);
 
+        Setting::set('commission_payout_threshold_percent', (float)($request->payout_threshold_percent ?? 25.0));
+
         Setting::set('commission_schema_config', [
             'enable_master_lead' => (bool)$request->enable_master_lead,
             'enable_inhouse_developer' => (bool)$request->enable_inhouse_developer,
@@ -99,7 +124,7 @@ class CommissionController extends Controller
             'rates' => $request->all()
         ]);
 
-        return back()->with('success', 'Skema komisi & sakelar Master Lead / In-House berhasil diperbarui.');
+        return back()->with('success', 'Skema komisi, ambang batas pencairan (threshold %), & sakelar Master Lead berhasil diperbarui.');
     }
 
     public function pay(Request $request, Commission $commission)
@@ -108,13 +133,20 @@ class CommissionController extends Controller
             return back()->with('error', 'Komisi ini sudah dibayarkan.');
         }
 
-        return DB::transaction(function () use ($commission) {
+        $validated = $request->validate([
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        return DB::transaction(function () use ($commission, $validated) {
             $receiptNumber = 'COM-' . strtoupper(uniqid());
             
             $commission->update([
                 'status' => 'paid',
                 'paid_at' => now(),
                 'receipt_number' => $receiptNumber,
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
+                'notes' => $validated['notes'] ?? $commission->notes,
             ]);
 
             // Update booking commission status
@@ -124,7 +156,7 @@ class CommissionController extends Controller
 
             AuditLog::record('commission_paid', $commission, null, $commission->toArray());
 
-            return back()->with('success', "Komisi berhasil dibayarkan. No. Kwitansi: $receiptNumber");
+            return back()->with('success', "Komisi berhasil dibayarkan dan dicatat ke Buku Besar. No. Kwitansi: $receiptNumber");
         });
     }
 }

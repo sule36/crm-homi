@@ -114,24 +114,43 @@ const sprTemplateForm = useForm({
     sigs_city: props.booking.sigs_city || props.booking.spr_signatures?.city || 'Jakarta Selatan',
     receipt_settings: (props.booking.receipt_settings && typeof props.booking.receipt_settings === 'object')
         ? {
+            receipt_sig_slot: props.booking.receipt_settings.receipt_sig_slot || 'sig1',
             receipt_number_prefix: props.booking.receipt_settings.receipt_number_prefix || '',
             receipt_number_custom: props.booking.receipt_settings.receipt_number_custom || '',
             receipt_city: props.booking.receipt_settings.receipt_city || props.booking.sigs_city || 'Jakarta Selatan',
-            receipt_sig_title: props.booking.receipt_settings.receipt_sig_title || 'Kasir & Keuangan',
+            receipt_sig_title: props.booking.receipt_settings.receipt_sig_title || props.booking.sig1_title || 'Kasir & Keuangan',
             receipt_sig_name: props.booking.receipt_settings.receipt_sig_name || props.booking.sig1_name || '',
             receipt_header_title: props.booking.receipt_settings.receipt_header_title || 'Bukti Pembayaran Resmi',
             receipt_notes: props.booking.receipt_settings.receipt_notes || 'Pembayaran ini dianggap sah apabila telah dibubuhi stempel & TTD resmi.',
         }
         : {
+            receipt_sig_slot: 'sig1',
             receipt_number_prefix: '',
             receipt_number_custom: '',
             receipt_city: props.booking.sigs_city || 'Jakarta Selatan',
-            receipt_sig_title: 'Kasir & Keuangan',
+            receipt_sig_title: props.booking.sig1_title || 'Kasir & Keuangan',
             receipt_sig_name: props.booking.sig1_name || '',
             receipt_header_title: 'Bukti Pembayaran Resmi',
             receipt_notes: 'Pembayaran ini dianggap sah apabila telah dibubuhi stempel & TTD resmi.',
         },
 });
+
+function onReceiptSigSlotChange() {
+    const slot = sprTemplateForm.receipt_settings.receipt_sig_slot;
+    if (slot === 'sig1') {
+        sprTemplateForm.receipt_settings.receipt_sig_title = sprTemplateForm.sig1_title || 'Kasir & Keuangan';
+        sprTemplateForm.receipt_settings.receipt_sig_name = sprTemplateForm.sig1_name || 'Keuangan';
+    } else if (slot === 'sig2') {
+        sprTemplateForm.receipt_settings.receipt_sig_title = sprTemplateForm.sig2_title || 'DIREKTUR';
+        sprTemplateForm.receipt_settings.receipt_sig_name = sprTemplateForm.sig2_name || '';
+    } else if (slot === 'sig3') {
+        sprTemplateForm.receipt_settings.receipt_sig_title = sprTemplateForm.sig3_title || 'SALES';
+        sprTemplateForm.receipt_settings.receipt_sig_name = sprTemplateForm.sig3_name || '';
+    } else if (slot === 'sig4') {
+        sprTemplateForm.receipt_settings.receipt_sig_title = sprTemplateForm.sig4_title || 'Penanda Tangan';
+        sprTemplateForm.receipt_settings.receipt_sig_name = sprTemplateForm.sig4_name || '';
+    }
+}
 
 function openSprTemplateModal() {
     showSprTemplateModal.value = true;
@@ -235,6 +254,8 @@ function openPaymentModal(schedule) {
     selectedSchedule.value = schedule;
     paymentForm.payment_schedule_id = schedule.id;
     paymentForm.amount = schedule.amount;
+    const label = schedule.label || 'Unit Properti';
+    paymentForm.notes = label.toLowerCase().startsWith('pembayaran') ? label : `Pembayaran ${label}`;
     showPaymentModal.value = true;
 }
 
@@ -1315,7 +1336,21 @@ const docTypeLabels = {
                                     <span>🧾</span> <span>Kustomisasi Parameter Kwitansi Pembayaran</span>
                                 </h4>
                                 <p class="text-xs text-emerald-700">
-                                    Atur format penomoran, lokasi/kota penerbitan, penanda tangan, serta catatan khusus yang akan tampil saat cetak/kirim Kwitansi untuk booking ini.
+                                    Atur format penomoran, lokasi/kota penerbitan, penanda tangan (TTD & Cap Stempel), serta catatan khusus yang akan tampil saat cetak/kirim Kwitansi untuk booking ini.
+                                </p>
+                            </div>
+
+                            <!-- Pilihan Slot TTD & Stempel -->
+                            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                                <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider">✒️ Sumber TTD & Cap Stempel Kwitansi</label>
+                                <select v-model="sprTemplateForm.receipt_settings.receipt_sig_slot" @change="onReceiptSigSlotChange" class="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500">
+                                    <option value="sig1">TTD Slot 1 ({{ sprTemplateForm.sig1_title || 'TTD 1' }} - {{ sprTemplateForm.sig1_name || 'Petugas' }})</option>
+                                    <option value="sig2">TTD Slot 2 ({{ sprTemplateForm.sig2_title || 'TTD 2' }} - {{ sprTemplateForm.sig2_name || 'Direktur' }})</option>
+                                    <option value="sig3">TTD Slot 3 ({{ sprTemplateForm.sig3_title || 'TTD 3' }} - {{ sprTemplateForm.sig3_name || 'Sales' }})</option>
+                                    <option value="sig4">TTD Slot 4 ({{ sprTemplateForm.sig4_title || 'TTD 4' }} - {{ sprTemplateForm.sig4_name || 'Lainnya' }})</option>
+                                </select>
+                                <p class="text-[10px] text-slate-500">
+                                    Gambar tanda tangan digital & stempel akan otomatis diambil dari slot TTD yang dipilih di atas (diatur pada tab <b>Penanda Tangan 4 TTD</b>).
                                 </p>
                             </div>
 
@@ -1323,8 +1358,8 @@ const docTypeLabels = {
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Prefix / Awalan Format No. Kwitansi</label>
-                                    <input v-model="sprTemplateForm.receipt_settings.receipt_number_prefix" type="text" placeholder="Contoh: KW/HOMI-ALN atau KW/SRD" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
-                                    <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor otomatis menjadi: Prefix/Tahun/ID (Contoh: KW/HOMI-ALN/2026/0001)</p>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_number_prefix" type="text" placeholder="Contoh: KW/ALN atau KW/PROJECT" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                    <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor otomatis menjadi: Prefix/Tahun/ID (Contoh: KW/ALN/2026/0001)</p>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nomor Kwitansi Override Manual (Opsional)</label>
@@ -1353,7 +1388,7 @@ const docTypeLabels = {
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Penanda Tangan Kwitansi</label>
-                                    <input v-model="sprTemplateForm.receipt_settings.receipt_sig_name" type="text" placeholder="Contoh: Keuangan Homi Developer" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_sig_name" type="text" placeholder="Contoh: Keuangan / Budi Santoso" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
                                 </div>
                             </div>
 
@@ -1377,7 +1412,7 @@ const docTypeLabels = {
                                     <div class="flex justify-between border-b border-slate-200 pb-1">
                                         <span class="font-bold text-slate-600">No. Kwitansi Sample:</span>
                                         <span class="font-mono font-bold text-emerald-700">
-                                            {{ sprTemplateForm.receipt_settings.receipt_number_custom || ((sprTemplateForm.receipt_settings.receipt_number_prefix || 'KW/HOMI') + '/2026/0001') }}
+                                            {{ sprTemplateForm.receipt_settings.receipt_number_custom || ((sprTemplateForm.receipt_settings.receipt_number_prefix || ('KW/' + (booking.unit?.project?.code || 'ALN'))) + '/2026/0001') }}
                                         </span>
                                     </div>
                                     <div class="flex justify-between border-b border-slate-200 pb-1">

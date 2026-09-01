@@ -26,13 +26,18 @@ class TransactionController extends Controller
         ]);
 
         return DB::transaction(function () use ($validated) {
+            $schedule = PaymentSchedule::find($validated['payment_schedule_id']);
+            if (empty($validated['notes']) && $schedule) {
+                $label = $schedule->label ?: 'Unit Properti';
+                $validated['notes'] = str_starts_with(strtolower($label), 'pembayaran') ? $label : ("Pembayaran " . $label);
+            }
+
             $transaction = Transaction::create([
                 ...$validated,
                 'recorded_by' => auth()->id(),
             ]);
 
             // Update Payment Schedule Status
-            $schedule = PaymentSchedule::find($validated['payment_schedule_id']);
             $totalPaidForSchedule = Transaction::where('payment_schedule_id', $schedule->id)->sum('amount');
 
             if ($totalPaidForSchedule >= $schedule->amount) {
@@ -70,7 +75,7 @@ class TransactionController extends Controller
 
     public function receipt(Transaction $transaction)
     {
-        $transaction->load(['booking.lead', 'booking.unit.project', 'recordedBy', 'bankAccount']);
+        $transaction->load(['booking.lead', 'booking.unit.project', 'recordedBy', 'bankAccount', 'paymentSchedule']);
         
         $spelledText = ucwords(trim($this->terbilang($transaction->amount))) . " Rupiah";
         $settingsRaw = \App\Models\Setting::all();

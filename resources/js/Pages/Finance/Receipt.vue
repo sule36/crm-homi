@@ -28,12 +28,12 @@ const sendWaReceipt = () => {
     const name = props.transaction.booking?.lead?.name || 'Konsumen';
     const amountStr = formatCurrency(props.transaction.amount);
     const unitStr = props.transaction.booking?.unit ? `Blok ${props.transaction.booking.unit.block} No. ${props.transaction.booking.unit.number}` : 'Unit';
-    const projStr = props.transaction.booking?.unit?.project?.name || 'Homi Developer';
+    const projStr = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Developer Properti';
     const rawPhone = props.transaction.booking?.lead?.phone || '';
     const phone = rawPhone.replace(/\D/g, '').replace(/^0/, '62');
     const receiptUrl = `${window.location.origin}/finance/transactions/${props.transaction.id}/receipt`;
 
-    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan Homi Developer*`;
+    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan ${projStr}*`;
 
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 };
@@ -50,8 +50,8 @@ const bookingReceiptSettings = props.transaction.booking?.receipt_settings || {}
 
 const projectLogo = props.transaction.booking?.unit?.project?.logo || null;
 const logoImage = projectLogo || props.settings?.company_logo || null;
-const companyName = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Homi Developer';
-const projectCode = props.transaction.booking?.unit?.project?.code || 'HOMI';
+const companyName = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Developer Properti';
+const projectCode = props.transaction.booking?.unit?.project?.code || 'ALN';
 const txYear = new Date(props.transaction.created_at).getFullYear();
 const paddedId = String(props.transaction.id).padStart(4, '0');
 
@@ -66,11 +66,31 @@ if (!receiptNumber) {
     }
 }
 
+const slotKey = bookingReceiptSettings.receipt_sig_slot || 'sig1';
+
+let defaultSigImage = props.settings?.spr_signatures?.sig1_image || null;
+let defaultTitle = props.transaction.booking?.sig1_title || props.settings?.spr_signatures?.sig1_title || 'Kasir & Keuangan';
+let defaultName = props.transaction.booking?.sig1_name || props.settings?.spr_signatures?.sig1_name || props.transaction.recorded_by_user?.name || 'Keuangan';
+
+if (slotKey === 'sig2') {
+    defaultSigImage = props.settings?.spr_signatures?.sig2_image || defaultSigImage;
+    defaultTitle = props.transaction.booking?.sig2_title || props.settings?.spr_signatures?.sig2_title || 'Direktur';
+    defaultName = props.transaction.booking?.sig2_name || props.settings?.spr_signatures?.sig2_name || defaultName;
+} else if (slotKey === 'sig3') {
+    defaultSigImage = props.settings?.spr_signatures?.sig3_image || defaultSigImage;
+    defaultTitle = props.transaction.booking?.sig3_title || props.settings?.spr_signatures?.sig3_title || 'Sales';
+    defaultName = props.transaction.booking?.sig3_name || props.settings?.spr_signatures?.sig3_name || defaultName;
+} else if (slotKey === 'sig4') {
+    defaultSigImage = props.settings?.spr_signatures?.sig4_image || defaultSigImage;
+    defaultTitle = props.transaction.booking?.sig4_title || props.settings?.spr_signatures?.sig4_title || 'Penanda Tangan';
+    defaultName = props.transaction.booking?.sig4_name || props.settings?.spr_signatures?.sig4_name || defaultName;
+}
+
 const headerTitle = bookingReceiptSettings.receipt_header_title || 'Bukti Pembayaran Resmi';
 const cityName = bookingReceiptSettings.receipt_city || props.transaction.booking?.sigs_city || props.settings?.spr_signatures?.city || 'Jakarta';
-const sigImage = bookingReceiptSettings.receipt_sig_image || props.settings?.spr_signatures?.sig1_image || null;
-const officerTitle = bookingReceiptSettings.receipt_sig_title || props.settings?.spr_signatures?.sig1_title || 'Kasir & Keuangan';
-const officerName = bookingReceiptSettings.receipt_sig_name || props.settings?.spr_signatures?.sig1_name || props.transaction.recorded_by_user?.name || 'Keuangan Homi';
+const sigImage = bookingReceiptSettings.receipt_sig_image || defaultSigImage;
+const officerTitle = bookingReceiptSettings.receipt_sig_title || defaultTitle;
+const officerName = bookingReceiptSettings.receipt_sig_name || defaultName;
 const receiptNotes = bookingReceiptSettings.receipt_notes || null;
 </script>
 
@@ -125,7 +145,7 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
         <div id="receipt-paper" class="max-w-3xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden p-10 relative print:shadow-none print:border-none print:p-0">
             <!-- Background Watermark -->
             <div class="absolute inset-0 opacity-[0.02] flex items-center justify-center pointer-events-none select-none">
-                <span class="text-9xl font-black rotate-[25deg]">HOMI</span>
+                <span class="text-9xl font-black rotate-[25deg]">{{ projectCode }}</span>
             </div>
 
             <!-- Header -->

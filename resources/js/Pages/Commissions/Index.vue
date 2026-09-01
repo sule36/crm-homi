@@ -8,14 +8,24 @@ const props = defineProps({
     stats: Object,
     brokerCompanies: Array,
     defaultRates: Object,
+    schemaConfig: Object,
+    masterLeads: Array,
+    bankAccounts: Array,
+    payoutThresholdPercent: Number,
     filters: Object,
 });
 
 const showParamModal = ref(false);
 const paramForm = useForm({
-    inhouse_rate: props.defaultRates?.inhouse || 2.5,
+    inhouse_developer_rate: props.defaultRates?.inhouse_developer || 1.0,
+    inhouse_master_lead_rate: props.defaultRates?.inhouse_master_lead || 1.5,
+    master_lead_overriding_rate: props.defaultRates?.master_lead_overriding || 4.5,
     agency_rate: props.defaultRates?.agency || 3.0,
-    independent_rate: props.defaultRates?.independent || 3.0,
+    independent_rate: props.defaultRates?.independent || 2.5,
+    payout_threshold_percent: props.payoutThresholdPercent || 25.0,
+    enable_master_lead: props.schemaConfig?.enable_master_lead ?? true,
+    enable_inhouse_developer: props.schemaConfig?.enable_inhouse_developer ?? true,
+    enable_inhouse_master_lead: props.schemaConfig?.enable_inhouse_master_lead ?? true,
 });
 
 function submitParameters() {
@@ -24,14 +34,32 @@ function submitParameters() {
     });
 }
 
-const formatCurrency = (value) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+const showPayModal = ref(false);
+const selectedCommission = ref(null);
+const payForm = useForm({
+    bank_account_id: '',
+    notes: '',
+});
+
+const openPayModal = (item) => {
+    selectedCommission.value = item;
+    payForm.bank_account_id = props.bankAccounts && props.bankAccounts.length > 0 ? props.bankAccounts[0].id : '';
+    payForm.notes = `Pembayaran komisi ${item.payout_recipient || 'agent'} untuk ${item.booking?.lead?.name || 'Konsumen'}`;
+    showPayModal.value = true;
 };
 
-const payCommission = (id) => {
-    if (confirm('Konfirmasi pembayaran komisi ini? Pastikan Anda sudah mentransfer ke rekening sales.')) {
-        router.post(`/commissions/${id}/pay`);
-    }
+const submitPayCommission = () => {
+    if (!selectedCommission.value) return;
+    payForm.post(`/commissions/${selectedCommission.value.id}/pay`, {
+        onSuccess: () => {
+            showPayModal.value = false;
+            selectedCommission.value = null;
+        }
+    });
+};
+
+const formatCurrency = (value) => {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 };
 
 const statusColors = {
@@ -188,6 +216,18 @@ const simNetCommission = computed(() => {
                             <label class="block uppercase text-[9px] font-black text-slate-400 mb-1">Independen (%)</label>
                             <input v-model.number="paramForm.independent_rate" type="number" step="0.1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                         </div>
+                    </div>
+
+                    <!-- THRESHOLD PENCAIRAN KOMISI -->
+                    <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200/80">
+                        <label class="block uppercase text-[9px] font-black text-emerald-800 mb-1">🎯 Syarat Payout Komisi (% Dana Masuk Konsumen)</label>
+                        <div class="flex items-center gap-2">
+                            <input v-model.number="paramForm.payout_threshold_percent" type="number" step="1" min="0" max="100" class="w-28 px-3 py-2 bg-white border border-emerald-300 rounded-xl font-black text-emerald-900" />
+                            <span class="text-xs font-bold text-emerald-800">% dari Harga Unit</span>
+                        </div>
+                        <p class="text-[10px] text-emerald-700 font-medium mt-1">
+                            Komisi ditandai "Dapat Dicairkan (Wajib Bayar)" secara otomatis ketika akumulasi pembayaran konsumen telah mencapai/melewati persentase ini (default: 25%).
+                        </p>
                     </div>
 
                     <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -429,18 +469,37 @@ const simNetCommission = computed(() => {
                                 <span :class="statusColors[item.status]" class="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
                                     {{ item.status }}
                                 </span>
+
+                                <!-- INDICATOR KELAYAKAN PAYOUT AUTOMATIS -->
+                                <div class="mt-2 space-y-1">
+                                    <div v-if="item.status === 'pending'">
+                                        <span v-if="item.is_payout_eligible" class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black rounded-lg shadow-sm">
+                                            <span>🟢</span> <span>Wajib Dibayar ({{ item.buyer_paid_percent }}% Masuk)</span>
+                                        </span>
+                                        <span v-else class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold rounded-lg">
+                                            <span>🟡</span> <span>Pending ({{ item.buyer_paid_percent }}% / {{ item.payout_threshold_percent }}%)</span>
+                                        </span>
+                                    </div>
+                                    <div v-else>
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-bold rounded-lg">
+                                            <span>📘</span> <span>Tercatat Buku Besar</span>
+                                        </span>
+                                    </div>
+                                </div>
+
                                 <p v-if="item.paid_at" class="text-[9px] text-slate-400 mt-1 font-bold">{{ new Date(item.paid_at).toLocaleDateString('id-ID') }}</p>
                             </td>
                             <td class="px-8 py-6 text-right">
                                 <div v-if="item.status === 'pending'" class="flex justify-end">
-                                    <button @click="payCommission(item.id)" 
-                                        class="px-5 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-all shadow-lg active:scale-95">
-                                        Bayar & Cetak
+                                    <button @click="openPayModal(item)" 
+                                        :class="item.is_payout_eligible ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-500/20' : 'bg-slate-900 hover:bg-slate-800'"
+                                        class="px-5 py-2.5 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-all shadow-lg active:scale-95 flex items-center gap-1.5">
+                                        <span>💸</span> <span>Bayar Komisi</span>
                                     </button>
                                 </div>
                                 <div v-else class="text-right">
                                     <p class="text-[10px] font-black text-emerald-600 uppercase">{{ item.receipt_number }}</p>
-                                    <button class="text-[9px] text-blue-500 font-bold uppercase hover:underline">Download Bukti</button>
+                                    <p v-if="item.bank_account" class="text-[9px] text-slate-500 font-bold">via {{ item.bank_account.bank_name }}</p>
                                 </div>
                             </td>
                         </tr>
@@ -453,6 +512,72 @@ const simNetCommission = computed(() => {
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- MODAL BAYAR KOMISI & INTEGRASI BUKU BESAR -->
+        <div v-if="showPayModal && selectedCommission" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 space-y-4 text-slate-900 animate-in zoom-in duration-150">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-base font-black tracking-tight">Cairkan Komisi & Catat Kas Out</h3>
+                        <p class="text-xs text-slate-400">Konfirmasi pencairan dana komisi ke penerbit/agent.</p>
+                    </div>
+                    <button @click="showPayModal = false" class="text-slate-400 hover:text-slate-700">✕</button>
+                </div>
+
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 font-bold">Penerima Komisi:</span>
+                        <span class="font-black text-slate-900">{{ selectedCommission.user?.name }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 font-bold">Unit / Konsumen:</span>
+                        <span class="font-bold text-slate-800">{{ selectedCommission.booking?.unit?.code }} - {{ selectedCommission.booking?.lead?.name }}</span>
+                    </div>
+                    <div class="flex justify-between border-t border-slate-200 pt-2">
+                        <span class="text-slate-700 font-black">Nominal Komisi:</span>
+                        <span class="font-black text-emerald-600 text-sm">{{ formatCurrency(selectedCommission.amount) }}</span>
+                    </div>
+                </div>
+
+                <!-- Recipient Bank Account Card -->
+                <div v-if="selectedCommission.user?.effective_bank_account" class="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl text-xs space-y-1">
+                    <span class="text-[10px] font-black text-amber-900 uppercase block">🏦 Rekening Tujuan Transfer Agen</span>
+                    <p class="font-black text-slate-900">{{ selectedCommission.user.effective_bank_account.bank_name }} - {{ selectedCommission.user.effective_bank_account.bank_account_number }}</p>
+                    <p class="text-[10px] font-bold text-slate-600">A/N {{ selectedCommission.user.effective_bank_account.bank_account_name }}</p>
+                </div>
+
+                <form @submit.prevent="submitPayCommission" class="space-y-4 text-xs font-bold">
+                    <div>
+                        <label class="block uppercase text-[10px] font-black text-slate-500 mb-1">Pilih Akun Bank Perusahaan (Pengeluaran)</label>
+                        <select v-model="payForm.bank_account_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:ring-1 focus:ring-blue-500">
+                            <option value="">-- Pilih Akun Bank Perusahaan --</option>
+                            <option v-for="acc in bankAccounts" :key="acc.id" :value="acc.id">
+                                {{ acc.bank_name }} - {{ acc.account_number }} (A/N {{ acc.account_name }})
+                            </option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block uppercase text-[10px] font-black text-slate-500 mb-1">Catatan Tambahan (Opsional)</label>
+                        <textarea v-model="payForm.notes" rows="2" placeholder="Catatan transaksi..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-blue-500"></textarea>
+                    </div>
+
+                    <div class="p-3 bg-blue-50/80 border border-blue-200 rounded-xl text-[11px] text-blue-900">
+                        <span class="font-black block mb-0.5">📘 Integrasi Buku Besar (General Ledger)</span>
+                        <p class="text-[10px] font-medium leading-relaxed">
+                            Transaksi ini akan otomatis memotong saldo akun bank terpilih dan dicatat sebagai beban komisi penjualan pada laporan arus kas.
+                        </p>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                        <button type="button" @click="showPayModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl">Batal</button>
+                        <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg flex items-center gap-1.5">
+                            <span>✅</span> <span>Konfirmasi Pembayaran</span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </CrmLayout>
