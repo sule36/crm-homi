@@ -19,6 +19,51 @@ class MasterLeadController extends Controller
         $user = auth()->user();
         $isMasterLead = $user->hasRole('master_lead') || $user->agent_type === 'master_lead';
 
+        // Auto-heal / sync missing Master Lead overriding commissions for all approved bookings
+        $approvedBookings = Booking::with(['bookedBy.brokerCompany', 'bookedBy.masterLead'])
+            ->whereIn('status', ['approved', 'completed', 'booked'])
+            ->get();
+
+        foreach ($approvedBookings as $bk) {
+            $agent = $bk->bookedBy;
+            if (!$agent) continue;
+
+            $masterLead = $agent->masterLead ?? $agent->brokerCompany?->masterLead;
+            if (!$masterLead && \App\Models\Setting::get('commission_schema_config.enable_master_lead', true)) {
+                $masterLead = User::where('agent_type', 'master_lead')
+                    ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
+                    ->first();
+            }
+
+            if ($masterLead && $masterLead->id !== $agent->id) {
+                $existingMlComm = Commission::where('booking_id', $bk->id)
+                    ->where('payout_recipient', 'master_lead')
+                    ->first();
+
+                if (!$existingMlComm) {
+                    $effectiveRate = $agent->effective_commission_rate;
+                    $baseCommission = $bk->final_price * ($effectiveRate / 100);
+                    $masterRate = $masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5);
+                    $masterTotalGross = $bk->final_price * ($masterRate / 100);
+                    $masterNetFee = max(0, $masterTotalGross - $baseCommission);
+
+                    if ($masterNetFee > 0) {
+                        Commission::create([
+                            'booking_id' => $bk->id,
+                            'user_id' => $masterLead->id,
+                            'broker_company_id' => null,
+                            'amount' => $masterNetFee,
+                            'base_commission' => $masterTotalGross,
+                            'promo_bonus' => 0,
+                            'rate_used' => $masterRate,
+                            'payout_recipient' => 'master_lead',
+                            'status' => 'pending',
+                        ]);
+                    }
+                }
+            }
+        }
+
         // 1. Query Master Lead Partners with Sub-Agents
         $mlQuery = User::withCount(['subAgents'])
             ->with(['subAgents' => function ($q) {

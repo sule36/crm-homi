@@ -168,25 +168,30 @@ class BookingController extends Controller
                     ]);
                 }
 
-                if ($utjSched && !$booking->transactions()->where('payment_schedule_id', $utjSched->id)->exists()) {
-                    $recordedBy = auth()->id() ?? $booking->booked_by ?? \App\Models\User::first()?->id ?? 1;
-                    \App\Models\Transaction::create([
-                        'booking_id' => $booking->id,
-                        'payment_schedule_id' => $utjSched->id,
-                        'amount' => $booking->booking_fee,
-                        'payment_method' => 'cash',
-                        'notes' => 'Otomatis dari Booking Fee (UTJ)',
-                        'recorded_by' => $recordedBy,
-                    ]);
+                $paidSchedules = $booking->paymentSchedules()->where('status', 'paid')->get();
+                foreach ($paidSchedules as $pSched) {
+                    if (!$booking->transactions()->where('payment_schedule_id', $pSched->id)->exists()) {
+                        $recordedBy = auth()->id() ?? $booking->booked_by ?? \App\Models\User::first()?->id ?? 1;
+                        $label = $pSched->label ?: 'Pembayaran';
+                        $note = str_starts_with(strtolower($label), 'pembayaran') ? $label : ("Pembayaran " . $label);
+                        \App\Models\Transaction::create([
+                            'booking_id' => $booking->id,
+                            'payment_schedule_id' => $pSched->id,
+                            'amount' => $pSched->amount,
+                            'payment_method' => 'cash',
+                            'notes' => $note,
+                            'recorded_by' => $recordedBy,
+                        ]);
+                    }
                 }
             }
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Self-healing UTJ failed in BookingController@show: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Self-healing paid payment schedules failed in BookingController@show: ' . $e->getMessage());
         }
 
         $relations = [
             'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy',
-            'paymentSchedules' => fn ($q) => $q->orderBy('installment_number', 'asc')->orderBy('id', 'asc'),
+            'paymentSchedules.transactions',
             'transactions', 'documents'
         ];
         if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {

@@ -16,7 +16,13 @@ const showPaymentModal = ref(false);
 const selectedSchedule = ref(null);
 const showSpkPreview = ref(false);
 const showSprTemplateModal = ref(false);
+const showReceiptsModal = ref(false);
 const activeSprTab = ref('bank');
+
+function getScheduleTransaction(schedule) {
+    if (!props.booking?.transactions) return null;
+    return props.booking.transactions.find(tx => tx.payment_schedule_id === schedule.id);
+}
 
 const defaultTerms = [
     "Pembeli menyatakan telah mengerti dan menyetujui serta akan tunduk kepada persyaratan dan ketentuan serta kebijakan yang ditetapkan oleh Pengembang dalam SPR",
@@ -482,6 +488,10 @@ const docTypeLabels = {
                 </button>
             </div>
             <div v-else-if="booking.status === 'approved'" class="flex flex-wrap gap-2">
+                <button v-if="booking.transactions?.length > 0" @click="showReceiptsModal = true" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                    <span>📄</span>
+                    <span>Daftar Kwitansi PDF ({{ booking.transactions.length }})</span>
+                </button>
                 <button @click="openSprTemplateModal" class="px-5 py-2.5 bg-amber-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     ⚙️ Edit Template SPR
                 </button>
@@ -655,7 +665,18 @@ const docTypeLabels = {
                                     </td>
                                     <td class="px-4 py-3 text-right space-x-1.5">
                                         <button v-if="schedule.status !== 'paid'" @click="openPaymentModal(schedule)" class="px-2.5 py-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700">Bayar</button>
-                                        <span v-else class="text-[10px] text-emerald-600 font-black uppercase tracking-widest mr-2">Lunas ✅</span>
+                                        <div v-else class="inline-flex items-center gap-1.5 mr-2">
+                                            <span class="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Lunas ✅</span>
+                                            <a 
+                                                v-if="getScheduleTransaction(schedule)"
+                                                :href="`/finance/transactions/${getScheduleTransaction(schedule).id}/receipt`" 
+                                                target="_blank" 
+                                                class="px-2 py-0.5 bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 font-bold text-[10px] rounded-lg transition-all inline-flex items-center gap-1 shadow-sm"
+                                                title="Cetak & Download Kwitansi PDF Resmi (TTD & Cap)"
+                                            >
+                                                <span>📄 Kwitansi PDF</span>
+                                            </a>
+                                        </div>
 
                                         <button @click="sendEmailRow(schedule)" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="Kirim Invoice Email Tagihan Ke Konsumen">✉️</button>
                                         <button @click="openEditRow(schedule)" class="p-1 text-slate-400 hover:text-amber-600 transition-colors" title="Edit Baris">✏️</button>
@@ -1435,6 +1456,44 @@ const docTypeLabels = {
                     <button type="submit" form="spr-template-form" :disabled="sprTemplateForm.processing" class="px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl shadow-lg shadow-blue-500/20 uppercase hover:-translate-y-0.5 transition-all">
                         {{ sprTemplateForm.processing ? 'MEMPROSES...' : 'SIMPAN TEMPLATE KHUSUS BOOKING INI' }}
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DAFTAR KWITANSI MODAL -->
+        <div v-if="showReceiptsModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>📄</span> <span>Daftar Kwitansi & Invoice Pembayaran Resmi</span>
+                        </h3>
+                        <p class="text-xs text-slate-500">Unduh atau cetak bukti kwitansi sah untuk konsumen {{ booking.lead?.name }}</p>
+                    </div>
+                    <button @click="showReceiptsModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                </div>
+
+                <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                    <div v-for="tx in booking.transactions" :key="tx.id" class="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <div class="font-bold text-slate-900 dark:text-white text-sm">{{ tx.notes || 'Pembayaran Unit Properti' }}</div>
+                            <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                <span>🗓️ {{ new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }}</span>
+                                <span>•</span>
+                                <span>💳 {{ tx.payment_method?.toUpperCase() }}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span class="font-black text-emerald-600 dark:text-emerald-400 text-sm mr-2">{{ formatCurrency(tx.amount) }}</span>
+                            <a :href="`/finance/transactions/${tx.id}/receipt`" target="_blank" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                                <span>📄</span> <span>Cetak / Download PDF</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                    <button @click="showReceiptsModal = false" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-all">Tutup</button>
                 </div>
             </div>
         </div>

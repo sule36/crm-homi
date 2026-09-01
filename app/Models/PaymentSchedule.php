@@ -24,4 +24,5 @@ class PaymentSchedule extends Model
 
     public function booking() { return $this->belongsTo(Booking::class); }
     public function verifiedBy() { return $this->belongsTo(User::class, 'verified_by'); }
+    public function transactions() { return $this->hasMany(Transaction::class); }
 }

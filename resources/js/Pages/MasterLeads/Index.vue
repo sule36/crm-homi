@@ -878,6 +878,7 @@ function submitPaySubAgent() {
                             <tr>
                                 <th class="p-4">Sub-Agent Penerima</th>
                                 <th class="p-4">Unit Booking & Proyek</th>
+                                <th class="p-4">Harga Jual Net Properti</th>
                                 <th class="p-4">Hak Komisi Sub-Agent</th>
                                 <th class="p-4">Pencairan Dev ➔ ML</th>
                                 <th class="p-4">Transfer ML ➔ Sub-Agent</th>
@@ -896,6 +897,9 @@ function submitPaySubAgent() {
                                         {{ c.booking?.unit ? ('Blok ' + c.booking.unit.block + ' No. ' + c.booking.unit.number) : 'Unit Booking' }}
                                     </div>
                                     <div class="text-[11px] text-slate-400">{{ c.booking?.lead?.name || '-' }} • {{ c.booking?.unit?.project?.name || '' }}</div>
+                                </td>
+                                <td class="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                    {{ formatCurrency(c.booking?.final_price || c.booking?.unit_price || 0) }}
                                 </td>
                                 <td class="p-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                                     {{ formatCurrency(c.amount) }}
@@ -958,7 +962,8 @@ function submitPaySubAgent() {
                             <tr>
                                 <th class="p-4">Master Lead Penerima</th>
                                 <th class="p-4">Unit Booking & Proyek</th>
-                                <th class="p-4">Skema Breakdown Fee</th>
+                                <th class="p-4">Harga Jual Net Properti</th>
+                                <th class="p-4">Skema Fee Overriding</th>
                                 <th class="p-4">Gross ML Fee (4.5%)</th>
                                 <th class="p-4">Sub-Agent Share (3.0%)</th>
                                 <th class="p-4 text-right">Net Profit ML (1.5%)</th>
@@ -976,6 +981,9 @@ function submitPaySubAgent() {
                                         {{ mc.booking?.unit ? ('Blok ' + mc.booking.unit.block + ' No. ' + mc.booking.unit.number) : 'Unit Booking' }}
                                     </div>
                                     <div class="text-[11px] text-slate-400">{{ mc.booking?.lead?.name || '-' }} • {{ mc.booking?.unit?.project?.name || '' }}</div>
+                                </td>
+                                <td class="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                    {{ formatCurrency(mc.booking?.final_price || mc.booking?.unit_price || 0) }}
                                 </td>
                                 <td class="p-4">
                                     <div class="text-[10px] font-mono space-y-0.5">
