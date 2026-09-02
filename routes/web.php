@@ -159,6 +159,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/master-leads/{user}', [\App\Http\Controllers\MasterLeadController::class, 'destroy'])->name('master-leads.destroy');
     Route::post('/master-leads/commissions/{commission}/pay-sub-agent', [\App\Http\Controllers\MasterLeadController::class, 'paySubAgentCommission'])->name('master-leads.pay-sub-agent');
     Route::post('/master-leads/invoices', [\App\Http\Controllers\MasterLeadController::class, 'storeInvoice'])->name('master-leads.invoices.store');
+    Route::post('/master-leads/parameters', [\App\Http\Controllers\MasterLeadController::class, 'updateParameters'])->name('master-leads.update-parameters');
     Route::get('/master-leads/invoices/{invoice}', [\App\Http\Controllers\MasterLeadController::class, 'showInvoice'])->name('master-leads.invoices.show');
     Route::post('/master-leads/invoices/{invoice}/mark-paid', [\App\Http\Controllers\MasterLeadController::class, 'markInvoicePaid'])->name('master-leads.invoices.mark-paid');
     Route::post('/master-leads/invoices/{invoice}/update-bank', [\App\Http\Controllers\MasterLeadController::class, 'updateInvoiceBank'])->name('master-leads.invoices.update-bank');

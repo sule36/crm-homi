@@ -84,6 +84,22 @@ const filteredMasterLeadInvoices = computed(() => {
     });
 });
 
+const showParamModal = ref(false);
+const paramForm = useForm({
+    master_lead_overriding: props.defaultRates?.master_lead_overriding || 4.0,
+    master_lead_closing_fee: props.defaultRates?.master_lead_closing_fee || 5000000,
+    master_lead_reward_iphone_value: props.defaultRates?.master_lead_reward_iphone_value || 23000000,
+    master_lead_reward_iphone_name: props.defaultRates?.master_lead_reward_iphone_name || 'Reward iPhone 17 Pro (Konversi Cash)',
+});
+
+function submitParamForm() {
+    paramForm.post(route('master-leads.update-parameters'), {
+        onSuccess: () => {
+            showParamModal.value = false;
+        }
+    });
+}
+
 function submitInvoiceForm() {
     invoiceForm.post(route('master-leads.invoices.store'), {
         onSuccess: () => {
@@ -1014,13 +1030,21 @@ function submitPaySubAgent() {
                     <div class="text-xs text-purple-900 dark:text-purple-300 font-medium">
                         💡 Master Lead dapat menerbitkan <b>Invoice Tagihan Komisi Resmi (PDF)</b> ke Developer per unit atau gabungan beberapa unit sekaligus.
                     </div>
-                    <button 
-                        v-if="selectedCommissions.length > 0"
-                        @click="submitBatchInvoice" 
-                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0"
-                    >
-                        <span>📄</span> <span>Terbitkan Batch Invoice ({{ selectedCommissions.length }} Unit Selected)</span>
-                    </button>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button 
+                            @click="showParamModal = true"
+                            class="px-3.5 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                        >
+                            <span>⚙️</span> <span>Set Parameter Fee, CF & Reward</span>
+                        </button>
+                        <button 
+                            v-if="selectedCommissions.length > 0"
+                            @click="submitBatchInvoice" 
+                            class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                        >
+                            <span>📄</span> <span>Terbitkan Batch Invoice ({{ selectedCommissions.length }} Unit Selected)</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div v-if="mlOverridingCommissions && mlOverridingCommissions.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
@@ -1294,9 +1318,48 @@ function submitPaySubAgent() {
             </div>
         </div>
 
-        <!-- ========================================================================= -->
-        <!-- MODALS (CLEAN ERP STYLE) -->
-        <!-- ========================================================================= -->
+        <!-- MODAL PENGATURAN PARAMETER CLOSING FEE, REWARD IPHONE & OVERRIDING RATE -->
+        <div v-if="showParamModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>⚙️</span>
+                        <span>Pengaturan Parameter Fee, CF & Reward</span>
+                    </h3>
+                    <button @click="showParamModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold">&times;</button>
+                </div>
+
+                <form @submit.prevent="submitParamForm" class="space-y-4 text-xs">
+                    <div>
+                        <label class="block font-bold text-purple-700 dark:text-purple-400 mb-1">Overriding Rate Master Lead (%)</label>
+                        <input v-model.number="paramForm.master_lead_overriding" type="number" step="0.1" required class="w-full bg-slate-50 dark:bg-slate-950 border border-purple-300 dark:border-purple-800 rounded-xl px-3.5 py-2.5 text-purple-700 dark:text-purple-300 font-mono font-bold" />
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-amber-700 dark:text-amber-400 mb-1">⚡ Nominal Closing Fee per Unit Deal (Rp)</label>
+                        <input v-model.number="paramForm.master_lead_closing_fee" type="number" step="100000" required placeholder="5000000" class="w-full bg-slate-50 dark:bg-slate-950 border border-amber-300 dark:border-amber-800 rounded-xl px-3.5 py-2.5 text-amber-700 dark:text-amber-300 font-mono font-bold" />
+                        <div class="text-[10px] text-slate-400 mt-1">Net Closing Fee untuk Master Lead (Tanpa Potongan Sub-Agent).</div>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-emerald-700 dark:text-emerald-400 mb-1">🎁 Nilai Konversi Cash Reward iPhone (Rp)</label>
+                        <input v-model.number="paramForm.master_lead_reward_iphone_value" type="number" step="500000" required placeholder="23000000" class="w-full bg-slate-50 dark:bg-slate-950 border border-emerald-300 dark:border-emerald-800 rounded-xl px-3.5 py-2.5 text-emerald-700 dark:text-emerald-300 font-mono font-bold" />
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Nama Reward & Spesifikasi</label>
+                        <input v-model="paramForm.master_lead_reward_iphone_name" type="text" required placeholder="misal: Reward iPhone 17 Pro (Konversi Cash)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white font-bold" />
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" @click="showParamModal = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl">Batal</button>
+                        <button type="submit" :disabled="paramForm.processing" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30">
+                            Simpan Parameter
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <!-- MODAL MASTER LEAD (CREATE & EDIT) -->
         <div v-if="showMlModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">

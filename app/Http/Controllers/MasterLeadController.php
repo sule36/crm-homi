@@ -47,9 +47,9 @@ class MasterLeadController extends Controller
                     ->whereIn('claim_type', ['closing_fee', 'reward'])
                     ->delete();
 
-                $closingFeeAmount = (float) \App\Models\Setting::get('default_commission_rates.master_lead_closing_fee', 2500000);
-                $rewardCashAmount = (float) \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_value', 20000000);
-                $rewardName = \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_name', 'Reward iPhone 16 Pro 256GB (Konversi Cash)');
+                $closingFeeAmount = (float) \App\Models\Setting::get('default_commission_rates.master_lead_closing_fee', 5000000);
+                $rewardCashAmount = (float) \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_value', 23000000);
+                $rewardName = \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_name', 'Reward iPhone 17 Pro (Konversi Cash)');
 
                 $existingMlComm = Commission::where('booking_id', $bk->id)
                     ->where('payout_recipient', 'master_lead')
@@ -538,8 +538,75 @@ class MasterLeadController extends Controller
         return Inertia::render('MasterLeads/InvoiceReceipt', [
             'invoice' => $invoice,
             'spelled_text' => $spelledText,
-            'settings' => $settings,
+            'developerName' => $developerName,
+            'bankAccounts' => $bankAccounts,
         ]);
+    }
+
+    public function updateParameters(Request $request)
+    {
+        $validated = $request->validate([
+            'master_lead_overriding' => 'required|numeric|min:0|max:100',
+            'master_lead_closing_fee' => 'required|numeric|min:0',
+            'master_lead_reward_iphone_value' => 'required|numeric|min:0',
+            'master_lead_reward_iphone_name' => 'required|string',
+        ]);
+
+        $defaultRates = \App\Models\Setting::get('default_commission_rates', []);
+        $defaultRates['master_lead_overriding'] = (float) $validated['master_lead_overriding'];
+        $defaultRates['master_lead_closing_fee'] = (float) $validated['master_lead_closing_fee'];
+        $defaultRates['master_lead_reward_iphone_value'] = (float) $validated['master_lead_reward_iphone_value'];
+        $defaultRates['master_lead_reward_iphone_name'] = $validated['master_lead_reward_iphone_name'];
+
+        \App\Models\Setting::set('default_commission_rates', $defaultRates);
+
+        Commission::where('payout_recipient', 'master_lead')
+            ->where('status', 'pending')
+            ->get()
+            ->each(function ($comm) use ($defaultRates) {
+                $finalPrice = $comm->booking?->final_price > 0 ? $comm->booking->final_price : ($comm->booking?->unit_price ?? 0);
+                $comm->update([
+                    'rate_used' => $defaultRates['master_lead_overriding'],
+                    'amount' => $finalPrice * ($defaultRates['master_lead_overriding'] / 100),
+                    'base_commission' => $finalPrice * ($defaultRates['master_lead_overriding'] / 100),
+                    'closing_fee' => $defaultRates['master_lead_closing_fee'],
+                    'reward_value' => $defaultRates['master_lead_reward_iphone_value'],
+                    'reward_name' => $defaultRates['master_lead_reward_iphone_name'],
+                ]);
+            });
+
+        return back()->with('success', 'Parameter Closing Fee, Reward iPhone, dan Komisi Overriding berhasil diperbarui!');
+    }
+
+    public function updateInvoiceDetail(Request $request, MasterLeadInvoice $invoice)
+    {
+        $validated = $request->validate([
+            'total_amount' => 'required|numeric|min:0',
+            'reward_name' => 'nullable|string',
+            'fee_per_unit' => 'nullable|numeric',
+            'notes' => 'nullable|string',
+            'bank_account_1_name' => 'nullable|string',
+            'bank_account_1_number' => 'nullable|string',
+            'bank_account_1_holder' => 'nullable|string',
+            'bank_account_2_name' => 'nullable|string',
+            'bank_account_2_number' => 'nullable|string',
+            'bank_account_2_holder' => 'nullable|string',
+        ]);
+
+        $invoice->update([
+            'total_amount' => (float) $validated['total_amount'],
+            'reward_name' => $validated['reward_name'] ?? $invoice->reward_name,
+            'fee_per_unit' => isset($validated['fee_per_unit']) ? (float)$validated['fee_per_unit'] : $invoice->fee_per_unit,
+            'notes' => $validated['notes'] ?? $invoice->notes,
+            'bank_account_1_name' => $validated['bank_account_1_name'] ?? $invoice->bank_account_1_name,
+            'bank_account_1_number' => $validated['bank_account_1_number'] ?? $invoice->bank_account_1_number,
+            'bank_account_1_holder' => $validated['bank_account_1_holder'] ?? $invoice->bank_account_1_holder,
+            'bank_account_2_name' => $validated['bank_account_2_name'] ?? $invoice->bank_account_2_name,
+            'bank_account_2_number' => $validated['bank_account_2_number'] ?? $invoice->bank_account_2_number,
+            'bank_account_2_holder' => $validated['bank_account_2_holder'] ?? $invoice->bank_account_2_holder,
+        ]);
+
+        return back()->with('success', 'Detail Invoice & Rekening berhasil diperbarui.');
     }
 
     public function markInvoicePaid(Request $request, MasterLeadInvoice $invoice)
@@ -572,6 +639,9 @@ class MasterLeadController extends Controller
     {
         try {
             $validated = $request->validate([
+                'total_amount' => 'nullable|numeric|min:0',
+                'reward_name' => 'nullable|string',
+                'fee_per_unit' => 'nullable|numeric',
                 'bank_name' => 'nullable|string|max:100',
                 'bank_account_number' => 'nullable|string|max:100',
                 'bank_account_name' => 'nullable|string|max:255',
@@ -579,6 +649,14 @@ class MasterLeadController extends Controller
                 'secondary_bank_account_number' => 'nullable|string|max:100',
                 'secondary_bank_account_name' => 'nullable|string|max:255',
             ]);
+
+            if ($request->has('total_amount') && (float)$request->total_amount > 0) {
+                $invoice->update([
+                    'total_amount' => (float)$request->total_amount,
+                    'reward_name' => $request->reward_name ?: $invoice->reward_name,
+                    'fee_per_unit' => $request->fee_per_unit ?: $invoice->fee_per_unit,
+                ]);
+            }
 
             $masterLead = $invoice->masterLead;
             if ($masterLead) {
@@ -597,7 +675,7 @@ class MasterLeadController extends Controller
                 ]);
             }
 
-            return back()->with('success', 'Rekening bank tujuan pencairan berhasil diperbarui.');
+            return back()->with('success', 'Detail Nominal Invoice & Rekening Bank berhasil diperbarui.');
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('MasterLeadController updateInvoiceBank failed: ' . $e->getMessage());
             return back()->with('error', 'Gagal memperbarui rekening bank: ' . $e->getMessage());

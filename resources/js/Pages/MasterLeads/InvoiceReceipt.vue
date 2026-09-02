@@ -10,8 +10,12 @@ const props = defineProps({
 
 const form = useForm({});
 
-const showEditBankModal = ref(false);
-const bankForm = useForm({
+const showEditModal = ref(false);
+const editInvoiceForm = useForm({
+    total_amount: props.invoice?.total_amount || 0,
+    reward_name: props.invoice?.reward_name || 'Reward iPhone 17 Pro (Konversi Cash)',
+    fee_per_unit: props.invoice?.fee_per_unit || 5000000,
+    notes: props.invoice?.notes || '',
     bank_name: props.invoice?.master_lead?.bank_name || 'BCA',
     bank_account_number: props.invoice?.master_lead?.bank_account_number || '4500959555',
     bank_account_name: props.invoice?.master_lead?.bank_account_name || 'PT. KANA ATLAS NUSANTARA',
@@ -20,21 +24,25 @@ const bankForm = useForm({
     secondary_bank_account_name: props.invoice?.master_lead?.settings?.secondary_bank_account_name || 'HOMI ID / SULAIMAN',
 });
 
-function openEditBankModal() {
+function openEditModal() {
     const ml = props.invoice?.master_lead;
-    bankForm.bank_name = ml?.bank_name || 'BCA';
-    bankForm.bank_account_number = ml?.bank_account_number || '4500959555';
-    bankForm.bank_account_name = ml?.bank_account_name || 'PT. KANA ATLAS NUSANTARA';
-    bankForm.secondary_bank_name = ml?.settings?.secondary_bank_name || 'BCA';
-    bankForm.secondary_bank_account_number = ml?.settings?.secondary_bank_account_number || '012001004640307';
-    bankForm.secondary_bank_account_name = ml?.settings?.secondary_bank_account_name || 'HOMI ID / SULAIMAN';
-    showEditBankModal.value = true;
+    editInvoiceForm.total_amount = props.invoice?.total_amount || 0;
+    editInvoiceForm.reward_name = props.invoice?.reward_name || 'Reward iPhone 17 Pro (Konversi Cash)';
+    editInvoiceForm.fee_per_unit = props.invoice?.fee_per_unit || 5000000;
+    editInvoiceForm.notes = props.invoice?.notes || '';
+    editInvoiceForm.bank_name = ml?.bank_name || 'BCA';
+    editInvoiceForm.bank_account_number = ml?.bank_account_number || '4500959555';
+    editInvoiceForm.bank_account_name = ml?.bank_account_name || 'PT. KANA ATLAS NUSANTARA';
+    editInvoiceForm.secondary_bank_name = ml?.settings?.secondary_bank_name || 'BCA';
+    editInvoiceForm.secondary_bank_account_number = ml?.settings?.secondary_bank_account_number || '012001004640307';
+    editInvoiceForm.secondary_bank_account_name = ml?.settings?.secondary_bank_account_name || 'HOMI ID / SULAIMAN';
+    showEditModal.value = true;
 }
 
-function submitUpdateBank() {
-    bankForm.post(route('master-leads.invoices.update-bank', props.invoice.id), {
+function submitUpdateInvoice() {
+    editInvoiceForm.post(route('master-leads.invoices.update-bank', props.invoice.id), {
         onSuccess: () => {
-            showEditBankModal.value = false;
+            showEditModal.value = false;
         }
     });
 }
@@ -107,8 +115,8 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
             </Link>
 
             <div class="flex flex-wrap items-center gap-2">
-                <button v-if="invoice.status !== 'paid'" @click="openEditBankModal" class="px-4 py-2.5 bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-300 border border-purple-300 hover:bg-purple-200 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5" title="Ubah Rekening Bank Utama / Sekunder">
-                    <span>✏️</span> <span>Edit Rekening Bank</span>
+                <button v-if="invoice.status !== 'paid'" @click="openEditModal" class="px-4 py-2.5 bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-300 border border-purple-300 hover:bg-purple-200 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5" title="Ubah Nominal Tagihan, Nama Reward / Detail & Rekening Bank">
+                    <span>✏️</span> <span>Edit Detail Nominal & Rekening</span>
                 </button>
 
                 <button v-if="invoice.status !== 'paid'" @click="markAsPaid" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5">
@@ -349,61 +357,74 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
             </div>
         </div>
 
-        <!-- MODAL EDIT REKENING BANK (Dua Opsi Rekening) -->
-        <div v-if="showEditBankModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
-            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
-                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+        <!-- MODAL EDIT INVOICE & REKENING BANK -->
+        <div v-if="showEditModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                     <div class="flex items-center gap-2">
                         <span class="text-xl">✏️</span>
-                        <h3 class="font-black text-slate-900 dark:text-white text-base">Perbarui Rekening Tujuan Pencairan</h3>
+                        <h3 class="font-black text-slate-900 dark:text-white text-base">Edit Detail Nominal & Rekening Invoice</h3>
                     </div>
-                    <button @click="showEditBankModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-lg">&times;</button>
+                    <button @click="showEditModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-lg">&times;</button>
                 </div>
 
-                <form @submit.prevent="submitUpdateBank" class="space-y-4 text-xs">
-                    <!-- OPSI 1 -->
+                <form @submit.prevent="submitUpdateInvoice" class="space-y-4 text-xs">
+                    <!-- NOMINAL TAGIHAN & KATEGORI -->
+                    <div class="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-3">
+                        <div class="font-bold text-emerald-900 dark:text-emerald-300 text-xs">💰 Nominal & Deskripsi Tagihan Invoice</div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Nominal Klaim Net (Rp) *</label>
+                            <input v-model.number="editInvoiceForm.total_amount" type="number" step="100000" required class="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-xl px-3.5 py-2.5 font-mono font-black text-base text-emerald-800 dark:text-emerald-300" />
+                        </div>
+                        <div v-if="invoice.invoice_type === 'reward'">
+                            <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nama Reward & Spesifikasi</label>
+                            <input v-model="editInvoiceForm.reward_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                        </div>
+                    </div>
+
+                    <!-- OPSI 1 REKENING -->
                     <div class="p-4 bg-purple-50 dark:bg-purple-950/40 rounded-2xl border border-purple-200 dark:border-purple-800 space-y-3">
                         <div class="font-bold text-purple-900 dark:text-purple-300 text-xs">Opsi 1: Rekening Utama (Kana Project)</div>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Bank 1</label>
-                                <input v-model="bankForm.bank_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                                <input v-model="editInvoiceForm.bank_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">No. Rekening 1</label>
-                                <input v-model="bankForm.bank_account_number" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
+                                <input v-model="editInvoiceForm.bank_account_number" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
                             </div>
                         </div>
                         <div>
                             <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nama Di Rekening 1</label>
-                            <input v-model="bankForm.bank_account_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                            <input v-model="editInvoiceForm.bank_account_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
                         </div>
                     </div>
 
-                    <!-- OPSI 2 -->
+                    <!-- OPSI 2 REKENING -->
                     <div class="p-4 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800 space-y-3">
                         <div class="font-bold text-indigo-900 dark:text-indigo-300 text-xs">Opsi 2: Rekening Sekunder (Homi ID)</div>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Bank 2</label>
-                                <input v-model="bankForm.secondary_bank_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                                <input v-model="editInvoiceForm.secondary_bank_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
                             </div>
                             <div>
                                 <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">No. Rekening 2</label>
-                                <input v-model="bankForm.secondary_bank_account_number" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
+                                <input v-model="editInvoiceForm.secondary_bank_account_number" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
                             </div>
                         </div>
                         <div>
                             <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nama Di Rekening 2</label>
-                            <input v-model="bankForm.secondary_bank_account_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                            <input v-model="editInvoiceForm.secondary_bank_account_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
                         </div>
                     </div>
 
                     <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                        <button type="button" @click="showEditBankModal = false" class="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold">Batal</button>
-                        <button type="submit" :disabled="bankForm.processing" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-1.5">
+                        <button type="button" @click="showEditModal = false" class="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold">Batal</button>
+                        <button type="submit" :disabled="editInvoiceForm.processing" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-1.5">
                             <span>💾</span>
-                            <span>{{ bankForm.processing ? 'Menyimpan...' : 'Simpan Rekening Baru' }}</span>
+                            <span>{{ editInvoiceForm.processing ? 'Menyimpan...' : 'Simpan Perubahan Invoice' }}</span>
                         </button>
                     </div>
                 </form>

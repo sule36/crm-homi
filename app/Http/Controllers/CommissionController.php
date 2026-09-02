@@ -244,9 +244,9 @@ class CommissionController extends Controller
                         ->delete();
 
                     // Ensure single primary Master Lead commission row exists for Developer payout
-                    $closingFeeAmount = (float) Setting::get('default_commission_rates.master_lead_closing_fee', 2500000);
-                    $rewardCashAmount = (float) Setting::get('default_commission_rates.master_lead_reward_iphone_value', 20000000);
-                    $rewardName = Setting::get('default_commission_rates.master_lead_reward_iphone_name', 'Reward iPhone 16 Pro 256GB (Konversi Cash)');
+                    $closingFeeAmount = (float) Setting::get('default_commission_rates.master_lead_closing_fee', 5000000);
+                    $rewardCashAmount = (float) Setting::get('default_commission_rates.master_lead_reward_iphone_value', 23000000);
+                    $rewardName = Setting::get('default_commission_rates.master_lead_reward_iphone_name', 'Reward iPhone 17 Pro (Konversi Cash)');
 
                     $mlComm = Commission::where('booking_id', $bk->id)
                         ->where('payout_recipient', 'master_lead')
