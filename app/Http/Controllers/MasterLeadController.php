@@ -538,8 +538,7 @@ class MasterLeadController extends Controller
         return Inertia::render('MasterLeads/InvoiceReceipt', [
             'invoice' => $invoice,
             'spelled_text' => $spelledText,
-            'developerName' => $developerName,
-            'bankAccounts' => $bankAccounts,
+            'settings' => $settings,
         ]);
     }
 
