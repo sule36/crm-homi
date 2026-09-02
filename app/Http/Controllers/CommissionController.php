@@ -15,6 +15,8 @@ class CommissionController extends Controller
 {
     public function index(Request $request)
     {
+        $this->autoHealAndCleanupCommissions();
+
         $payoutThresholdPercent = (float) Setting::get('commission_payout_threshold_percent', 25.0);
 
         $commissions = Commission::with(['user.brokerCompany', 'brokerCompany', 'booking.lead', 'booking.unit.project', 'booking.transactions', 'bankAccount'])
@@ -192,5 +194,72 @@ class CommissionController extends Controller
 
             return back()->with('success', "Komisi berhasil dibayarkan dan dicatat ke Buku Besar. No. Kwitansi: $receiptNumber");
         });
+    }
+
+    private function autoHealAndCleanupCommissions()
+    {
+        try {
+            // 1. Delete orphan test commission records with no valid booking or deleted booking
+            Commission::whereDoesntHave('booking', function ($q) {
+                $q->whereNull('deleted_at');
+            })->delete();
+
+            // 2. Process all active valid bookings
+            $approvedBookings = \App\Models\Booking::with(['bookedBy.brokerCompany', 'bookedBy.masterLead'])
+                ->whereIn('status', ['approved', 'completed', 'booked'])
+                ->whereNull('deleted_at')
+                ->get();
+
+            foreach ($approvedBookings as $bk) {
+                $agent = $bk->bookedBy;
+                if (!$agent) continue;
+
+                $masterLead = $agent->masterLead ?? $agent->brokerCompany?->masterLead;
+                if (!$masterLead && Setting::get('commission_schema_config.enable_master_lead', true)) {
+                    $masterLead = User::where('agent_type', 'master_lead')
+                        ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
+                        ->first();
+                }
+
+                if ($masterLead && $masterLead->id !== $agent->id) {
+                    $masterRate = (float) Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
+                    $finalPrice = $bk->final_price > 0 ? $bk->final_price : ($bk->unit_price ?? 0);
+                    $masterTotalGross = $finalPrice * ($masterRate / 100);
+
+                    // A. Set Sub-Agent commission payout_recipient = 'sub_agent'
+                    Commission::where('booking_id', $bk->id)
+                        ->where('user_id', $agent->id)
+                        ->where('payout_recipient', '!=', 'master_lead')
+                        ->update(['payout_recipient' => 'sub_agent']);
+
+                    // B. Ensure Master Lead commission row exists for Developer payout
+                    $mlComm = Commission::where('booking_id', $bk->id)
+                        ->where('payout_recipient', 'master_lead')
+                        ->first();
+
+                    if (!$mlComm) {
+                        Commission::create([
+                            'booking_id' => $bk->id,
+                            'user_id' => $masterLead->id,
+                            'broker_company_id' => null,
+                            'amount' => $masterTotalGross,
+                            'base_commission' => $masterTotalGross,
+                            'promo_bonus' => 0,
+                            'rate_used' => $masterRate,
+                            'payout_recipient' => 'master_lead',
+                            'status' => 'pending',
+                        ]);
+                    } else if ($mlComm->status === 'pending') {
+                        $mlComm->update([
+                            'amount' => $masterTotalGross,
+                            'base_commission' => $masterTotalGross,
+                            'rate_used' => $masterRate,
+                        ]);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('autoHealAndCleanupCommissions failed: ' . $e->getMessage());
+        }
     }
 }
