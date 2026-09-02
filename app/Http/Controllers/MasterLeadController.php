@@ -211,7 +211,7 @@ class MasterLeadController extends Controller
             ->whereIn('status', ['approved', 'completed', 'booked'])
             ->sum('final_price');
 
-        $mlOverridingCommissions = Commission::with(['user', 'booking.lead', 'booking.unit.project'])
+        $mlOverridingCommissions = Commission::with(['user', 'booking.lead', 'booking.unit.project', 'masterLeadInvoice'])
             ->where('payout_recipient', 'master_lead')
             ->whereHas('booking')
             ->when($isMasterLead, fn($q) => $q->where('user_id', $user->id))
@@ -395,5 +395,131 @@ class MasterLeadController extends Controller
             \Illuminate\Support\Facades\Log::error('MasterLeadController paySubAgentCommission failed: ' . $e->getMessage());
             return back()->with('error', 'Gagal mencatat transfer ke Sub-Agent: ' . $e->getMessage());
         }
+    }
+
+    public function storeInvoice(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'commission_ids' => 'required|array|min:1',
+                'commission_ids.*' => 'exists:commissions,id',
+                'notes' => 'nullable|string|max:500',
+            ]);
+
+            $commissions = Commission::whereIn('id', $validated['commission_ids'])
+                ->where('payout_recipient', 'master_lead')
+                ->get();
+
+            if ($commissions->isEmpty()) {
+                return back()->with('error', 'Tidak ada komisi Master Lead yang valid untuk dibuatkan invoice.');
+            }
+
+            $firstComm = $commissions->first();
+            $masterLead = User::find($firstComm->user_id) ?? auth()->user();
+            $invoiceNumber = MasterLeadInvoice::generateInvoiceNumber($masterLead);
+            $totalAmount = $commissions->sum('amount');
+
+            $invoice = MasterLeadInvoice::create([
+                'invoice_number' => $invoiceNumber,
+                'master_lead_id' => $masterLead->id,
+                'total_amount' => $totalAmount,
+                'status' => 'submitted',
+                'notes' => $validated['notes'] ?? null,
+                'submitted_at' => now(),
+            ]);
+
+            foreach ($commissions as $comm) {
+                $comm->update(['master_lead_invoice_id' => $invoice->id]);
+            }
+
+            try {
+                AuditLog::record('master_lead_invoice_created', $invoice, null, $invoice->toArray());
+            } catch (\Throwable $e) {}
+
+            return redirect()->route('master-leads.invoices.show', $invoice->id)
+                ->with('success', "Invoice Tagihan Komisi {$invoiceNumber} berhasil diterbitkan.");
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('MasterLeadController storeInvoice failed: ' . $e->getMessage());
+            return back()->with('error', 'Gagal menerbitkan Invoice Komisi: ' . $e->getMessage());
+        }
+    }
+
+    public function showInvoice(MasterLeadInvoice $invoice)
+    {
+        $invoice->load([
+            'masterLead',
+            'commissions.booking.lead',
+            'commissions.booking.unit.project',
+            'commissions.booking.bookedBy',
+            'commissions.booking.bankAccount',
+        ]);
+
+        $spelledText = ucwords(trim($this->terbilang($invoice->total_amount))) . " Rupiah";
+        $settingsRaw = \App\Models\Setting::all();
+        $settings = [];
+        foreach ($settingsRaw as $s) {
+            $settings[$s->key] = \App\Models\Setting::get($s->key);
+        }
+
+        return Inertia::render('MasterLeads/InvoiceReceipt', [
+            'invoice' => $invoice,
+            'spelled_text' => $spelledText,
+            'settings' => $settings,
+        ]);
+    }
+
+    public function markInvoicePaid(Request $request, MasterLeadInvoice $invoice)
+    {
+        try {
+            $invoice->update([
+                'status' => 'paid',
+                'paid_at' => now(),
+            ]);
+
+            foreach ($invoice->commissions as $comm) {
+                $comm->update([
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                ]);
+            }
+
+            try {
+                AuditLog::record('master_lead_invoice_paid', $invoice, null, $invoice->toArray());
+            } catch (\Throwable $e) {}
+
+            return back()->with('success', "Invoice {$invoice->invoice_number} berhasil ditandai Lunas / Cair dari Developer.");
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('MasterLeadController markInvoicePaid failed: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memproses status Lunas: ' . $e->getMessage());
+        }
+    }
+
+    private function terbilang($angka)
+    {
+        $angka = abs($angka);
+        $baca = array("", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas");
+        $terbilang = "";
+
+        if ($angka < 12) {
+            $terbilang = " " . $baca[$angka];
+        } else if ($angka < 20) {
+            $terbilang = $this->terbilang($angka - 10) . " Belas";
+        } else if ($angka < 100) {
+            $terbilang = $this->terbilang($angka / 10) . " Puluh" . $this->terbilang($angka % 10);
+        } else if ($angka < 200) {
+            $terbilang = " Seratus" . $this->terbilang($angka - 100);
+        } else if ($angka < 1000) {
+            $terbilang = $this->terbilang($angka / 100) . " Ratus" . $this->terbilang($angka % 100);
+        } else if ($angka < 2000) {
+            $terbilang = " Seribu" . $this->terbilang($angka - 1000);
+        } else if ($angka < 1000000) {
+            $terbilang = $this->terbilang($angka / 1000) . " Ribu" . $this->terbilang($angka % 1000);
+        } else if ($angka < 1000000000) {
+            $terbilang = $this->terbilang($angka / 1000000) . " Juta" . $this->terbilang($angka % 1000000);
+        } else if ($angka < 1000000000000) {
+            $terbilang = $this->terbilang($angka / 1000000000) . " Milyar" . $this->terbilang(fmod($angka, 1000000000));
+        }
+
+        return $terbilang;
     }
 }

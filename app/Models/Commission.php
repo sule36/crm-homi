@@ -48,11 +48,13 @@ class Commission extends Model
         'user_id', 'broker_company_id', 'booking_id', 'amount',
         'base_commission', 'promo_bonus', 'rate_used', 'payout_recipient',
         'status', 'paid_at', 'notes', 'receipt_number', 'bank_account_id',
-        'ml_payout_status', 'ml_paid_at', 'ml_receipt_number'
+        'ml_payout_status', 'ml_paid_at', 'ml_receipt_number',
+        'master_lead_invoice_id'
     ];
 
     public function user() { return $this->belongsTo(User::class); }
     public function brokerCompany() { return $this->belongsTo(BrokerCompany::class); }
     public function booking() { return $this->belongsTo(Booking::class); }
     public function bankAccount() { return $this->belongsTo(BankAccount::class); }
+    public function masterLeadInvoice() { return $this->belongsTo(MasterLeadInvoice::class, 'master_lead_invoice_id'); }
 }

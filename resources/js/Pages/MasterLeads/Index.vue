@@ -47,6 +47,21 @@ function formatCurrency(val) {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 }
 
+const selectedCommissions = ref([]);
+
+function submitSingleInvoice(commissionId) {
+    router.post(route('master-leads.invoices.store'), {
+        commission_ids: [commissionId]
+    });
+}
+
+function submitBatchInvoice() {
+    if (selectedCommissions.value.length === 0) return alert('Pilih minimal 1 transaksi komisi untuk dibuatkan Invoice.');
+    router.post(route('master-leads.invoices.store'), {
+        commission_ids: selectedCommissions.value
+    });
+}
+
 // Accordion open/close state for Master Leads
 const expandedMasterLeadIds = ref([]);
 function toggleExpand(id) {
@@ -956,10 +971,32 @@ function submitPaySubAgent() {
 
             <!-- MASTER LEAD OVERRIDING INCOME TABLE -->
             <div v-if="ledgerSubTab === 'master_lead'">
+                <!-- Batch Invoice Bar -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-2xl mb-4 shadow-sm">
+                    <div class="text-xs text-purple-900 dark:text-purple-300 font-medium">
+                        💡 Master Lead dapat menerbitkan <b>Invoice Tagihan Komisi Resmi (PDF)</b> ke Developer per unit atau gabungan beberapa unit sekaligus.
+                    </div>
+                    <button 
+                        v-if="selectedCommissions.length > 0"
+                        @click="submitBatchInvoice" 
+                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                        <span>📄</span> <span>Terbitkan Batch Invoice ({{ selectedCommissions.length }} Unit Selected)</span>
+                    </button>
+                </div>
+
                 <div v-if="mlOverridingCommissions && mlOverridingCommissions.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                         <thead class="bg-purple-50/60 dark:bg-purple-950/40 text-purple-900 dark:text-purple-300 font-semibold uppercase text-[10px] border-b border-purple-200 dark:border-purple-800">
                             <tr>
+                                <th class="p-4 w-10 text-center">
+                                    <input 
+                                        type="checkbox" 
+                                        :checked="selectedCommissions.length === mlOverridingCommissions.filter(c => c.status !== 'paid').length && mlOverridingCommissions.filter(c => c.status !== 'paid').length > 0"
+                                        @change="e => selectedCommissions = e.target.checked ? mlOverridingCommissions.filter(c => c.status !== 'paid').map(c => c.id) : []"
+                                        class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                    />
+                                </th>
                                 <th class="p-4">Master Lead Penerima</th>
                                 <th class="p-4">Unit Booking & Proyek</th>
                                 <th class="p-4">Harga Jual Net Properti</th>
@@ -968,10 +1005,20 @@ function submitPaySubAgent() {
                                 <th class="p-4">Sub-Agent Share (3.0%)</th>
                                 <th class="p-4 text-right">Net Profit ML (1.5%)</th>
                                 <th class="p-4 text-center">Status Dev</th>
+                                <th class="p-4 text-right">Aksi Invoice</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                             <tr v-for="mc in mlOverridingCommissions" :key="mc.id" class="hover:bg-purple-50/30 transition-colors">
+                                <td class="p-4 text-center">
+                                    <input 
+                                        v-if="mc.status !== 'paid'"
+                                        type="checkbox" 
+                                        :value="mc.id" 
+                                        v-model="selectedCommissions" 
+                                        class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                    />
+                                </td>
                                 <td class="p-4">
                                     <div class="font-bold text-slate-900 dark:text-white text-sm">👑 {{ mc.user?.name || 'KANAHOMI' }}</div>
                                     <div class="text-[10px] text-purple-600 dark:text-purple-400 font-medium">Master Lead Partner</div>
@@ -1006,6 +1053,27 @@ function submitPaySubAgent() {
                                     <span v-else class="px-2.5 py-1 bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-full font-bold text-[10px]">
                                         ⏳ Dev Pending
                                     </span>
+                                </td>
+                                <td class="p-4 text-right">
+                                    <a 
+                                        v-if="mc.master_lead_invoice_id" 
+                                        :href="route('master-leads.invoices.show', mc.master_lead_invoice_id)" 
+                                        target="_blank" 
+                                        class="px-3 py-1.5 bg-purple-100 dark:bg-purple-950 hover:bg-purple-200 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800 rounded-xl text-[11px] font-bold transition-all inline-flex items-center gap-1"
+                                        title="Buka / Cetak Invoice Tagihan PDF"
+                                    >
+                                        <span>📄 Invoice PDF</span>
+                                    </a>
+                                    <button 
+                                        v-else-if="mc.status !== 'paid'"
+                                        @click="submitSingleInvoice(mc.id)"
+                                        class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold shadow-md shadow-purple-600/20 transition-all flex items-center gap-1 ml-auto"
+                                        title="Terbitkan Invoice Resmi ke Developer untuk Unit ini"
+                                    >
+                                        <span>📄</span>
+                                        <span>Ajukan Invoice</span>
+                                    </button>
+                                    <span v-else class="text-xs text-slate-400 font-semibold italic">✓ Selesai</span>
                                 </td>
                             </tr>
                         </tbody>
