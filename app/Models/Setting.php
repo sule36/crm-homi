@@ -13,6 +13,20 @@ class Setting extends Model
 
     public static function get(string $key, mixed $default = null): mixed
     {
+        if (str_contains($key, '.')) {
+            $parts = explode('.', $key, 2);
+            $parentKey = $parts[0];
+            $subKey = $parts[1];
+
+            $setting = static::where('key', $parentKey)->first();
+            if ($setting) {
+                $val = json_decode($setting->value, true);
+                if (is_array($val) && array_key_exists($subKey, $val)) {
+                    return $val[$subKey];
+                }
+            }
+        }
+
         $setting = static::where('key', $key)->first();
         if (!$setting) {
             return $default;

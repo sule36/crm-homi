@@ -828,13 +828,13 @@ function submitPaySubAgent() {
                     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl relative group">
                         <div class="text-[11px] font-semibold text-slate-500 uppercase flex items-center justify-between">
                             <span>👑 Net Profit ML (Overriding)</span>
-                            <span class="cursor-help text-purple-500 font-bold" title="Rumus: Gross Fee ML (4.5%) - Komisi Sub-Agent (3.0%) = Net ML (1.5%)">ℹ️</span>
+                            <span class="cursor-help text-purple-500 font-bold" :title="'Rumus: Gross Fee ML (' + (stats.default_overriding_rate || 4.5) + '%) - Komisi Sub-Agent (3.0%) = Net ML (' + ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) + '%)'">ℹ️</span>
                         </div>
                         <div class="text-lg font-black text-purple-600 dark:text-purple-400 mt-1">{{ formatCurrency(stats.net_overriding_ml) }}</div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">Pendapatan Bersih (1.5% Net Overriding)</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Pendapatan Bersih ({{ ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) }}% Net Overriding)</div>
                         <!-- Formula Explainer Tooltip -->
                         <div class="mt-2 p-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/50 rounded-xl text-[9px] text-purple-900 dark:text-purple-300 font-medium leading-tight">
-                            💡 Gross 4.5% (Rp 153Jt) - Sub-Agent 3.0% (Rp 102Jt) = <b>Net ML 1.5% (Rp 51Jt/unit)</b>
+                            💡 Gross {{ stats.default_overriding_rate || 4.5 }}% - Sub-Agent 3.0% = <b>Net ML {{ ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) }}%</b>
                         </div>
                     </div>
                     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
@@ -1001,9 +1001,9 @@ function submitPaySubAgent() {
                                 <th class="p-4">Unit Booking & Proyek</th>
                                 <th class="p-4">Harga Jual Net Properti</th>
                                 <th class="p-4">Skema Fee Overriding</th>
-                                <th class="p-4">Gross ML Fee (4.5%)</th>
+                                <th class="p-4">Gross ML Fee ({{ stats.default_overriding_rate || 4.5 }}%)</th>
                                 <th class="p-4">Sub-Agent Share (3.0%)</th>
-                                <th class="p-4 text-right">Net Profit ML (1.5%)</th>
+                                <th class="p-4 text-right">Net Profit ML ({{ ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) }}%)</th>
                                 <th class="p-4 text-center">Status Dev</th>
                                 <th class="p-4 text-right">Aksi Invoice</th>
                             </tr>

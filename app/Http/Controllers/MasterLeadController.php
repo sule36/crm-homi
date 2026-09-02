@@ -40,13 +40,13 @@ class MasterLeadController extends Controller
                     ->where('payout_recipient', 'master_lead')
                     ->first();
 
-                if (!$existingMlComm) {
-                    $effectiveRate = $agent->effective_commission_rate;
-                    $baseCommission = $bk->final_price * ($effectiveRate / 100);
-                    $masterRate = $masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5);
-                    $masterTotalGross = $bk->final_price * ($masterRate / 100);
-                    $masterNetFee = max(0, $masterTotalGross - $baseCommission);
+                $masterRate = (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
+                $effectiveRate = $agent->effective_commission_rate;
+                $baseCommission = $bk->final_price * ($effectiveRate / 100);
+                $masterTotalGross = $bk->final_price * ($masterRate / 100);
+                $masterNetFee = max(0, $masterTotalGross - $baseCommission);
 
+                if (!$existingMlComm) {
                     if ($masterNetFee > 0) {
                         Commission::create([
                             'booking_id' => $bk->id,
@@ -60,6 +60,12 @@ class MasterLeadController extends Controller
                             'status' => 'pending',
                         ]);
                     }
+                } else if ($existingMlComm->status === 'pending' && (float)$existingMlComm->rate_used !== $masterRate) {
+                    $existingMlComm->update([
+                        'rate_used' => $masterRate,
+                        'base_commission' => $masterTotalGross,
+                        'amount' => $masterNetFee,
+                    ]);
                 }
             }
         }

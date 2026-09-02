@@ -104,10 +104,12 @@ class CommissionController extends Controller
             'enable_inhouse_master_lead' => 'nullable|boolean',
         ]);
 
+        $newMasterRate = (float)($request->master_lead_overriding_rate ?? 4.5);
+
         Setting::set('default_commission_rates', [
             'inhouse_developer' => (float)($request->inhouse_developer_rate ?? 1.0),
             'inhouse_master_lead' => (float)($request->inhouse_master_lead_rate ?? 1.5),
-            'master_lead_overriding' => (float)($request->master_lead_overriding_rate ?? 4.5),
+            'master_lead_overriding' => $newMasterRate,
             'agency' => (float)($request->agency_rate ?? 3.0),
             'independent' => (float)($request->independent_rate ?? 2.5),
         ]);
@@ -119,6 +121,32 @@ class CommissionController extends Controller
             'enable_inhouse_developer' => (bool)$request->enable_inhouse_developer,
             'enable_inhouse_master_lead' => (bool)$request->enable_inhouse_master_lead,
         ]);
+
+        // Sync Master Lead Users commission_rate & recalculate pending ML overriding commissions
+        User::where('agent_type', 'master_lead')
+            ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
+            ->update(['commission_rate' => $newMasterRate]);
+
+        $pendingMlCommissions = Commission::with(['booking.bookedBy'])
+            ->where('payout_recipient', 'master_lead')
+            ->where('status', 'pending')
+            ->get();
+
+        foreach ($pendingMlCommissions as $comm) {
+            $bk = $comm->booking;
+            if (!$bk) continue;
+            $finalPrice = $bk->final_price > 0 ? $bk->final_price : ($bk->unit_price ?? 0);
+            $subAgentRate = $bk->bookedBy?->effective_commission_rate ?? 3.0;
+            $baseCommission = $finalPrice * ($subAgentRate / 100);
+            $masterTotalGross = $finalPrice * ($newMasterRate / 100);
+            $masterNetFee = max(0, $masterTotalGross - $baseCommission);
+
+            $comm->update([
+                'rate_used' => $newMasterRate,
+                'base_commission' => $masterTotalGross,
+                'amount' => $masterNetFee,
+            ]);
+        }
 
         AuditLog::record('commission_parameters_updated', null, null, [
             'rates' => $request->all()
