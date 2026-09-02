@@ -206,7 +206,37 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
-                        <template v-if="invoice.invoice_type === 'reward'">
+                        <template v-if="invoice.invoice_type === 'package'">
+                            <tr v-for="(comm, idx) in invoice.commissions" :key="comm.id" class="hover:bg-slate-50">
+                                <td class="p-3 font-mono font-bold text-slate-400">{{ idx + 1 }}</td>
+                                <td class="p-3">
+                                    <div class="font-bold text-slate-900">👑 Claim Paket Lengkap Master Lead</div>
+                                    <div class="text-[10px] text-slate-500 font-medium">
+                                        Sales Agent: <span class="font-bold text-slate-800">{{ comm.booking?.bookedBy?.name || comm.booking?.user?.name || '-' }}</span>
+                                    </div>
+                                    <div class="text-[10px] text-slate-400">Buyer: {{ comm.booking?.lead?.name || '-' }}</div>
+                                </td>
+                                <td class="p-3">
+                                    <div class="font-bold text-slate-900">
+                                        {{ comm.booking?.unit ? ('Blok ' + comm.booking.unit.block + ' No. ' + comm.booking.unit.number) : 'Unit Properti' }}
+                                    </div>
+                                    <div class="text-[10px] text-slate-400">{{ comm.booking?.unit?.project?.name || '' }}</div>
+                                </td>
+                                <td class="p-3 text-right font-mono font-bold text-slate-700">
+                                    {{ formatCurrency(comm.booking?.final_price || comm.booking?.unit_price || 0) }}
+                                </td>
+                                <td class="p-3 text-center font-mono text-[10px]">
+                                    <div class="font-bold text-purple-700">📄 Overriding: {{ formatCurrency(comm.amount) }}</div>
+                                    <div v-if="comm.closing_fee > 0" class="font-bold text-amber-700">⚡ Closing Fee: {{ formatCurrency(comm.closing_fee) }}</div>
+                                    <div v-if="comm.reward_value > 0" class="font-bold text-emerald-700">🎁 Reward: {{ formatCurrency(comm.reward_value) }}</div>
+                                </td>
+                                <td class="p-3 text-right font-mono font-black text-purple-900 text-sm">
+                                    {{ formatCurrency((parseFloat(comm.amount) || 0) + (parseFloat(comm.closing_fee) || 0) + (parseFloat(comm.reward_value) || 0)) }}
+                                </td>
+                            </tr>
+                        </template>
+
+                        <template v-else-if="invoice.invoice_type === 'reward'">
                             <tr class="hover:bg-slate-50">
                                 <td class="p-3 font-mono font-bold text-slate-400">1</td>
                                 <td class="p-3">

@@ -1035,19 +1035,10 @@ function submitPaySubAgent() {
                                         class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
                                     />
                                 </th>
-                                <th class="p-4 w-10 text-center">
-                                    <input 
-                                        type="checkbox" 
-                                        :checked="selectedCommissions.length === mlOverridingCommissions.filter(c => c.status !== 'paid').length && mlOverridingCommissions.filter(c => c.status !== 'paid').length > 0"
-                                        @change="e => selectedCommissions = e.target.checked ? mlOverridingCommissions.filter(c => c.status !== 'paid').map(c => c.id) : []"
-                                        class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
-                                    />
-                                </th>
-                                <th class="p-4">Kategori Claim</th>
-                                <th class="p-4">Unit & Proyek</th>
+                                <th class="p-4">Unit Booking & Proyek</th>
                                 <th class="p-4">Sales Agent & Konsumen</th>
-                                <th class="p-4">Harga Unit</th>
-                                <th class="p-4 text-right">Nominal Hak ML</th>
+                                <th class="p-4">Rincian Hak ML & Benefit Unit</th>
+                                <th class="p-4 text-right">Total Hak Net ML</th>
                                 <th class="p-4 text-center">Status Dev</th>
                                 <th class="p-4 text-right">Aksi Invoice</th>
                             </tr>
@@ -1064,35 +1055,47 @@ function submitPaySubAgent() {
                                     />
                                 </td>
                                 <td class="p-4">
-                                    <span v-if="mc.claim_type === 'closing_fee'" class="px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-lg text-[10px] font-black uppercase">
-                                        ⚡ CLOSING FEE
-                                    </span>
-                                    <span v-else-if="mc.claim_type === 'reward'" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-lg text-[10px] font-black uppercase">
-                                        🎁 REWARD IPHONE
-                                    </span>
-                                    <span v-else class="px-2.5 py-1 bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800 rounded-lg text-[10px] font-black uppercase">
-                                        📄 KOMISI OVERRIDING
-                                    </span>
-                                </td>
-                                <td class="p-4">
-                                    <div class="font-bold text-slate-800 dark:text-slate-200">
+                                    <div class="font-bold text-slate-900 dark:text-white text-sm">
                                         {{ mc.booking?.unit ? ('Blok ' + mc.booking.unit.block + ' No. ' + mc.booking.unit.number) : 'Unit Booking' }}
                                     </div>
-                                    <div class="text-[11px] text-slate-400">{{ mc.booking?.unit?.project?.name || '-' }}</div>
+                                    <div class="text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+                                        {{ mc.booking?.unit?.project?.name || '-' }}
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 mt-0.5 font-mono">
+                                        Harga: {{ formatCurrency(mc.booking?.final_price || mc.booking?.unit_price || 0) }}
+                                    </div>
                                 </td>
                                 <td class="p-4">
-                                    <div class="font-bold text-slate-900 dark:text-white text-xs">
-                                        💼 Sales: {{ mc.booking?.booked_by?.name || mc.booking?.user?.name || '-' }}
+                                    <div class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1">
+                                        <span>💼</span>
+                                        <span>Sales: {{ mc.booking?.booked_by?.name || mc.booking?.user?.name || 'In-House Agent' }}</span>
                                     </div>
-                                    <div class="text-[11px] text-slate-500">
-                                        👤 Konsumen: {{ mc.booking?.lead?.name || '-' }}
+                                    <div class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                        <span>👤</span>
+                                        <span>Buyer: {{ mc.booking?.lead?.name || '-' }}</span>
                                     </div>
                                 </td>
-                                <td class="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">
-                                    {{ formatCurrency(mc.booking?.final_price || mc.booking?.unit_price || 0) }}
+                                <td class="p-4">
+                                    <div class="space-y-1 text-[11px]">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="text-purple-700 dark:text-purple-300 font-bold">📄 Komisi Overriding ({{ mc.rate_used || 4.0 }}%):</span>
+                                            <span class="font-mono font-bold text-slate-800 dark:text-slate-200">{{ formatCurrency(mc.amount) }}</span>
+                                        </div>
+                                        <div v-if="mc.closing_fee > 0" class="flex items-center justify-between gap-2">
+                                            <span class="text-amber-700 dark:text-amber-300 font-bold">⚡ Closing Fee:</span>
+                                            <span class="font-mono font-bold text-slate-800 dark:text-slate-200">{{ formatCurrency(mc.closing_fee) }}</span>
+                                        </div>
+                                        <div v-if="mc.reward_value > 0" class="flex items-center justify-between gap-2">
+                                            <span class="text-emerald-700 dark:text-emerald-300 font-bold">🎁 Reward ({{ mc.reward_name || 'iPhone 16 Pro' }}):</span>
+                                            <span class="font-mono font-bold text-slate-800 dark:text-slate-200">{{ formatCurrency(mc.reward_value) }}</span>
+                                        </div>
+                                    </div>
                                 </td>
-                                <td class="p-4 text-right font-black text-purple-600 dark:text-purple-400 text-sm font-mono">
-                                    {{ formatCurrency(mc.amount) }}
+                                <td class="p-4 text-right">
+                                    <div class="font-mono font-black text-purple-700 dark:text-purple-400 text-sm">
+                                        {{ formatCurrency((parseFloat(mc.amount) || 0) + (parseFloat(mc.closing_fee) || 0) + (parseFloat(mc.reward_value) || 0)) }}
+                                    </div>
+                                    <div class="text-[9px] text-slate-400 font-medium">Total Akumulasi Benefit</div>
                                 </td>
                                 <td class="p-4 text-center">
                                     <span v-if="mc.status === 'paid'" class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-full font-bold text-[10px]">
@@ -1118,10 +1121,8 @@ function submitPaySubAgent() {
                                         class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold shadow-md shadow-purple-600/20 transition-all flex items-center gap-1 ml-auto"
                                         title="Terbitkan Invoice Resmi ke Developer untuk Unit ini"
                                     >
-                                        <span>📄</span>
-                                        <span>Ajukan Invoice</span>
+                                        <span>Ajukan Invoice / Kwitansi</span>
                                     </button>
-                                    <span v-else class="text-xs text-slate-400 font-semibold italic">✓ Selesai</span>
                                 </td>
                             </tr>
                         </tbody>
@@ -1654,32 +1655,41 @@ function submitPaySubAgent() {
                 <form @submit.prevent="submitInvoiceForm" class="space-y-4 text-xs">
                     <div>
                         <label class="block font-black text-purple-700 dark:text-purple-400 uppercase text-[10px] tracking-wider mb-2">Pilih Kategori Claim Tagihan Invoice *</label>
-                        <div class="grid grid-cols-3 gap-2">
+                        <div class="grid grid-cols-4 gap-2">
+                            <button 
+                                type="button" 
+                                @click="invoiceForm.invoice_type = 'package'"
+                                :class="[invoiceForm.invoice_type === 'package' ? 'bg-purple-600 text-white ring-2 ring-purple-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300']"
+                                class="p-2.5 rounded-2xl font-bold text-[10px] text-center transition-all flex flex-col items-center gap-1"
+                            >
+                                <span class="text-base">👑</span>
+                                <span>Paket Komplit</span>
+                            </button>
                             <button 
                                 type="button" 
                                 @click="invoiceForm.invoice_type = 'commission'"
                                 :class="[invoiceForm.invoice_type === 'commission' ? 'bg-purple-600 text-white ring-2 ring-purple-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300']"
-                                class="p-3 rounded-2xl font-bold text-[11px] text-center transition-all flex flex-col items-center gap-1"
+                                class="p-2.5 rounded-2xl font-bold text-[10px] text-center transition-all flex flex-col items-center gap-1"
                             >
-                                <span class="text-lg">📄</span>
-                                <span>Komisi Overriding</span>
+                                <span class="text-base">📄</span>
+                                <span>Komisi Saja</span>
                             </button>
                             <button 
                                 type="button" 
                                 @click="invoiceForm.invoice_type = 'closing_fee'"
                                 :class="[invoiceForm.invoice_type === 'closing_fee' ? 'bg-purple-600 text-white ring-2 ring-purple-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300']"
-                                class="p-3 rounded-2xl font-bold text-[11px] text-center transition-all flex flex-col items-center gap-1"
+                                class="p-2.5 rounded-2xl font-bold text-[10px] text-center transition-all flex flex-col items-center gap-1"
                             >
-                                <span class="text-lg">⚡</span>
+                                <span class="text-base">⚡</span>
                                 <span>Closing Fee</span>
                             </button>
                             <button 
                                 type="button" 
                                 @click="invoiceForm.invoice_type = 'reward'"
                                 :class="[invoiceForm.invoice_type === 'reward' ? 'bg-purple-600 text-white ring-2 ring-purple-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300']"
-                                class="p-3 rounded-2xl font-bold text-[11px] text-center transition-all flex flex-col items-center gap-1"
+                                class="p-2.5 rounded-2xl font-bold text-[10px] text-center transition-all flex flex-col items-center gap-1"
                             >
-                                <span class="text-lg">🎁</span>
+                                <span class="text-base">🎁</span>
                                 <span>Reward iPhone</span>
                             </button>
                         </div>

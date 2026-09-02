@@ -237,15 +237,19 @@ class CommissionController extends Controller
                         ->where('payout_recipient', '!=', 'master_lead')
                         ->update(['payout_recipient' => 'sub_agent']);
 
-                    // B. Ensure Master Lead commission, closing_fee, and reward rows exist for Developer payout
+                    // Cleanup legacy standalone claim rows to ensure 1 row per unit deal
+                    Commission::where('booking_id', $bk->id)
+                        ->where('payout_recipient', 'master_lead')
+                        ->whereIn('claim_type', ['closing_fee', 'reward'])
+                        ->delete();
+
+                    // Ensure single primary Master Lead commission row exists for Developer payout
                     $closingFeeAmount = (float) Setting::get('default_commission_rates.master_lead_closing_fee', 2500000);
                     $rewardCashAmount = (float) Setting::get('default_commission_rates.master_lead_reward_iphone_value', 20000000);
                     $rewardName = Setting::get('default_commission_rates.master_lead_reward_iphone_name', 'Reward iPhone 16 Pro 256GB (Konversi Cash)');
 
-                    // 1. Commission Overriding
                     $mlComm = Commission::where('booking_id', $bk->id)
                         ->where('payout_recipient', 'master_lead')
-                        ->where(fn($q) => $q->where('claim_type', 'commission')->orWhereNull('claim_type'))
                         ->first();
 
                     if (!$mlComm) {
@@ -255,72 +259,24 @@ class CommissionController extends Controller
                             'broker_company_id' => null,
                             'amount' => $masterTotalGross,
                             'base_commission' => $masterTotalGross,
+                            'closing_fee' => $closingFeeAmount,
+                            'reward_value' => $rewardCashAmount,
+                            'reward_name' => $rewardName,
                             'promo_bonus' => 0,
                             'rate_used' => $masterRate,
                             'payout_recipient' => 'master_lead',
-                            'claim_type' => 'commission',
+                            'claim_type' => 'package',
                             'status' => 'pending',
                         ]);
                     } else if ($mlComm->status === 'pending') {
                         $mlComm->update([
                             'amount' => $masterTotalGross,
                             'base_commission' => $masterTotalGross,
+                            'closing_fee' => $closingFeeAmount,
+                            'reward_value' => $rewardCashAmount,
+                            'reward_name' => $rewardName,
                             'rate_used' => $masterRate,
-                            'claim_type' => 'commission',
-                        ]);
-                    }
-
-                    // 2. Closing Fee
-                    $mlClosingFee = Commission::where('booking_id', $bk->id)
-                        ->where('payout_recipient', 'master_lead')
-                        ->where('claim_type', 'closing_fee')
-                        ->first();
-
-                    if (!$mlClosingFee && $closingFeeAmount > 0) {
-                        Commission::create([
-                            'booking_id' => $bk->id,
-                            'user_id' => $masterLead->id,
-                            'broker_company_id' => null,
-                            'amount' => $closingFeeAmount,
-                            'base_commission' => $closingFeeAmount,
-                            'promo_bonus' => 0,
-                            'rate_used' => 0,
-                            'payout_recipient' => 'master_lead',
-                            'claim_type' => 'closing_fee',
-                            'status' => 'pending',
-                        ]);
-                    } else if ($mlClosingFee && $mlClosingFee->status === 'pending') {
-                        $mlClosingFee->update([
-                            'amount' => $closingFeeAmount,
-                            'base_commission' => $closingFeeAmount,
-                        ]);
-                    }
-
-                    // 3. Reward iPhone
-                    $mlReward = Commission::where('booking_id', $bk->id)
-                        ->where('payout_recipient', 'master_lead')
-                        ->where('claim_type', 'reward')
-                        ->first();
-
-                    if (!$mlReward && $rewardCashAmount > 0) {
-                        Commission::create([
-                            'booking_id' => $bk->id,
-                            'user_id' => $masterLead->id,
-                            'broker_company_id' => null,
-                            'amount' => $rewardCashAmount,
-                            'base_commission' => $rewardCashAmount,
-                            'promo_bonus' => 0,
-                            'rate_used' => 0,
-                            'payout_recipient' => 'master_lead',
-                            'claim_type' => 'reward',
-                            'reward_name' => $rewardName,
-                            'status' => 'pending',
-                        ]);
-                    } else if ($mlReward && $mlReward->status === 'pending') {
-                        $mlReward->update([
-                            'amount' => $rewardCashAmount,
-                            'base_commission' => $rewardCashAmount,
-                            'reward_name' => $rewardName,
+                            'claim_type' => 'package',
                         ]);
                     }
                 }

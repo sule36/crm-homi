@@ -53,7 +53,8 @@ class Commission extends Model
         'base_commission', 'promo_bonus', 'rate_used', 'payout_recipient',
         'status', 'paid_at', 'notes', 'receipt_number', 'bank_account_id',
         'ml_payout_status', 'ml_paid_at', 'ml_receipt_number',
-        'master_lead_invoice_id', 'claim_type', 'reward_name'
+        'master_lead_invoice_id', 'claim_type', 'reward_name',
+        'closing_fee', 'reward_value'
     ];
 
     public function user() { return $this->belongsTo(User::class); }
