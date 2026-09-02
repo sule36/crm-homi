@@ -374,7 +374,7 @@ class BookingController extends Controller
             }
 
             if ($masterLead && $masterLead->id !== $agent?->id) {
-                $masterRate = $masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5);
+                $masterRate = (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
                 $masterTotalGross = $booking->final_price * ($masterRate / 100);
                 $masterNetFee = max(0, $masterTotalGross - $baseCommission);
 

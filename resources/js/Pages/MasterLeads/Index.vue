@@ -828,19 +828,19 @@ function submitPaySubAgent() {
                     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl relative group">
                         <div class="text-[11px] font-semibold text-slate-500 uppercase flex items-center justify-between">
                             <span>👑 Net Profit ML (Overriding)</span>
-                            <span class="cursor-help text-purple-500 font-bold" :title="'Rumus: Gross Fee ML (' + (stats.default_overriding_rate || 4.5) + '%) - Komisi Sub-Agent (3.0%) = Net ML (' + ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) + '%)'">ℹ️</span>
+                            <span class="cursor-help text-purple-500 font-bold" title="Rumus: Gross Fee ML - Hak Komisi Sub-Agent = Net Overriding ML">ℹ️</span>
                         </div>
                         <div class="text-lg font-black text-purple-600 dark:text-purple-400 mt-1">{{ formatCurrency(stats.net_overriding_ml) }}</div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">Pendapatan Bersih ({{ ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) }}% Net Overriding)</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Pendapatan Bersih Overriding ML</div>
                         <!-- Formula Explainer Tooltip -->
                         <div class="mt-2 p-2 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/50 rounded-xl text-[9px] text-purple-900 dark:text-purple-300 font-medium leading-tight">
-                            💡 Gross {{ stats.default_overriding_rate || 4.5 }}% - Sub-Agent 3.0% = <b>Net ML {{ ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) }}%</b>
+                            💡 Gross Fee ML - Hak Sub-Agent = <b>Net Overriding ML</b>
                         </div>
                     </div>
                     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
                         <div class="text-[11px] font-semibold text-slate-500 uppercase">📥 Tot. Komisi Sub-Agent</div>
                         <div class="text-lg font-black text-slate-900 dark:text-white mt-1">{{ formatCurrency(stats.sub_agent_total_potency) }}</div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">Alokasi Komisi Tim Sub-Agent (3.0%)</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Alokasi Komisi Tim Sub-Agent</div>
                     </div>
                     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
                         <div class="text-[11px] font-semibold text-slate-500 uppercase">✅ Dana Salur Selesai</div>
@@ -862,14 +862,14 @@ function submitPaySubAgent() {
                             :class="ledgerSubTab === 'sub_agent' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'"
                             class="px-4 py-2 rounded-xl text-xs font-bold transition-all"
                         >
-                            📥 Kewajiban Salur Sub-Agent (Mawardi - 3.0%)
+                            📥 Kewajiban Salur Sub-Agent
                         </button>
                         <button 
                             @click="ledgerSubTab = 'master_lead'"
                             :class="ledgerSubTab === 'master_lead' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300'"
                             class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
                         >
-                            <span>👑</span> <span>Pendapatan Net Overriding ML (KANAHOMI - 1.5%)</span>
+                            <span>👑</span> <span>Pendapatan Net Overriding ML</span>
                         </button>
                     </div>
 
@@ -1001,9 +1001,9 @@ function submitPaySubAgent() {
                                 <th class="p-4">Unit Booking & Proyek</th>
                                 <th class="p-4">Harga Jual Net Properti</th>
                                 <th class="p-4">Skema Fee Overriding</th>
-                                <th class="p-4">Gross ML Fee ({{ stats.default_overriding_rate || 4.5 }}%)</th>
-                                <th class="p-4">Sub-Agent Share (3.0%)</th>
-                                <th class="p-4 text-right">Net Profit ML ({{ ((stats.default_overriding_rate || 4.5) - 3.0).toFixed(1) }}%)</th>
+                                <th class="p-4">Gross ML Fee</th>
+                                <th class="p-4">Sub-Agent Share</th>
+                                <th class="p-4 text-right">Net Profit ML</th>
                                 <th class="p-4 text-center">Status Dev</th>
                                 <th class="p-4 text-right">Aksi Invoice</th>
                             </tr>

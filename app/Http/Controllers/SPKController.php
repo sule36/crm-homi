@@ -51,6 +51,13 @@ class SPKController extends Controller
 
     public function stream(Booking $booking)
     {
+        if (!auth()->check()) {
+            $token = request()->query('token');
+            if (!$token || $token !== $booking->tracking_token) {
+                abort(403, 'Akses dokumen SPR tidak diizinkan. Token pelacakan tidak valid.');
+            }
+        }
+
         $relations = ['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules'];
         if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {
             $relations[] = 'bankAccount';

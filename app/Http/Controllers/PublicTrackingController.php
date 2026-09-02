@@ -10,7 +10,7 @@ class PublicTrackingController extends Controller
 {
     public function show($token)
     {
-        $booking = Booking::with(['lead', 'unit.project', 'unit.unitType', 'paymentSchedules', 'transactions'])
+        $booking = Booking::with(['lead', 'unit.project', 'unit.unitType', 'paymentSchedules', 'transactions', 'bookedBy'])
             ->where('tracking_token', $token)
             ->firstOrFail();
 

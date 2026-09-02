@@ -12,8 +12,9 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Public Tracking Portal
+// Public Tracking Portal & Document Access
 Route::get('/track/{token}', [\App\Http\Controllers\PublicTrackingController::class, 'show'])->name('public.tracking');
+Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spk.stream');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
@@ -54,7 +55,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/bookings/{booking}/cancel', [\App\Http\Controllers\BookingController::class, 'cancel'])->name('bookings.cancel');
     Route::post('/bookings/{booking}/kpr', [\App\Http\Controllers\BookingController::class, 'updateKpr'])->name('bookings.updateKpr');
     Route::get('/bookings/{booking}/spk', [\App\Http\Controllers\SPKController::class, 'download'])->name('bookings.spk.download');
-    Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spk.stream');
     Route::post('/bookings/{booking}/documents', [\App\Http\Controllers\BookingDocumentController::class, 'store'])->name('bookings.documents.store');
     Route::delete('/booking-documents/{document}', [\App\Http\Controllers\BookingDocumentController::class, 'destroy'])->name('bookings.documents.destroy');
     Route::post('/bookings/{booking}/regenerate-schedule', [\App\Http\Controllers\BookingController::class, 'regenerateSchedule'])->name('bookings.regenerateSchedule');
