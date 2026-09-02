@@ -423,6 +423,10 @@ class MasterLeadController extends Controller
             $validated = $request->validate([
                 'commission_ids' => 'required|array|min:1',
                 'commission_ids.*' => 'exists:commissions,id',
+                'invoice_type' => 'nullable|in:commission,closing_fee,reward',
+                'reward_name' => 'nullable|string|max:255',
+                'fee_per_unit' => 'nullable|numeric|min:0',
+                'custom_amount' => 'nullable|numeric|min:0',
                 'notes' => 'nullable|string|max:500',
             ]);
 
@@ -434,33 +438,65 @@ class MasterLeadController extends Controller
                 return back()->with('error', 'Tidak ada komisi Master Lead yang valid untuk dibuatkan invoice.');
             }
 
+            $invoiceType = $validated['invoice_type'] ?? 'commission';
             $firstComm = $commissions->first();
             $masterLead = User::find($firstComm->user_id) ?? auth()->user();
-            $invoiceNumber = MasterLeadInvoice::generateInvoiceNumber($masterLead);
-            $totalAmount = $commissions->sum('amount');
+            $invoiceNumber = MasterLeadInvoice::generateInvoiceNumber($masterLead, $invoiceType);
+
+            $defaultClosingFeePerUnit = (float) \App\Models\Setting::get('default_commission_rates.master_lead_closing_fee', 2500000);
+            $defaultIphoneRewardCash = (float) \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_value', 20000000);
+
+            if ($invoiceType === 'closing_fee') {
+                $feePerUnit = isset($validated['fee_per_unit']) && $validated['fee_per_unit'] > 0
+                    ? (float) $validated['fee_per_unit']
+                    : $defaultClosingFeePerUnit;
+                $totalAmount = $feePerUnit * $commissions->count();
+                $rewardName = null;
+            } else if ($invoiceType === 'reward') {
+                $feePerUnit = null;
+                $rewardName = $validated['reward_name'] ?: 'Reward iPhone 16 Pro 256GB (Konversi Cash)';
+                $totalAmount = isset($validated['custom_amount']) && $validated['custom_amount'] > 0
+                    ? (float) $validated['custom_amount']
+                    : $defaultIphoneRewardCash;
+            } else {
+                $feePerUnit = null;
+                $rewardName = null;
+                $totalAmount = $commissions->sum('amount');
+            }
 
             $invoice = MasterLeadInvoice::create([
                 'invoice_number' => $invoiceNumber,
                 'master_lead_id' => $masterLead->id,
+                'invoice_type' => $invoiceType,
+                'reward_name' => $rewardName,
+                'fee_per_unit' => $feePerUnit,
                 'total_amount' => $totalAmount,
                 'status' => 'submitted',
                 'notes' => $validated['notes'] ?? null,
                 'submitted_at' => now(),
             ]);
 
-            foreach ($commissions as $comm) {
-                $comm->update(['master_lead_invoice_id' => $invoice->id]);
+            if ($invoiceType === 'commission') {
+                foreach ($commissions as $comm) {
+                    $comm->update(['master_lead_invoice_id' => $invoice->id]);
+                }
             }
 
             try {
                 AuditLog::record('master_lead_invoice_created', $invoice, null, $invoice->toArray());
             } catch (\Throwable $e) {}
 
+            $typeLabel = match($invoiceType) {
+                'closing_fee' => 'Closing Fee',
+                'reward' => 'Reward iPhone',
+                default => 'Komisi Overriding',
+            };
+
             return redirect()->route('master-leads.invoices.show', $invoice->id)
-                ->with('success', "Invoice Tagihan Komisi {$invoiceNumber} berhasil diterbitkan.");
+                ->with('success', "Invoice Tagihan {$typeLabel} {$invoiceNumber} berhasil diterbitkan.");
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('MasterLeadController storeInvoice failed: ' . $e->getMessage());
-            return back()->with('error', 'Gagal menerbitkan Invoice Komisi: ' . $e->getMessage());
+            return back()->with('error', 'Gagal menerbitkan Invoice: ' . $e->getMessage());
         }
     }
 

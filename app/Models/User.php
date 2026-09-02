@@ -116,26 +116,34 @@ class User extends Authenticatable
     public function getEffectiveBankAccountAttribute(): array
     {
         if ($this->agent_type === 'master_lead' || $this->hasRole('master_lead')) {
+            $b1Name = $this->bank_name ?: 'BCA';
+            $b1No = $this->bank_account_number ?: '4500959555';
+            $b1Holder = $this->bank_account_name ?: 'PT. KANA ATLAS NUSANTARA';
+
+            $b2Name = $this->settings['secondary_bank_name'] ?? 'BCA';
+            $b2No = $this->settings['secondary_bank_account_number'] ?? '012001004640307';
+            $b2Holder = $this->settings['secondary_bank_account_name'] ?? 'HOMI ID / SULAIMAN';
+
             return [
                 'recipient_type' => 'master_lead_joint',
-                'recipient_name' => 'KANAHOMI (Kana Project x Homi ID)',
-                'bank_name' => 'BCA (Joint Operating)',
-                'bank_account_number' => '4500959555 / 012001004640307',
-                'bank_account_name' => 'PT. KANA ATLAS NUSANTARA / HOMI ID',
+                'recipient_name' => $this->name ?: 'KANAHOMI (Kana Project x Homi ID)',
+                'bank_name' => "{$b1Name} & {$b2Name}",
+                'bank_account_number' => "{$b1No} / {$b2No}",
+                'bank_account_name' => "{$b1Holder} / {$b2Holder}",
                 'is_office' => true,
                 'is_joint' => true,
                 'joint_accounts' => [
                     [
                         'label' => 'Kana Project',
-                        'bank_name' => 'BCA',
-                        'account_number' => '4500959555',
-                        'account_name' => 'PT. KANA ATLAS NUSANTARA',
+                        'bank_name' => $b1Name,
+                        'account_number' => $b1No,
+                        'account_name' => $b1Holder,
                     ],
                     [
                         'label' => 'Homi ID',
-                        'bank_name' => 'BCA',
-                        'account_number' => '012001004640307',
-                        'account_name' => 'HOMI ID / SULAIMAN',
+                        'bank_name' => $b2Name,
+                        'account_number' => $b2No,
+                        'account_name' => $b2Holder,
                     ],
                 ],
             ];

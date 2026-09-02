@@ -50,16 +50,34 @@ function formatCurrency(val) {
 
 const selectedCommissions = ref([]);
 
-function submitSingleInvoice(commissionId) {
-    router.post(route('master-leads.invoices.store'), {
-        commission_ids: [commissionId]
-    });
+const showInvoiceModal = ref(false);
+const invoiceForm = useForm({
+    commission_ids: [],
+    invoice_type: 'commission',
+    reward_name: 'Reward iPhone 16 Pro 256GB (Konversi Cash)',
+    fee_per_unit: 2500000,
+    custom_amount: 20000000,
+    notes: '',
+});
+
+function openInvoiceModal(commissionIds) {
+    const ids = Array.isArray(commissionIds) ? commissionIds : [commissionIds];
+    if (ids.length === 0) return alert('Pilih minimal 1 transaksi komisi.');
+    invoiceForm.commission_ids = ids;
+    invoiceForm.invoice_type = 'commission';
+    invoiceForm.reward_name = 'Reward iPhone 16 Pro 256GB (Konversi Cash)';
+    invoiceForm.fee_per_unit = 2500000;
+    invoiceForm.custom_amount = 20000000;
+    invoiceForm.notes = '';
+    showInvoiceModal.value = true;
 }
 
-function submitBatchInvoice() {
-    if (selectedCommissions.value.length === 0) return alert('Pilih minimal 1 transaksi komisi untuk dibuatkan Invoice.');
-    router.post(route('master-leads.invoices.store'), {
-        commission_ids: selectedCommissions.value
+function submitInvoiceForm() {
+    invoiceForm.post(route('master-leads.invoices.store'), {
+        onSuccess: () => {
+            showInvoiceModal.value = false;
+            selectedCommissions.value = [];
+        }
     });
 }
 
@@ -1497,6 +1515,98 @@ function submitPaySubAgent() {
                         <button type="button" @click="showPaySubAgentModal = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl">Batal</button>
                         <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20">
                             Konfirmasi Transfer Selesai
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL: AJUKAN INVOICE CLASSIFICATION (KOMISI, CLOSING FEE, REWARD IPHONE) -->
+        <div v-if="showInvoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">📄</span>
+                        <h3 class="font-black text-slate-900 dark:text-white text-base">Terbitkan Invoice Resmi Master Lead</h3>
+                    </div>
+                    <button @click="showInvoiceModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-lg">&times;</button>
+                </div>
+
+                <form @submit.prevent="submitInvoiceForm" class="space-y-4 text-xs">
+                    <div>
+                        <label class="block font-black text-purple-700 dark:text-purple-400 uppercase text-[10px] tracking-wider mb-2">Pilih Kategori Claim Tagihan Invoice *</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button 
+                                type="button" 
+                                @click="invoiceForm.invoice_type = 'commission'"
+                                :class="[invoiceForm.invoice_type === 'commission' ? 'bg-purple-600 text-white ring-2 ring-purple-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300']"
+                                class="p-3 rounded-2xl font-bold text-[11px] text-center transition-all flex flex-col items-center gap-1"
+                            >
+                                <span class="text-lg">📄</span>
+                                <span>Komisi Overriding</span>
+                            </button>
+                            <button 
+                                type="button" 
+                                @click="invoiceForm.invoice_type = 'closing_fee'"
+                                :class="[invoiceForm.invoice_type === 'closing_fee' ? 'bg-purple-600 text-white ring-2 ring-purple-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300']"
+                                class="p-3 rounded-2xl font-bold text-[11px] text-center transition-all flex flex-col items-center gap-1"
+                            >
+                                <span class="text-lg">⚡</span>
+                                <span>Closing Fee</span>
+                            </button>
+                            <button 
+                                type="button" 
+                                @click="invoiceForm.invoice_type = 'reward'"
+                                :class="[invoiceForm.invoice_type === 'reward' ? 'bg-purple-600 text-white ring-2 ring-purple-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300']"
+                                class="p-3 rounded-2xl font-bold text-[11px] text-center transition-all flex flex-col items-center gap-1"
+                            >
+                                <span class="text-lg">🎁</span>
+                                <span>Reward iPhone</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic options based on invoice_type -->
+                    <div v-if="invoiceForm.invoice_type === 'closing_fee'" class="p-4 bg-purple-50 dark:bg-purple-950/40 rounded-2xl border border-purple-200 dark:border-purple-800 space-y-3">
+                        <div class="font-bold text-purple-900 dark:text-purple-300 text-xs">⚡ Skema Tagihan Closing Fee Master Lead</div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nominal Closing Fee / Unit (Rp)</label>
+                            <input v-model="invoiceForm.fee_per_unit" type="number" step="50000" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
+                        </div>
+                        <div class="text-[11px] text-purple-700 dark:text-purple-400 font-medium">
+                            Total Claim Closing Fee: <b>{{ formatCurrency((invoiceForm.fee_per_unit || 2500000) * (invoiceForm.commission_ids?.length || 1)) }}</b> ({{ invoiceForm.commission_ids?.length || 1 }} Unit)
+                        </div>
+                    </div>
+
+                    <div v-else-if="invoiceForm.invoice_type === 'reward'" class="p-4 bg-purple-50 dark:bg-purple-950/40 rounded-2xl border border-purple-200 dark:border-purple-800 space-y-3">
+                        <div class="font-bold text-purple-900 dark:text-purple-300 text-xs">🎁 Skema Tagihan Reward (Konversi Cash)</div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nama Reward & Spesifikasi</label>
+                            <input v-model="invoiceForm.reward_name" type="text" placeholder="misal: Reward iPhone 16 Pro 256GB (Konversi Cash)" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nilai Konversi Cash (Rp)</label>
+                            <input v-model="invoiceForm.custom_amount" type="number" step="500000" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
+                        </div>
+                        <div class="text-[11px] text-purple-700 dark:text-purple-400 font-medium">
+                            Total Claim Reward Cash: <b>{{ formatCurrency(invoiceForm.custom_amount || 20000000) }}</b>
+                        </div>
+                    </div>
+
+                    <div v-else class="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
+                        📄 Tagihan Komisi Overriding ML (Sesuai persentase rate gross komisi deal unit property).
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Catatan Tambahan Invoice (Opsional)</label>
+                        <textarea v-model="invoiceForm.notes" rows="2" placeholder="Catatan resmi pengajuan invoice ke Developer..." class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-slate-900 dark:text-white"></textarea>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" @click="showInvoiceModal = false" class="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold">Batal</button>
+                        <button type="submit" :disabled="invoiceForm.processing" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-1.5">
+                            <span>🚀</span>
+                            <span>{{ invoiceForm.processing ? 'Menerbitkan...' : 'Terbitkan Invoice Resmi' }}</span>
                         </button>
                     </div>
                 </form>

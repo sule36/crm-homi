@@ -12,6 +12,9 @@ class MasterLeadInvoice extends Model
     protected $fillable = [
         'invoice_number',
         'master_lead_id',
+        'invoice_type',
+        'reward_name',
+        'fee_per_unit',
         'total_amount',
         'status',
         'notes',
@@ -24,6 +27,7 @@ class MasterLeadInvoice extends Model
     {
         return [
             'total_amount' => 'float',
+            'fee_per_unit' => 'float',
             'submitted_at' => 'datetime',
             'paid_at' => 'datetime',
         ];
@@ -39,14 +43,18 @@ class MasterLeadInvoice extends Model
         return $this->hasMany(Commission::class, 'master_lead_invoice_id');
     }
 
-    public static function generateInvoiceNumber($masterLead): string
+    public static function generateInvoiceNumber($masterLead, string $type = 'commission'): string
     {
-        $prefix = 'INV/ML';
+        $typePrefix = match ($type) {
+            'closing_fee' => 'INV/ML-CF',
+            'reward' => 'INV/ML-RWD',
+            default => 'INV/ML-KOM',
+        };
         $code = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $masterLead->name ?? 'KANAHOMI'), 0, 8));
         $year = date('Y');
-        $count = static::whereYear('created_at', $year)->count() + 1;
+        $count = static::whereYear('created_at', $year)->where('invoice_type', $type)->count() + 1;
         $padded = str_pad($count, 4, '0', STR_PAD_LEFT);
 
-        return "{$prefix}/{$code}/{$year}/{$padded}";
+        return "{$typePrefix}/{$code}/{$year}/{$padded}";
     }
 }

@@ -110,6 +110,13 @@ class UserController extends Controller
         $brokerCompanyId = $request->has('broker_company_id') ? ($request->filled('broker_company_id') ? $request->broker_company_id : null) : $user->broker_company_id;
         $projectId = $request->has('project_id') ? ($request->filled('project_id') ? $request->project_id : null) : $user->project_id;
 
+        $settings = $user->settings ?: [];
+        if ($request->has('secondary_bank_name')) {
+            $settings['secondary_bank_name'] = $request->secondary_bank_name;
+            $settings['secondary_bank_account_number'] = $request->secondary_bank_account_number;
+            $settings['secondary_bank_account_name'] = $request->secondary_bank_account_name;
+        }
+
         $data = [
             'name' => $request->name,
             'phone' => $request->phone,
@@ -120,6 +127,7 @@ class UserController extends Controller
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
+            'settings' => $settings,
         ];
 
         if ($request->filled('agent_type')) {

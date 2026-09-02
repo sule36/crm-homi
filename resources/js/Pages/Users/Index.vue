@@ -30,6 +30,9 @@ const form = useForm({
     bank_name: '',
     bank_account_number: '',
     bank_account_name: '',
+    secondary_bank_name: '',
+    secondary_bank_account_number: '',
+    secondary_bank_account_name: '',
 });
 
 const openCreateModal = () => {
@@ -55,6 +58,9 @@ const openEditModal = (user) => {
     form.bank_name = user.bank_name || '';
     form.bank_account_number = user.bank_account_number || '';
     form.bank_account_name = user.bank_account_name || '';
+    form.secondary_bank_name = user.settings?.secondary_bank_name || '';
+    form.secondary_bank_account_number = user.settings?.secondary_bank_account_number || '';
+    form.secondary_bank_account_name = user.settings?.secondary_bank_account_name || '';
     showModal.value = true;
 };
 
@@ -275,21 +281,37 @@ const deleteUser = (id) => {
                             </div>
                         </div>
 
-                        <div class="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-4">
-                            <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Informasi Rekening Bank (Pencairan Komisi)</p>
+                        <div class="p-4 bg-purple-50/60 rounded-2xl border border-purple-100 space-y-4">
+                            <p class="text-[10px] font-black text-purple-700 uppercase tracking-widest">Informasi Rekening Bank Utama (Opsi 1 - Kana Project)</p>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Bank</label>
-                                    <input v-model="form.bank_name" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-600/20" placeholder="BCA/Mandiri" />
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Bank 1</label>
+                                    <input v-model="form.bank_name" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-600/20" placeholder="BCA" />
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">No. Rekening</label>
-                                    <input v-model="form.bank_account_number" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-600/20" />
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">No. Rekening 1</label>
+                                    <input v-model="form.bank_account_number" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-600/20" placeholder="4500959555" />
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Di Rekening</label>
-                                <input v-model="form.bank_account_name" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-600/20" />
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Di Rekening 1</label>
+                                <input v-model="form.bank_account_name" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-600/20" placeholder="PT. KANA ATLAS NUSANTARA" />
+                            </div>
+
+                            <p class="text-[10px] font-black text-indigo-700 uppercase tracking-widest pt-2 border-t border-purple-200/60">Informasi Rekening Bank Sekunder (Opsi 2 - Homi ID)</p>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Bank 2</label>
+                                    <input v-model="form.secondary_bank_name" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-600/20" placeholder="BCA" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">No. Rekening 2</label>
+                                    <input v-model="form.secondary_bank_account_number" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-600/20" placeholder="012001004640307" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Di Rekening 2</label>
+                                <input v-model="form.secondary_bank_account_name" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-600/20" placeholder="HOMI ID / SULAIMAN" />
                             </div>
                         </div>
 
