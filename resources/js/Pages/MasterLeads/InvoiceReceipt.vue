@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
     invoice: Object,
@@ -9,6 +9,65 @@ const props = defineProps({
 });
 
 const form = useForm({});
+
+const showEditBankModal = ref(false);
+const bankForm = useForm({
+    bank_name: props.invoice?.master_lead?.bank_name || 'BCA',
+    bank_account_number: props.invoice?.master_lead?.bank_account_number || '4500959555',
+    bank_account_name: props.invoice?.master_lead?.bank_account_name || 'PT. KANA ATLAS NUSANTARA',
+    secondary_bank_name: props.invoice?.master_lead?.settings?.secondary_bank_name || 'BCA',
+    secondary_bank_account_number: props.invoice?.master_lead?.settings?.secondary_bank_account_number || '012001004640307',
+    secondary_bank_account_name: props.invoice?.master_lead?.settings?.secondary_bank_account_name || 'HOMI ID / SULAIMAN',
+});
+
+function openEditBankModal() {
+    const ml = props.invoice?.master_lead;
+    bankForm.bank_name = ml?.bank_name || 'BCA';
+    bankForm.bank_account_number = ml?.bank_account_number || '4500959555';
+    bankForm.bank_account_name = ml?.bank_account_name || 'PT. KANA ATLAS NUSANTARA';
+    bankForm.secondary_bank_name = ml?.settings?.secondary_bank_name || 'BCA';
+    bankForm.secondary_bank_account_number = ml?.settings?.secondary_bank_account_number || '012001004640307';
+    bankForm.secondary_bank_account_name = ml?.settings?.secondary_bank_account_name || 'HOMI ID / SULAIMAN';
+    showEditBankModal.value = true;
+}
+
+function submitUpdateBank() {
+    bankForm.post(route('master-leads.invoices.update-bank', props.invoice.id), {
+        onSuccess: () => {
+            showEditBankModal.value = false;
+        }
+    });
+}
+
+const bankAccounts = computed(() => {
+    const ml = props.invoice?.master_lead;
+    const joint = ml?.effective_bank_account?.joint_accounts;
+    if (joint && joint.length > 0) {
+        return joint;
+    }
+    const b1Name = ml?.bank_name || 'BCA';
+    const b1No = ml?.bank_account_number || '4500959555';
+    const b1Holder = ml?.bank_account_name || 'PT. KANA ATLAS NUSANTARA';
+
+    const b2Name = ml?.settings?.secondary_bank_name || 'BCA';
+    const b2No = ml?.settings?.secondary_bank_account_number || '012001004640307';
+    const b2Holder = ml?.settings?.secondary_bank_account_name || 'HOMI ID / SULAIMAN';
+
+    return [
+        {
+            label: 'Kana Project',
+            bank_name: b1Name,
+            account_number: b1No,
+            account_name: b1Holder,
+        },
+        {
+            label: 'Homi ID',
+            bank_name: b2Name,
+            account_number: b2No,
+            account_name: b2Holder,
+        }
+    ];
+});
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value || 0);
@@ -48,6 +107,10 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
             </Link>
 
             <div class="flex flex-wrap items-center gap-2">
+                <button v-if="invoice.status !== 'paid'" @click="openEditBankModal" class="px-4 py-2.5 bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-300 border border-purple-300 hover:bg-purple-200 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5" title="Ubah Rekening Bank Utama / Sekunder">
+                    <span>✏️</span> <span>Edit Rekening Bank</span>
+                </button>
+
                 <button v-if="invoice.status !== 'paid'" @click="markAsPaid" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5">
                     <span>🟢</span> <span>Tandai Lunas / Cair dari Dev</span>
                 </button>
@@ -118,15 +181,12 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
                 <div class="md:col-span-2">
                     <div class="text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1">REKENING TUJUAN PENCAIRAN (JOINT OPERATING MASTER LEAD):</div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <div class="p-2.5 bg-white rounded-xl border border-purple-200 shadow-sm">
-                            <span class="text-[9px] font-black uppercase text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded block w-fit mb-0.5">Opsi 1: Kana Project</span>
-                            <div class="font-black text-slate-900 font-mono">BCA - 4500959555</div>
-                            <div class="text-[10px] text-slate-600 font-bold">a.n PT. KANA ATLAS NUSANTARA</div>
-                        </div>
-                        <div class="p-2.5 bg-white rounded-xl border border-purple-200 shadow-sm">
-                            <span class="text-[9px] font-black uppercase text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded block w-fit mb-0.5">Opsi 2: Homi ID</span>
-                            <div class="font-black text-slate-900 font-mono">BCA - 012001004640307</div>
-                            <div class="text-[10px] text-slate-600 font-bold">a.n HOMI ID / SULAIMAN</div>
+                        <div v-for="(acc, idx) in bankAccounts" :key="idx" class="p-2.5 bg-white rounded-xl border border-purple-200 shadow-sm">
+                            <span class="text-[9px] font-black uppercase text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded block w-fit mb-0.5">
+                                Opsi {{ idx + 1 }}: {{ acc.label }}
+                            </span>
+                            <div class="font-black text-slate-900 font-mono">{{ acc.bank_name }} – {{ acc.account_number }}</div>
+                            <div class="text-[10px] text-slate-600 font-bold">a.n {{ acc.account_name }}</div>
                         </div>
                     </div>
                 </div>
@@ -253,6 +313,67 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
                     </div>
                     <p class="text-xs font-bold text-slate-900 border-t border-slate-200 pt-1">{{ masterLead.name }}</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- MODAL EDIT REKENING BANK (Dua Opsi Rekening) -->
+        <div v-if="showEditBankModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:hidden">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">✏️</span>
+                        <h3 class="font-black text-slate-900 dark:text-white text-base">Perbarui Rekening Tujuan Pencairan</h3>
+                    </div>
+                    <button @click="showEditBankModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-lg">&times;</button>
+                </div>
+
+                <form @submit.prevent="submitUpdateBank" class="space-y-4 text-xs">
+                    <!-- OPSI 1 -->
+                    <div class="p-4 bg-purple-50 dark:bg-purple-950/40 rounded-2xl border border-purple-200 dark:border-purple-800 space-y-3">
+                        <div class="font-bold text-purple-900 dark:text-purple-300 text-xs">Opsi 1: Rekening Utama (Kana Project)</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Bank 1</label>
+                                <input v-model="bankForm.bank_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">No. Rekening 1</label>
+                                <input v-model="bankForm.bank_account_number" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nama Di Rekening 1</label>
+                            <input v-model="bankForm.bank_account_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                        </div>
+                    </div>
+
+                    <!-- OPSI 2 -->
+                    <div class="p-4 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800 space-y-3">
+                        <div class="font-bold text-indigo-900 dark:text-indigo-300 text-xs">Opsi 2: Rekening Sekunder (Homi ID)</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Bank 2</label>
+                                <input v-model="bankForm.secondary_bank_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">No. Rekening 2</label>
+                                <input v-model="bankForm.secondary_bank_account_number" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-slate-900 dark:text-white" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-400 mb-1">Nama Di Rekening 2</label>
+                            <input v-model="bankForm.secondary_bank_account_name" type="text" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold text-slate-900 dark:text-white" />
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" @click="showEditBankModal = false" class="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold">Batal</button>
+                        <button type="submit" :disabled="bankForm.processing" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-1.5">
+                            <span>💾</span>
+                            <span>{{ bankForm.processing ? 'Menyimpan...' : 'Simpan Rekening Baru' }}</span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

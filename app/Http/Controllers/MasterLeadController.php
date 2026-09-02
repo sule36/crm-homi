@@ -550,6 +550,42 @@ class MasterLeadController extends Controller
         }
     }
 
+    public function updateInvoiceBank(Request $request, MasterLeadInvoice $invoice)
+    {
+        try {
+            $validated = $request->validate([
+                'bank_name' => 'nullable|string|max:100',
+                'bank_account_number' => 'nullable|string|max:100',
+                'bank_account_name' => 'nullable|string|max:255',
+                'secondary_bank_name' => 'nullable|string|max:100',
+                'secondary_bank_account_number' => 'nullable|string|max:100',
+                'secondary_bank_account_name' => 'nullable|string|max:255',
+            ]);
+
+            $masterLead = $invoice->masterLead;
+            if ($masterLead) {
+                $settings = $masterLead->settings ?: [];
+                if ($request->has('secondary_bank_name') || $request->has('secondary_bank_account_number')) {
+                    $settings['secondary_bank_name'] = $request->secondary_bank_name;
+                    $settings['secondary_bank_account_number'] = $request->secondary_bank_account_number;
+                    $settings['secondary_bank_account_name'] = $request->secondary_bank_account_name;
+                }
+
+                $masterLead->update([
+                    'bank_name' => $request->bank_name ?: $masterLead->bank_name,
+                    'bank_account_number' => $request->bank_account_number ?: $masterLead->bank_account_number,
+                    'bank_account_name' => $request->bank_account_name ?: $masterLead->bank_account_name,
+                    'settings' => $settings,
+                ]);
+            }
+
+            return back()->with('success', 'Rekening bank tujuan pencairan berhasil diperbarui.');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('MasterLeadController updateInvoiceBank failed: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memperbarui rekening bank: ' . $e->getMessage());
+        }
+    }
+
     private function terbilang($angka)
     {
         $angka = abs($angka);

@@ -161,6 +161,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/master-leads/invoices', [\App\Http\Controllers\MasterLeadController::class, 'storeInvoice'])->name('master-leads.invoices.store');
     Route::get('/master-leads/invoices/{invoice}', [\App\Http\Controllers\MasterLeadController::class, 'showInvoice'])->name('master-leads.invoices.show');
     Route::post('/master-leads/invoices/{invoice}/mark-paid', [\App\Http\Controllers\MasterLeadController::class, 'markInvoicePaid'])->name('master-leads.invoices.mark-paid');
+    Route::post('/master-leads/invoices/{invoice}/update-bank', [\App\Http\Controllers\MasterLeadController::class, 'updateInvoiceBank'])->name('master-leads.invoices.update-bank');
 
     // Agents & Agency Office Management
     Route::get('/agents', [\App\Http\Controllers\MasterLeadController::class, 'index'])->name('agents.index');
