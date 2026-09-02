@@ -83,10 +83,15 @@ class CommissionController extends Controller
             ->select('id', 'name', 'phone')
             ->get();
 
-        $bankAccounts = \App\Models\BankAccount::where('is_active', true)->get();
+        $masterLeadInvoices = \Illuminate\Support\Facades\Schema::hasTable('master_lead_invoices')
+            ? \App\Models\MasterLeadInvoice::with(['masterLead', 'commissions.booking.unit.project'])
+                ->latest()
+                ->get()
+            : collect([]);
 
         return Inertia::render('Commissions/Index', [
             'commissions' => $commissions,
+            'masterLeadInvoices' => $masterLeadInvoices,
             'stats' => $stats,
             'brokerCompanies' => BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
             'defaultRates' => $defaultRates,

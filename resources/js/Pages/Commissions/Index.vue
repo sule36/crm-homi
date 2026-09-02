@@ -15,6 +15,8 @@ const props = defineProps({
     filters: Object,
 });
 
+const activeTab = ref('commissions');
+
 const showParamModal = ref(false);
 const paramForm = useForm({
     inhouse_developer_rate: props.defaultRates?.inhouse_developer || 1.0,
@@ -393,17 +395,38 @@ const simNetCommission = computed(() => {
             </div>
         </div>
 
-        <!-- COMMISSIONS TABLE -->
+        <!-- COMMISSIONS TABLE & MASTER LEAD INVOICES TAB -->
         <div class="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
-            <div class="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
-                <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">Daftar Komisi</h2>
-                <div class="flex gap-2">
+            <div class="px-8 py-6 border-b border-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl">
+                    <button 
+                        @click="activeTab = 'commissions'" 
+                        :class="[activeTab === 'commissions' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900']"
+                        class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                    >
+                        💸 Daftar Komisi Sales & Agency
+                    </button>
+                    <button 
+                        @click="activeTab = 'ml_invoices'" 
+                        :class="[activeTab === 'ml_invoices' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900']"
+                        class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                    >
+                        <span>📄 Invoice Master Lead</span>
+                        <span v-if="masterLeadInvoices && masterLeadInvoices.length > 0" class="px-2 py-0.5 bg-purple-800 text-white text-[10px] rounded-full">
+                            {{ masterLeadInvoices.length }}
+                        </span>
+                    </button>
+                </div>
+
+                <div v-if="activeTab === 'commissions'" class="flex gap-2">
                     <Link href="/commissions" :class="!filters.status ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs font-black uppercase transition-all">Semua</Link>
                     <Link href="/commissions?status=pending" :class="filters.status === 'pending' ? 'bg-amber-500 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs font-black uppercase transition-all">Pending</Link>
                     <Link href="/commissions?status=paid" :class="filters.status === 'paid' ? 'bg-emerald-500 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs font-black uppercase transition-all">Paid</Link>
                 </div>
             </div>
-            <div class="overflow-x-auto max-w-full touch-pan-x">
+
+            <!-- TAB 1: COMMISSIONS TABLE -->
+            <div v-if="activeTab === 'commissions'" class="overflow-x-auto max-w-full touch-pan-x">
                 <table class="w-full text-left border-collapse min-w-[800px]">
                     <thead>
                         <tr class="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100">
@@ -519,6 +542,84 @@ const simNetCommission = computed(() => {
                                 <p class="text-4xl mb-3">💸</p>
                                 <p class="text-xs font-black text-slate-400 uppercase tracking-widest">Belum Ada Riwayat Komisi</p>
                                 <p class="text-xs text-slate-500 mt-1">Daftar komisi penjualan per-unit dari booking yang disetujui akan muncul di sini.</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- TAB 2: MASTER LEAD INVOICES TABLE -->
+            <div v-else-if="activeTab === 'ml_invoices'" class="overflow-x-auto max-w-full touch-pan-x">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                        <tr class="bg-purple-50/60 text-[10px] font-black text-purple-900 uppercase tracking-widest border-b border-purple-100">
+                            <th class="px-8 py-5">No. Invoice & Kategori</th>
+                            <th class="px-8 py-5">Master Lead Partner</th>
+                            <th class="px-8 py-5">Target / Rincian Claim</th>
+                            <th class="px-8 py-5 text-right">Nominal Tagihan Net ML</th>
+                            <th class="px-8 py-5 text-center">Status Pencairan</th>
+                            <th class="px-8 py-5 text-right">Aksi Developer</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-purple-50">
+                        <tr v-for="inv in masterLeadInvoices" :key="inv.id" class="hover:bg-purple-50/30 transition-all">
+                            <td class="px-8 py-6">
+                                <p class="text-sm font-black font-mono text-purple-900">{{ inv.invoice_number }}</p>
+                                <div class="mt-1">
+                                    <span v-if="inv.invoice_type === 'closing_fee'" class="px-2.5 py-1 bg-amber-100 text-amber-800 text-[10px] font-black rounded-md uppercase">
+                                        ⚡ CLOSING FEE
+                                    </span>
+                                    <span v-else-if="inv.invoice_type === 'reward'" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-md uppercase">
+                                        🎁 REWARD IPHONE
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-purple-100 text-purple-800 text-[10px] font-black rounded-md uppercase">
+                                        📄 KOMISI OVERRIDING
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="px-8 py-6">
+                                <p class="text-sm font-black text-slate-900">👑 {{ inv.master_lead?.name || 'KANAHOMI' }}</p>
+                                <p class="text-[10px] text-slate-400 font-bold">Joint Operating (Kana Project x Homi ID)</p>
+                            </td>
+                            <td class="px-8 py-6">
+                                <div v-if="inv.invoice_type === 'reward'" class="text-xs font-bold text-slate-800">
+                                    🎁 {{ inv.reward_name || 'Reward iPhone 16 Pro (Konversi Cash)' }}
+                                </div>
+                                <div v-else-if="inv.invoice_type === 'closing_fee'" class="text-xs font-bold text-slate-800">
+                                    ⚡ Claim Closing Fee ({{ formatCurrency(inv.fee_per_unit || 2500000) }} / Unit)
+                                </div>
+                                <div v-else class="text-xs font-bold text-slate-800">
+                                    📄 {{ inv.commissions?.length || 0 }} Unit Properti Deal
+                                </div>
+                            </td>
+                            <td class="px-8 py-6 text-right">
+                                <p class="text-base font-black font-mono text-purple-700">{{ formatCurrency(inv.total_amount) }}</p>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase">Submitted {{ new Date(inv.submitted_at).toLocaleDateString('id-ID') }}</p>
+                            </td>
+                            <td class="px-8 py-6 text-center">
+                                <span v-if="inv.status === 'paid'" class="px-3 py-1 bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-full font-black text-[10px] uppercase">
+                                    🟢 LUNAS / DICAIRKAN
+                                </span>
+                                <span v-else class="px-3 py-1 bg-amber-100 text-amber-700 border border-amber-300 rounded-full font-black text-[10px] uppercase">
+                                    ⏳ MENUNGGU PENCAIRAN DEV
+                                </span>
+                            </td>
+                            <td class="px-8 py-6 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a 
+                                        :href="route('master-leads.invoices.show', inv.id)" 
+                                        target="_blank" 
+                                        class="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-200 rounded-xl text-[11px] font-bold transition-all"
+                                    >
+                                        <span>🖨️ Invoice PDF</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="!masterLeadInvoices || !masterLeadInvoices.length">
+                            <td colspan="6" class="px-8 py-16 text-center">
+                                <p class="text-4xl mb-3">📄</p>
+                                <p class="text-xs font-black text-slate-400 uppercase tracking-widest">Belum Ada Invoice Tagihan Master Lead</p>
                             </td>
                         </tr>
                     </tbody>

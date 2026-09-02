@@ -72,6 +72,18 @@ function openInvoiceModal(commissionIds) {
     showInvoiceModal.value = true;
 }
 
+const invoiceCategoryFilter = ref('all');
+const filteredMasterLeadInvoices = computed(() => {
+    const invoices = props.masterLeadInvoices || [];
+    if (invoiceCategoryFilter.value === 'all') return invoices;
+    return invoices.filter(inv => {
+        if (invoiceCategoryFilter.value === 'commission') {
+            return !inv.invoice_type || inv.invoice_type === 'commission';
+        }
+        return inv.invoice_type === invoiceCategoryFilter.value;
+    });
+});
+
 function submitInvoiceForm() {
     invoiceForm.post(route('master-leads.invoices.store'), {
         onSuccess: () => {
@@ -1111,14 +1123,94 @@ function submitPaySubAgent() {
             </div>
 
             <!-- MASTER LEAD INVOICES HISTORY TABLE -->
-            <div v-if="ledgerSubTab === 'invoices'">
-                <div v-if="masterLeadInvoices && masterLeadInvoices.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+            <div v-if="ledgerSubTab === 'invoices'" class="space-y-6">
+                <!-- Summary Metrics Bar for Invoices -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-black text-purple-600 dark:text-purple-400 uppercase">📄 Tagihan Komisi</div>
+                        <div class="text-base font-black text-slate-900 dark:text-white mt-1">
+                            {{ formatCurrency(masterLeadInvoices.filter(i => !i.invoice_type || i.invoice_type === 'commission').reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0)) }}
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">{{ masterLeadInvoices.filter(i => !i.invoice_type || i.invoice_type === 'commission').length }} Invoice Komisi</div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-black text-amber-600 dark:text-amber-400 uppercase">⚡ Tagihan Closing Fee</div>
+                        <div class="text-base font-black text-slate-900 dark:text-white mt-1">
+                            {{ formatCurrency(masterLeadInvoices.filter(i => i.invoice_type === 'closing_fee').reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0)) }}
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">{{ masterLeadInvoices.filter(i => i.invoice_type === 'closing_fee').length }} Invoice Closing Fee</div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase">🎁 Tagihan Reward iPhone</div>
+                        <div class="text-base font-black text-slate-900 dark:text-white mt-1">
+                            {{ formatCurrency(masterLeadInvoices.filter(i => i.invoice_type === 'reward').reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0)) }}
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">{{ masterLeadInvoices.filter(i => i.invoice_type === 'reward').length }} Invoice Reward</div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
+                        <div class="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase">🟢 Total Terbayar Lunas</div>
+                        <div class="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                            {{ formatCurrency(masterLeadInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0)) }}
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">Sudah Diterima dari Dev</div>
+                    </div>
+                </div>
+
+                <!-- Header Actions Bar -->
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-slate-500">Filter Kategori Tagihan:</span>
+                        <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                            <button 
+                                @click="invoiceCategoryFilter = 'all'"
+                                :class="[invoiceCategoryFilter === 'all' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900']"
+                                class="px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                            >
+                                Semua
+                            </button>
+                            <button 
+                                @click="invoiceCategoryFilter = 'commission'"
+                                :class="[invoiceCategoryFilter === 'commission' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900']"
+                                class="px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                            >
+                                📄 Komisi
+                            </button>
+                            <button 
+                                @click="invoiceCategoryFilter = 'closing_fee'"
+                                :class="[invoiceCategoryFilter === 'closing_fee' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900']"
+                                class="px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                            >
+                                ⚡ Closing Fee
+                            </button>
+                            <button 
+                                @click="invoiceCategoryFilter = 'reward'"
+                                :class="[invoiceCategoryFilter === 'reward' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900']"
+                                class="px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                            >
+                                🎁 Reward iPhone
+                            </button>
+                        </div>
+                    </div>
+
+                    <button 
+                        @click="openInvoiceModal(mlOverridingCommissions.map(c => c.id))" 
+                        class="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2 shrink-0"
+                    >
+                        <span>➕</span> <span>Terbitkan Invoice Tagihan ML Baru</span>
+                    </button>
+                </div>
+
+                <div v-if="filteredMasterLeadInvoices && filteredMasterLeadInvoices.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                         <thead class="bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-300 font-semibold uppercase text-[10px] border-b border-indigo-200 dark:border-indigo-800">
                             <tr>
                                 <th class="p-4">No. Invoice</th>
+                                <th class="p-4">Kategori Claim ML</th>
                                 <th class="p-4">Master Lead Partner</th>
-                                <th class="p-4">Total Unit Tagihan</th>
+                                <th class="p-4">Rincian / Target Claim</th>
                                 <th class="p-4 text-right">Total Nominal Claim Net ML</th>
                                 <th class="p-4">Tanggal Pengajuan</th>
                                 <th class="p-4 text-center">Status Pencairan</th>
@@ -1126,19 +1218,36 @@ function submitPaySubAgent() {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                            <tr v-for="inv in masterLeadInvoices" :key="inv.id" class="hover:bg-indigo-50/30 transition-colors">
+                            <tr v-for="inv in filteredMasterLeadInvoices" :key="inv.id" class="hover:bg-indigo-50/30 transition-colors">
                                 <td class="p-4">
                                     <div class="font-mono font-black text-indigo-900 dark:text-indigo-300 text-sm">
                                         {{ inv.invoice_number }}
                                     </div>
                                 </td>
                                 <td class="p-4">
-                                    <div class="font-bold text-slate-900 dark:text-white">👑 {{ inv.master_lead?.name || 'Master Lead' }}</div>
+                                    <span v-if="inv.invoice_type === 'closing_fee'" class="px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-lg text-[10px] font-black uppercase">
+                                        ⚡ CLOSING FEE
+                                    </span>
+                                    <span v-else-if="inv.invoice_type === 'reward'" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-lg text-[10px] font-black uppercase">
+                                        🎁 REWARD IPHONE
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800 rounded-lg text-[10px] font-black uppercase">
+                                        📄 KOMISI OVERRIDING
+                                    </span>
                                 </td>
                                 <td class="p-4">
-                                    <span class="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 font-bold rounded-lg text-xs">
-                                        {{ inv.commissions?.length || 0 }} Unit Properti
-                                    </span>
+                                    <div class="font-bold text-slate-900 dark:text-white">👑 {{ inv.master_lead?.name || 'KANAHOMI' }}</div>
+                                </td>
+                                <td class="p-4">
+                                    <div v-if="inv.invoice_type === 'reward'" class="font-bold text-slate-800 dark:text-slate-200">
+                                        {{ inv.reward_name || 'Reward iPhone 16 Pro 256GB' }}
+                                    </div>
+                                    <div v-else-if="inv.invoice_type === 'closing_fee'" class="font-bold text-slate-800 dark:text-slate-200">
+                                        Claim Closing Fee ({{ formatCurrency(inv.fee_per_unit || 2500000) }} / Unit)
+                                    </div>
+                                    <div v-else class="font-bold text-slate-800 dark:text-slate-200">
+                                        {{ inv.commissions?.length || 0 }} Unit Properti Deal
+                                    </div>
                                 </td>
                                 <td class="p-4 text-right font-mono font-black text-indigo-700 dark:text-indigo-400 text-sm">
                                     {{ formatCurrency(inv.total_amount) }}
@@ -1168,7 +1277,7 @@ function submitPaySubAgent() {
                     </table>
                 </div>
                 <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    Belum ada riwayat pengajuan invoice komisi Master Lead.
+                    Belum ada riwayat pengajuan invoice untuk kategori ini.
                 </div>
             </div>
             </div>
