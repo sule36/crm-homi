@@ -9,6 +9,7 @@ const props = defineProps({
     allAgents: Object,
     subAgentCommissions: Object,
     mlOverridingCommissions: Array,
+    masterLeadInvoices: Array,
     brokerList: Array,
     masterLeadList: Array,
     stats: Object,
@@ -856,7 +857,7 @@ function submitPaySubAgent() {
 
                 <!-- Sub-Tab Toggle & Search bar for ledger -->
                 <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         <button 
                             @click="ledgerSubTab = 'sub_agent'"
                             :class="ledgerSubTab === 'sub_agent' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'"
@@ -870,6 +871,13 @@ function submitPaySubAgent() {
                             class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
                         >
                             <span>👑</span> <span>Pendapatan Net Overriding ML</span>
+                        </button>
+                        <button 
+                            @click="ledgerSubTab = 'invoices'"
+                            :class="ledgerSubTab === 'invoices' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'"
+                            class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                        >
+                            <span>📄</span> <span>Riwayat Invoice Tagihan ML ({{ (masterLeadInvoices || []).length }})</span>
                         </button>
                     </div>
 
@@ -1081,6 +1089,68 @@ function submitPaySubAgent() {
                 </div>
                 <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                     Belum ada riwayat pendapatan overriding Master Lead.
+                </div>
+            </div>
+
+            <!-- MASTER LEAD INVOICES HISTORY TABLE -->
+            <div v-if="ledgerSubTab === 'invoices'">
+                <div v-if="masterLeadInvoices && masterLeadInvoices.length > 0" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <table class="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                        <thead class="bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-300 font-semibold uppercase text-[10px] border-b border-indigo-200 dark:border-indigo-800">
+                            <tr>
+                                <th class="p-4">No. Invoice</th>
+                                <th class="p-4">Master Lead Partner</th>
+                                <th class="p-4">Total Unit Tagihan</th>
+                                <th class="p-4 text-right">Total Nominal Claim Net ML</th>
+                                <th class="p-4">Tanggal Pengajuan</th>
+                                <th class="p-4 text-center">Status Pencairan</th>
+                                <th class="p-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tr v-for="inv in masterLeadInvoices" :key="inv.id" class="hover:bg-indigo-50/30 transition-colors">
+                                <td class="p-4">
+                                    <div class="font-mono font-black text-indigo-900 dark:text-indigo-300 text-sm">
+                                        {{ inv.invoice_number }}
+                                    </div>
+                                </td>
+                                <td class="p-4">
+                                    <div class="font-bold text-slate-900 dark:text-white">👑 {{ inv.master_lead?.name || 'Master Lead' }}</div>
+                                </td>
+                                <td class="p-4">
+                                    <span class="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 font-bold rounded-lg text-xs">
+                                        {{ inv.commissions?.length || 0 }} Unit Properti
+                                    </span>
+                                </td>
+                                <td class="p-4 text-right font-mono font-black text-indigo-700 dark:text-indigo-400 text-sm">
+                                    {{ formatCurrency(inv.total_amount) }}
+                                </td>
+                                <td class="p-4 font-mono text-slate-500">
+                                    {{ new Date(inv.submitted_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) }}
+                                </td>
+                                <td class="p-4 text-center">
+                                    <span v-if="inv.status === 'paid'" class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-full font-bold text-[10px]">
+                                        🟢 LUNAS / DICAIRKAN
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-full font-bold text-[10px]">
+                                        ⏳ MENUNGGU PENCAIRAN DEV
+                                    </span>
+                                </td>
+                                <td class="p-4 text-right">
+                                    <a 
+                                        :href="route('master-leads.invoices.show', inv.id)" 
+                                        target="_blank" 
+                                        class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold shadow-md shadow-indigo-600/20 transition-all inline-flex items-center gap-1"
+                                    >
+                                        <span>🖨️ Cetak / Buka PDF</span>
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-else class="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    Belum ada riwayat pengajuan invoice komisi Master Lead.
                 </div>
             </div>
             </div>

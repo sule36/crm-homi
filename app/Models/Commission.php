@@ -24,10 +24,14 @@ class Commission extends Model
                     ->first();
 
                 if (!$existingGl) {
+                    $glAmount = ($commission->payout_recipient === 'master_lead' && $commission->base_commission > 0)
+                        ? (int) $commission->base_commission
+                        : (int) $commission->amount;
+
                     GeneralLedger::recordEntry(
                         type: 'expense',
                         category: 'commission',
-                        amount: (int) $commission->amount,
+                        amount: $glAmount,
                         reference: $commission,
                         projectId: $projectId,
                         description: "Pembayaran Komisi ({$commission->payout_recipient}) kepada {$recipientName} - {$unitCode}",

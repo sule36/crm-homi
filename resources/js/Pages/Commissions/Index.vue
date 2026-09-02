@@ -441,7 +441,7 @@ const simNetCommission = computed(() => {
                                 </div>
                             </td>
                             <td class="px-8 py-6 text-right">
-                                <p class="text-sm font-black text-blue-600">{{ formatCurrency(item.amount) }}</p>
+                                <p class="text-sm font-black text-blue-600">{{ formatCurrency(item.display_payout_amount || item.amount) }}</p>
                                 <p class="text-[10px] text-slate-400 font-bold uppercase">Generated at {{ new Date(item.created_at).toLocaleDateString('id-ID') }}</p>
                             </td>
                             <td class="px-8 py-6">
@@ -537,7 +537,7 @@ const simNetCommission = computed(() => {
                     </div>
                     <div class="flex justify-between border-t border-slate-200 pt-2">
                         <span class="text-slate-700 font-black">Nominal Komisi:</span>
-                        <span class="font-black text-emerald-600 text-sm">{{ formatCurrency(selectedCommission.amount) }}</span>
+                        <span class="font-black text-emerald-600 text-sm">{{ formatCurrency(selectedCommission.display_payout_amount || selectedCommission.amount) }}</span>
                     </div>
                 </div>
 

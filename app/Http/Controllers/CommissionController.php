@@ -18,6 +18,7 @@ class CommissionController extends Controller
         $payoutThresholdPercent = (float) Setting::get('commission_payout_threshold_percent', 25.0);
 
         $commissions = Commission::with(['user.brokerCompany', 'brokerCompany', 'booking.lead', 'booking.unit.project', 'booking.transactions', 'bankAccount'])
+            ->whereIn('payout_recipient', ['master_lead', 'agency', 'agent'])
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->payout_recipient, fn($q) => $q->where('payout_recipient', $request->payout_recipient))
             ->when($request->broker_company_id, fn($q) => $q->where('broker_company_id', $request->broker_company_id))
@@ -42,17 +43,22 @@ class CommissionController extends Controller
             $comm->payout_threshold_percent = $payoutThresholdPercent;
             $comm->is_payout_eligible = $isEligible;
 
+            // Payout amount for Developer: Gross Overriding Fee for Master Lead, or direct amount for others
+            $comm->display_payout_amount = ($comm->payout_recipient === 'master_lead' && $comm->base_commission > 0)
+                ? $comm->base_commission
+                : $comm->amount;
+
             return $comm;
         });
 
         $stats = [
-            'total_pending' => Commission::where('status', 'pending')->sum('amount'),
-            'total_paid' => Commission::where('status', 'paid')->sum('amount'),
-            'this_month' => Commission::whereMonth('created_at', now()->month)->sum('amount'),
+            'total_pending' => Commission::whereIn('payout_recipient', ['master_lead', 'agency', 'agent'])->where('status', 'pending')->get()->sum(fn($c) => ($c->payout_recipient === 'master_lead' && $c->base_commission > 0) ? $c->base_commission : $c->amount),
+            'total_paid' => Commission::whereIn('payout_recipient', ['master_lead', 'agency', 'agent'])->where('status', 'paid')->get()->sum(fn($c) => ($c->payout_recipient === 'master_lead' && $c->base_commission > 0) ? $c->base_commission : $c->amount),
+            'this_month' => Commission::whereIn('payout_recipient', ['master_lead', 'agency', 'agent'])->whereMonth('created_at', now()->month)->get()->sum(fn($c) => ($c->payout_recipient === 'master_lead' && $c->base_commission > 0) ? $c->base_commission : $c->amount),
             'agency_commissions' => Commission::where('payout_recipient', 'agency')->sum('amount'),
             'inhouse_commissions' => Commission::whereHas('user', fn($q) => $q->whereIn('agent_type', ['inhouse', 'inhouse_developer', 'inhouse_master_lead']))->sum('amount'),
             'independent_commissions' => Commission::whereHas('user', fn($q) => $q->where('agent_type', 'independent'))->sum('amount'),
-            'master_lead_commissions' => Commission::whereHas('user', fn($q) => $q->whereIn('agent_type', ['master_lead']))->sum('amount'),
+            'master_lead_commissions' => Commission::where('payout_recipient', 'master_lead')->get()->sum(fn($c) => $c->base_commission > 0 ? $c->base_commission : $c->amount),
             'eligible_count' => $commissions->getCollection()->filter(fn($c) => $c->status === 'pending' && $c->is_payout_eligible)->count(),
         ];
 

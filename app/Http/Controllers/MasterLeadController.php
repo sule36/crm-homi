@@ -224,12 +224,18 @@ class MasterLeadController extends Controller
             ->latest()
             ->get();
 
+        $masterLeadInvoices = MasterLeadInvoice::with(['masterLead', 'commissions.booking.unit.project'])
+            ->when($isMasterLead, fn($q) => $q->where('master_lead_id', $user->id))
+            ->latest()
+            ->get();
+
         return Inertia::render('MasterLeads/Index', [
             'masterLeads' => $masterLeads,
             'brokers' => $brokers,
             'allAgents' => $allAgents,
             'subAgentCommissions' => $subAgentCommissions,
             'mlOverridingCommissions' => $mlOverridingCommissions,
+            'masterLeadInvoices' => $masterLeadInvoices,
             'brokerList' => BrokerCompany::where('status', 'active')->select('id', 'name', 'code', 'commission_rate')->get(),
             'masterLeadList' => User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->select('id', 'name', 'phone')->get(),
             'stats' => [
