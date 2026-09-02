@@ -7,6 +7,7 @@ use App\Models\BrokerCompany;
 use App\Models\Commission;
 use App\Models\Booking;
 use App\Models\AuditLog;
+use App\Models\MasterLeadInvoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
@@ -217,17 +218,24 @@ class MasterLeadController extends Controller
             ->whereIn('status', ['approved', 'completed', 'booked'])
             ->sum('final_price');
 
-        $mlOverridingCommissions = Commission::with(['user', 'booking.lead', 'booking.unit.project', 'masterLeadInvoice'])
+        $withRelations = ['user', 'booking.lead', 'booking.unit.project'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('commissions', 'master_lead_invoice_id')) {
+            $withRelations[] = 'masterLeadInvoice';
+        }
+
+        $mlOverridingCommissions = Commission::with($withRelations)
             ->where('payout_recipient', 'master_lead')
             ->whereHas('booking')
             ->when($isMasterLead, fn($q) => $q->where('user_id', $user->id))
             ->latest()
             ->get();
 
-        $masterLeadInvoices = MasterLeadInvoice::with(['masterLead', 'commissions.booking.unit.project'])
-            ->when($isMasterLead, fn($q) => $q->where('master_lead_id', $user->id))
-            ->latest()
-            ->get();
+        $masterLeadInvoices = \Illuminate\Support\Facades\Schema::hasTable('master_lead_invoices')
+            ? MasterLeadInvoice::with(['masterLead', 'commissions.booking.unit.project'])
+                ->when($isMasterLead, fn($q) => $q->where('master_lead_id', $user->id))
+                ->latest()
+                ->get()
+            : collect([]);
 
         return Inertia::render('MasterLeads/Index', [
             'masterLeads' => $masterLeads,
