@@ -37,6 +37,10 @@ class MasterLeadController extends Controller
             }
 
             if ($masterLead && $masterLead->id !== $agent->id) {
+                $masterRate = (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
+                $finalPrice = $bk->final_price > 0 ? $bk->final_price : ($bk->unit_price ?? 0);
+                $masterTotalGross = $finalPrice * ($masterRate / 100);
+
                 // Cleanup legacy standalone claim rows to ensure 1 row per unit deal
                 Commission::where('booking_id', $bk->id)
                     ->where('payout_recipient', 'master_lead')
