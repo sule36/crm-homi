@@ -231,6 +231,9 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
                                 <td class="p-3 font-mono font-bold text-slate-400">{{ idx + 1 }}</td>
                                 <td class="p-3">
                                     <div class="font-bold text-slate-900">⚡ Claim Closing Fee Master Lead</div>
+                                    <div class="text-[10px] text-slate-500 font-medium">
+                                        Sales Agent: <span class="font-bold text-slate-800">{{ comm.booking?.bookedBy?.name || comm.booking?.user?.name || '-' }}</span>
+                                    </div>
                                     <div class="text-[10px] text-slate-400">Buyer: {{ comm.booking?.lead?.name || '-' }}</div>
                                 </td>
                                 <td class="p-3">
@@ -243,10 +246,10 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
                                     {{ formatCurrency(comm.booking?.final_price || comm.booking?.unit_price || 0) }}
                                 </td>
                                 <td class="p-3 text-center font-mono font-bold text-purple-700">
-                                    {{ formatCurrency(invoice.fee_per_unit || 2500000) }} / Unit
+                                    {{ formatCurrency(invoice.fee_per_unit || comm.amount || 2500000) }} / Unit
                                 </td>
                                 <td class="p-3 text-right font-mono font-black text-purple-900 text-sm">
-                                    {{ formatCurrency(invoice.fee_per_unit || 2500000) }}
+                                    {{ formatCurrency(comm.amount || invoice.fee_per_unit || 2500000) }}
                                 </td>
                             </tr>
                         </template>

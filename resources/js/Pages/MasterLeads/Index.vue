@@ -1035,13 +1035,19 @@ function submitPaySubAgent() {
                                         class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
                                     />
                                 </th>
-                                <th class="p-4">Master Lead Penerima</th>
-                                <th class="p-4">Unit Booking & Proyek</th>
-                                <th class="p-4">Harga Jual Net Properti</th>
-                                <th class="p-4">Skema Fee Overriding</th>
-                                <th class="p-4">Gross ML Fee</th>
-                                <th class="p-4">Sub-Agent Share</th>
-                                <th class="p-4 text-right">Net Profit ML</th>
+                                <th class="p-4 w-10 text-center">
+                                    <input 
+                                        type="checkbox" 
+                                        :checked="selectedCommissions.length === mlOverridingCommissions.filter(c => c.status !== 'paid').length && mlOverridingCommissions.filter(c => c.status !== 'paid').length > 0"
+                                        @change="e => selectedCommissions = e.target.checked ? mlOverridingCommissions.filter(c => c.status !== 'paid').map(c => c.id) : []"
+                                        class="rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                                    />
+                                </th>
+                                <th class="p-4">Kategori Claim</th>
+                                <th class="p-4">Unit & Proyek</th>
+                                <th class="p-4">Sales Agent & Konsumen</th>
+                                <th class="p-4">Harga Unit</th>
+                                <th class="p-4 text-right">Nominal Hak ML</th>
                                 <th class="p-4 text-center">Status Dev</th>
                                 <th class="p-4 text-right">Aksi Invoice</th>
                             </tr>
@@ -1058,30 +1064,34 @@ function submitPaySubAgent() {
                                     />
                                 </td>
                                 <td class="p-4">
-                                    <div class="font-bold text-slate-900 dark:text-white text-sm">👑 {{ mc.user?.name || 'KANAHOMI' }}</div>
-                                    <div class="text-[10px] text-purple-600 dark:text-purple-400 font-medium">Master Lead Partner</div>
+                                    <span v-if="mc.claim_type === 'closing_fee'" class="px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-lg text-[10px] font-black uppercase">
+                                        ⚡ CLOSING FEE
+                                    </span>
+                                    <span v-else-if="mc.claim_type === 'reward'" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-lg text-[10px] font-black uppercase">
+                                        🎁 REWARD IPHONE
+                                    </span>
+                                    <span v-else class="px-2.5 py-1 bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800 rounded-lg text-[10px] font-black uppercase">
+                                        📄 KOMISI OVERRIDING
+                                    </span>
                                 </td>
                                 <td class="p-4">
                                     <div class="font-bold text-slate-800 dark:text-slate-200">
                                         {{ mc.booking?.unit ? ('Blok ' + mc.booking.unit.block + ' No. ' + mc.booking.unit.number) : 'Unit Booking' }}
                                     </div>
-                                    <div class="text-[11px] text-slate-400">{{ mc.booking?.lead?.name || '-' }} • {{ mc.booking?.unit?.project?.name || '' }}</div>
+                                    <div class="text-[11px] text-slate-400">{{ mc.booking?.unit?.project?.name || '-' }}</div>
+                                </td>
+                                <td class="p-4">
+                                    <div class="font-bold text-slate-900 dark:text-white text-xs">
+                                        💼 Sales: {{ mc.booking?.booked_by?.name || mc.booking?.user?.name || '-' }}
+                                    </div>
+                                    <div class="text-[11px] text-slate-500">
+                                        👤 Konsumen: {{ mc.booking?.lead?.name || '-' }}
+                                    </div>
                                 </td>
                                 <td class="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">
                                     {{ formatCurrency(mc.booking?.final_price || mc.booking?.unit_price || 0) }}
                                 </td>
-                                <td class="p-4">
-                                    <div class="text-[10px] font-mono space-y-0.5">
-                                        <span class="px-2 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 rounded font-bold">Rate: {{ mc.rate_used || 4.5 }}% Overriding</span>
-                                    </div>
-                                </td>
-                                <td class="p-4 font-mono text-slate-500">
-                                    {{ formatCurrency(mc.base_commission || (mc.amount * 3)) }}
-                                </td>
-                                <td class="p-4 font-mono text-amber-600 dark:text-amber-400">
-                                    - {{ formatCurrency((mc.base_commission || (mc.amount * 3)) - mc.amount) }}
-                                </td>
-                                <td class="p-4 text-right font-black text-purple-600 dark:text-purple-400 text-sm">
+                                <td class="p-4 text-right font-black text-purple-600 dark:text-purple-400 text-sm font-mono">
                                     {{ formatCurrency(mc.amount) }}
                                 </td>
                                 <td class="p-4 text-center">
@@ -1104,7 +1114,7 @@ function submitPaySubAgent() {
                                     </a>
                                     <button 
                                         v-else-if="mc.status !== 'paid'"
-                                        @click="submitSingleInvoice(mc.id)"
+                                        @click="openInvoiceModal(mc.id)"
                                         class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold shadow-md shadow-purple-600/20 transition-all flex items-center gap-1 ml-auto"
                                         title="Terbitkan Invoice Resmi ke Developer untuk Unit ini"
                                     >

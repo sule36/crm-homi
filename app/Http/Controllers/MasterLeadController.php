@@ -37,35 +37,93 @@ class MasterLeadController extends Controller
             }
 
             if ($masterLead && $masterLead->id !== $agent->id) {
+                $masterRate = (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
+                $finalPrice = $bk->final_price > 0 ? $bk->final_price : ($bk->unit_price ?? 0);
+                $masterTotalGross = $finalPrice * ($masterRate / 100);
+
+                $closingFeeAmount = (float) \App\Models\Setting::get('default_commission_rates.master_lead_closing_fee', 2500000);
+                $rewardCashAmount = (float) \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_value', 20000000);
+                $rewardName = \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_name', 'Reward iPhone 16 Pro 256GB (Konversi Cash)');
+
+                // 1. Commission Overriding Claim Row
                 $existingMlComm = Commission::where('booking_id', $bk->id)
                     ->where('payout_recipient', 'master_lead')
+                    ->where(fn($q) => $q->where('claim_type', 'commission')->orWhereNull('claim_type'))
                     ->first();
 
-                $masterRate = (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
-                $effectiveRate = $agent->effective_commission_rate;
-                $baseCommission = $bk->final_price * ($effectiveRate / 100);
-                $masterTotalGross = $bk->final_price * ($masterRate / 100);
-                $masterNetFee = max(0, $masterTotalGross - $baseCommission);
-
                 if (!$existingMlComm) {
-                    if ($masterNetFee > 0) {
-                        Commission::create([
-                            'booking_id' => $bk->id,
-                            'user_id' => $masterLead->id,
-                            'broker_company_id' => null,
-                            'amount' => $masterNetFee,
-                            'base_commission' => $masterTotalGross,
-                            'promo_bonus' => 0,
-                            'rate_used' => $masterRate,
-                            'payout_recipient' => 'master_lead',
-                            'status' => 'pending',
-                        ]);
-                    }
-                } else if ($existingMlComm->status === 'pending' && (float)$existingMlComm->rate_used !== $masterRate) {
+                    Commission::create([
+                        'booking_id' => $bk->id,
+                        'user_id' => $masterLead->id,
+                        'broker_company_id' => null,
+                        'amount' => $masterTotalGross,
+                        'base_commission' => $masterTotalGross,
+                        'promo_bonus' => 0,
+                        'rate_used' => $masterRate,
+                        'payout_recipient' => 'master_lead',
+                        'claim_type' => 'commission',
+                        'status' => 'pending',
+                    ]);
+                } else if ($existingMlComm->status === 'pending') {
                     $existingMlComm->update([
                         'rate_used' => $masterRate,
                         'base_commission' => $masterTotalGross,
-                        'amount' => $masterNetFee,
+                        'amount' => $masterTotalGross,
+                        'claim_type' => 'commission',
+                    ]);
+                }
+
+                // 2. Closing Fee Claim Row
+                $existingClosingFee = Commission::where('booking_id', $bk->id)
+                    ->where('payout_recipient', 'master_lead')
+                    ->where('claim_type', 'closing_fee')
+                    ->first();
+
+                if (!$existingClosingFee && $closingFeeAmount > 0) {
+                    Commission::create([
+                        'booking_id' => $bk->id,
+                        'user_id' => $masterLead->id,
+                        'broker_company_id' => null,
+                        'amount' => $closingFeeAmount,
+                        'base_commission' => $closingFeeAmount,
+                        'promo_bonus' => 0,
+                        'rate_used' => 0,
+                        'payout_recipient' => 'master_lead',
+                        'claim_type' => 'closing_fee',
+                        'status' => 'pending',
+                    ]);
+                } else if ($existingClosingFee && $existingClosingFee->status === 'pending') {
+                    $existingClosingFee->update([
+                        'amount' => $closingFeeAmount,
+                        'base_commission' => $closingFeeAmount,
+                    ]);
+                }
+
+                // 3. Reward Claim Row
+                $existingReward = Commission::where('booking_id', $bk->id)
+                    ->where('payout_recipient', 'master_lead')
+                    ->where('claim_type', 'reward')
+                    ->first();
+
+                if (!$existingReward && $rewardCashAmount > 0) {
+                    Commission::create([
+                        'booking_id' => $bk->id,
+                        'user_id' => $masterLead->id,
+                        'broker_company_id' => null,
+                        'amount' => $rewardCashAmount,
+                        'base_commission' => $rewardCashAmount,
+                        'promo_bonus' => 0,
+                        'rate_used' => 0,
+                        'payout_recipient' => 'master_lead',
+                        'claim_type' => 'reward',
+                        'reward_name' => $rewardName,
+                        'status' => 'pending',
+                    ]);
+                } else if ($existingReward && $existingReward->status === 'pending') {
+                    $existingReward->update([
+                        'amount' => $rewardCashAmount,
+                        'base_commission' => $rewardCashAmount,
+                        'reward_name' => $rewardName,
                     ]);
                 }
             }
