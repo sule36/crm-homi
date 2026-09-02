@@ -115,6 +115,32 @@ class User extends Authenticatable
      */
     public function getEffectiveBankAccountAttribute(): array
     {
+        if ($this->agent_type === 'master_lead' || $this->hasRole('master_lead')) {
+            return [
+                'recipient_type' => 'master_lead_joint',
+                'recipient_name' => 'KANAHOMI (Kana Project x Homi ID)',
+                'bank_name' => 'BCA (Joint Operating)',
+                'bank_account_number' => '4500959555 / 012001004640307',
+                'bank_account_name' => 'PT. KANA ATLAS NUSANTARA / HOMI ID',
+                'is_office' => true,
+                'is_joint' => true,
+                'joint_accounts' => [
+                    [
+                        'label' => 'Kana Project',
+                        'bank_name' => 'BCA',
+                        'account_number' => '4500959555',
+                        'account_name' => 'PT. KANA ATLAS NUSANTARA',
+                    ],
+                    [
+                        'label' => 'Homi ID',
+                        'bank_name' => 'BCA',
+                        'account_number' => '012001004640307',
+                        'account_name' => 'HOMI ID / SULAIMAN',
+                    ],
+                ],
+            ];
+        }
+
         if (($this->agent_type === 'agency_agent' || $this->broker_company_id) && $this->brokerCompany) {
             return [
                 'recipient_type' => 'office',

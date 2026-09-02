@@ -445,7 +445,18 @@ const simNetCommission = computed(() => {
                                 <p class="text-[10px] text-slate-400 font-bold uppercase">Generated at {{ new Date(item.created_at).toLocaleDateString('id-ID') }}</p>
                             </td>
                             <td class="px-8 py-6">
-                                <div v-if="item.user?.effective_bank_account" class="p-3 rounded-2xl border transition-all"
+                                <div v-if="item.user?.effective_bank_account?.is_joint" class="p-3 bg-purple-50/80 border border-purple-200 rounded-2xl text-xs space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-[9px] font-black uppercase text-purple-900 bg-purple-200 px-1.5 py-0.5 rounded">👑 Joint ML (Kana x Homi)</span>
+                                    </div>
+                                    <div class="text-[10px] font-bold text-slate-800">
+                                        • BCA <span class="font-mono font-black text-purple-900">4500959555</span> (Kana Project)
+                                    </div>
+                                    <div class="text-[10px] font-bold text-slate-800 border-t border-purple-200/60 pt-1">
+                                        • BCA <span class="font-mono font-black text-purple-900">012001004640307</span> (Homi ID)
+                                    </div>
+                                </div>
+                                <div v-else-if="item.user?.effective_bank_account" class="p-3 rounded-2xl border transition-all"
                                     :class="item.user.effective_bank_account.is_office ? 'bg-amber-50/60 border-amber-200 text-amber-950' : 'bg-slate-50 border-slate-100 text-slate-900'">
                                     <div class="flex items-center justify-between gap-1 mb-1">
                                         <span class="text-[10px] font-black uppercase" :class="item.user.effective_bank_account.is_office ? 'text-amber-900' : 'text-slate-900'">

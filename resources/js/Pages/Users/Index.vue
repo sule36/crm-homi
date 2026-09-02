@@ -8,6 +8,7 @@ const props = defineProps({
     roles: Array,
     projects: Array,
     broker_companies: Array,
+    masterLeads: Array,
 });
 
 const showModal = ref(false);
@@ -21,6 +22,7 @@ const form = useForm({
     role: 'sales_agent',
     project_id: '',
     broker_company_id: '',
+    master_lead_id: '',
     agent_type: 'inhouse',
     phone: '',
     status: 'active',
@@ -45,6 +47,7 @@ const openEditModal = (user) => {
     form.role = user.roles[0]?.name || '';
     form.project_id = user.project_id || '';
     form.broker_company_id = user.broker_company_id || '';
+    form.master_lead_id = user.master_lead_id || '';
     form.agent_type = user.agent_type || (user.broker_company_id ? 'agency_agent' : 'inhouse');
     form.phone = user.phone || '';
     form.status = user.status || 'active';
@@ -102,9 +105,9 @@ const deleteUser = (id) => {
                 <thead>
                     <tr class="bg-slate-50 border-b border-slate-100">
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Nama & Email</th>
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Role</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Role Access</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Proyek</th>
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Afiliasi Broker</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Afiliasi / Network Structure</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Telepon</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-wider text-right">Aksi</th>
                     </tr>
@@ -128,23 +131,46 @@ const deleteUser = (id) => {
                             </div>
                         </td>
                         <td class="px-6 py-4">
-                            <span v-for="role in user.roles" :key="role.id" class="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                                {{ role.name.replace('_', ' ') }}
-                            </span>
+                            <div class="flex flex-wrap gap-1">
+                                <span v-for="role in user.roles" :key="role.id" 
+                                    :class="role.name === 'super_admin' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                                            role.name === 'project_manager' ? 'bg-sky-100 text-sky-800 border-sky-300' :
+                                            role.name === 'sales_manager' ? 'bg-indigo-100 text-indigo-800 border-indigo-300' :
+                                            role.name === 'finance' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                                            role.name === 'master_lead' ? 'bg-purple-600 text-white font-black' :
+                                            'bg-slate-100 text-slate-700 border-slate-200'"
+                                    class="px-2.5 py-1 border rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                    {{ role.name === 'master_lead' ? '👑 MASTER LEAD' : role.name.replace('_', ' ') }}
+                                </span>
+                            </div>
                         </td>
                         <td class="px-6 py-4">
                             <span class="text-xs font-bold text-slate-650">{{ user.project?.name || 'All Projects' }}</span>
                         </td>
                         <td class="px-6 py-4">
-                            <span v-if="user.broker_company" class="px-2.5 py-1 bg-purple-50 text-purple-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                            <!-- Master Lead Partner Badge -->
+                            <span v-if="user.agent_type === 'master_lead' || user.roles?.some(r => r.name === 'master_lead')" class="px-2.5 py-1 bg-purple-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 shadow-sm">
+                                👑 MASTER LEAD PARTNER
+                            </span>
+                            <!-- Sub-Agent under Master Lead Badge -->
+                            <span v-else-if="user.master_lead || user.master_lead_id" class="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1">
+                                🏢 {{ user.broker_company?.name || 'Sub-Agent' }} <span class="text-[9px] text-purple-700 font-black">(ML: {{ user.master_lead?.name || 'KANAHOMI' }})</span>
+                            </span>
+                            <!-- Standard Agency Broker Agent Badge -->
+                            <span v-else-if="user.broker_company" class="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1">
                                 🏢 {{ user.broker_company.name }}
                             </span>
-                            <span v-else class="px-2.5 py-1 bg-slate-50 text-slate-500 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                                Independen
+                            <!-- In-House Internal Developer Staff Badge -->
+                            <span v-else-if="['inhouse', 'inhouse_developer'].includes(user.agent_type) || user.roles?.some(r => ['super_admin', 'project_manager', 'sales_manager', 'finance'].includes(r.name))" class="px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1">
+                                🏠 Internal Developer (In-House)
+                            </span>
+                            <!-- Freelance Independent Agent Badge -->
+                            <span v-else class="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1">
+                                👤 Freelance Independen
                             </span>
                         </td>
                         <td class="px-6 py-4">
-                            <span class="text-xs text-slate-500">{{ user.phone || '-' }}</span>
+                            <span class="text-xs text-slate-500 font-mono">{{ user.phone || '-' }}</span>
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex items-center justify-end gap-2">
@@ -164,10 +190,10 @@ const deleteUser = (id) => {
         <!-- MODAL -->
         <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="closeModal"></div>
-            <div class="relative bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+            <div class="relative bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-200">
                 <div class="p-8">
-                    <h3 class="text-xl font-black text-slate-900 mb-2">{{ editMode ? 'Edit Staff' : 'Tambah Staff Baru' }}</h3>
-                    <p class="text-xs text-slate-400 mb-6">Pastikan email yang dimasukkan valid untuk login.</p>
+                    <h3 class="text-xl font-black text-slate-900 mb-2">{{ editMode ? 'Edit Staff / Agent' : 'Tambah Staff / Agent Baru' }}</h3>
+                    <p class="text-xs text-slate-400 mb-6">Atur role, proyek, serta struktur afiliasi/master lead secara presisi.</p>
 
                     <form @submit.prevent="submit" class="space-y-4">
                         <div>
@@ -197,49 +223,60 @@ const deleteUser = (id) => {
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Role Access</label>
-                                <select v-model="form.role" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer">
-                                    <option v-for="role in roles" :key="role.id" :value="role.name">{{ role.name.replace('_', ' ') }}</option>
+                                <select v-model="form.role" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer font-bold">
+                                    <option v-for="role in roles" :key="role.id" :value="role.name">{{ role.name === 'master_lead' ? '👑 Master Lead' : role.name.replace('_', ' ') }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Assignment Proyek</label>
-                                <select v-model="form.project_id" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer">
+                                <select v-model="form.project_id" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer font-bold">
                                     <option value="">All Projects</option>
                                     <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div v-if="['sales_agent', 'broker', 'agent'].includes(form.role) || form.agent_type" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tipe Agen</label>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tipe Agen / Afiliasi</label>
                                 <select v-model="form.agent_type" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer font-bold">
-                                    <option value="inhouse">🏠 In-House Agent (Internal)</option>
-                                    <option value="agency_agent">🏢 Agency Agent (Bernaung di Kantor)</option>
-                                    <option value="independent">💼 Freelance Independen</option>
+                                    <option value="inhouse">🏠 Internal Developer (In-House)</option>
+                                    <option value="master_lead">👑 Master Lead Partner</option>
+                                    <option value="agency_agent">🏢 Sub-Agent / Agency Broker</option>
+                                    <option value="independent">👤 Freelance Independen</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Afiliasi Kantor Agency / Broker</label>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Afiliasi Kantor Broker</label>
                                 <select v-model="form.broker_company_id" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 cursor-pointer font-bold">
-                                    <option value="">-- Tanpa Kantor / Independen --</option>
+                                    <option value="">-- Tanpa Kantor Broker --</option>
                                     <option v-for="broker in broker_companies" :key="broker.id" :value="broker.id">🏢 {{ broker.name }} ({{ broker.code || 'NO-CODE' }})</option>
                                 </select>
                             </div>
                         </div>
+
+                        <!-- Master Lead Parent Selection for Sub-Agents -->
+                        <div v-if="form.agent_type === 'agency_agent' || form.broker_company_id">
+                            <label class="block text-[10px] font-black text-purple-600 uppercase mb-1.5">👑 Induk Master Lead (Jika Sub-Agent)</label>
+                            <select v-model="form.master_lead_id" class="w-full px-4 py-3 bg-purple-50/60 border border-purple-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-600/20 cursor-pointer font-bold text-purple-900">
+                                <option value="">-- Tanpa Master Lead (Langsung ke Developer) --</option>
+                                <option v-for="ml in masterLeads" :key="ml.id" :value="ml.id">👑 {{ ml.name }} (Master Lead)</option>
+                            </select>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Telepon</label>
                                 <input v-model="form.phone" type="text" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20" placeholder="08xxxx" />
                             </div>
                             <div>
-                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Komisi (%)</label>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Komisi Rate (%)</label>
                                 <input v-model="form.commission_rate" type="number" step="0.01" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20" />
                             </div>
                         </div>
 
                         <div class="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-4">
-                            <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Informasi Bank (Untuk Komisi)</p>
+                            <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Informasi Rekening Bank (Pencairan Komisi)</p>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Bank</label>
@@ -259,7 +296,7 @@ const deleteUser = (id) => {
                         <div class="pt-4 flex gap-3">
                             <button type="submit" :disabled="form.processing"
                                 class="flex-1 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-blue-600/30 hover:-translate-y-1 transition-all">
-                                {{ form.processing ? 'Saving...' : 'SAVE STAFF' }}
+                                {{ form.processing ? 'Saving...' : 'SIMPAN DATA STAFF' }}
                             </button>
                             <button type="button" @click="closeModal" class="px-6 py-4 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">Batal</button>
                         </div>

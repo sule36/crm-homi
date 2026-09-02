@@ -101,18 +101,26 @@ const developerName = computed(() => props.settings?.company_name || 'PT. SERANG
             </div>
 
             <!-- Bill To Section -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 my-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-6 p-4 bg-purple-50/60 rounded-2xl border border-purple-100">
                 <div>
-                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">KEPADA YTH (DEVELOPER):</div>
+                    <div class="text-[10px] font-black text-purple-600 uppercase tracking-widest">KEPADA YTH (DEVELOPER):</div>
                     <div class="text-sm font-black text-slate-900 mt-1">{{ developerName }}</div>
                     <div class="text-xs text-slate-600 mt-0.5">Bagian Keuangan & Direksi Properti</div>
                 </div>
-                <div>
-                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">REKENING TUJUAN PENCAIRAN (MASTER LEAD):</div>
-                    <div class="text-xs font-bold text-purple-900 mt-1">
-                        💳 {{ masterLead.bank_name || 'Bank' }} - {{ masterLead.bank_account_number || '-' }}
+                <div class="md:col-span-2">
+                    <div class="text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1">REKENING TUJUAN PENCAIRAN (JOINT OPERATING MASTER LEAD):</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div class="p-2.5 bg-white rounded-xl border border-purple-200 shadow-sm">
+                            <span class="text-[9px] font-black uppercase text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded block w-fit mb-0.5">Opsi 1: Kana Project</span>
+                            <div class="font-black text-slate-900 font-mono">BCA - 4500959555</div>
+                            <div class="text-[10px] text-slate-600 font-bold">a.n PT. KANA ATLAS NUSANTARA</div>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-xl border border-purple-200 shadow-sm">
+                            <span class="text-[9px] font-black uppercase text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded block w-fit mb-0.5">Opsi 2: Homi ID</span>
+                            <div class="font-black text-slate-900 font-mono">BCA - 012001004640307</div>
+                            <div class="text-[10px] text-slate-600 font-bold">a.n HOMI ID / SULAIMAN</div>
+                        </div>
                     </div>
-                    <div class="text-xs text-slate-700 font-semibold">a.n. {{ masterLead.bank_account_name || masterLead.name }}</div>
                 </div>
             </div>
 

@@ -14,15 +14,20 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $users = User::with(['roles', 'project', 'brokerCompany'])
+        $users = User::with(['roles', 'project', 'brokerCompany', 'masterLead'])
             ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
             ->paginate(15);
+
+        $masterLeads = User::where('agent_type', 'master_lead')
+            ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
+            ->get(['id', 'name']);
 
         return Inertia::render('Users/Index', [
             'users' => $users,
             'roles' => \Spatie\Permission\Models\Role::all(),
             'projects' => Project::all(),
             'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->get(),
+            'masterLeads' => $masterLeads,
         ]);
     }
 
