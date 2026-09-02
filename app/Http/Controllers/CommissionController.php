@@ -89,6 +89,8 @@ class CommissionController extends Controller
                 ->get()
             : collect([]);
 
+        $bankAccounts = \App\Models\BankAccount::where('is_active', true)->get();
+
         return Inertia::render('Commissions/Index', [
             'commissions' => $commissions,
             'masterLeadInvoices' => $masterLeadInvoices,
