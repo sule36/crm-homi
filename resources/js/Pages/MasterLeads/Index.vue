@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { Head, useForm, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 const props = defineProps({
@@ -14,6 +14,7 @@ const props = defineProps({
     masterLeadList: Array,
     stats: Object,
     filters: Object,
+    defaultRates: Object,
 });
 
 const page = usePage();
@@ -419,6 +420,8 @@ function submitPaySubAgent() {
                     </h1>
                     <p class="text-xs text-slate-500 mt-0.5">
                         Hirarki Penjualan: <span class="font-bold text-slate-700 dark:text-slate-300">Developer ➔ Master Lead ➔ Sub-Agent</span>
+                        <span class="mx-1.5 text-slate-300">|</span>
+                        <Link href="/commissions" class="text-blue-600 hover:underline font-semibold">→ Komisi Developer</Link>
                     </p>
                 </div>
 

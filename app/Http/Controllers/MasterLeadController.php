@@ -272,6 +272,12 @@ class MasterLeadController extends Controller
                 'default_overriding_rate' => \App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5),
             ],
             'filters' => $request->only(['search', 'search_agency', 'search_agent', 'search_ledger']),
+            'defaultRates' => [
+                'master_lead_overriding' => (float) \App\Models\Setting::get('default_commission_rates.master_lead_overriding', 4.5),
+                'master_lead_closing_fee' => (float) \App\Models\Setting::get('default_commission_rates.master_lead_closing_fee', 5000000),
+                'master_lead_reward_iphone_value' => (float) \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_value', 23000000),
+                'master_lead_reward_iphone_name' => \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_name', 'Reward iPhone 17 Pro (Konversi Cash)'),
+            ],
         ]);
     }
 
@@ -457,8 +463,8 @@ class MasterLeadController extends Controller
             $masterLead = User::find($firstComm->user_id) ?? auth()->user();
             $invoiceNumber = MasterLeadInvoice::generateInvoiceNumber($masterLead, $invoiceType);
 
-            $defaultClosingFeePerUnit = (float) \App\Models\Setting::get('default_commission_rates.master_lead_closing_fee', 2500000);
-            $defaultIphoneRewardCash = (float) \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_value', 20000000);
+            $defaultClosingFeePerUnit = (float) \App\Models\Setting::get('default_commission_rates.master_lead_closing_fee', 5000000);
+            $defaultIphoneRewardCash = (float) \App\Models\Setting::get('default_commission_rates.master_lead_reward_iphone_value', 23000000);
 
             if ($invoiceType === 'closing_fee') {
                 $feePerUnit = isset($validated['fee_per_unit']) && $validated['fee_per_unit'] > 0

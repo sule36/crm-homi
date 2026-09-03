@@ -139,12 +139,12 @@ const simNetCommission = computed(() => {
 <template>
     <Head title="Manajemen Komisi" />
     <CrmLayout>
-        <template #breadcrumb>Komisi Sales</template>
+        <template #breadcrumb>Komisi Developer</template>
 
         <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Elite Commission & Fee Dashboard</h1>
-                <p class="text-sm text-slate-500 mt-1">Kelola dan pantau pembayaran komisi Inhouse Agent, Kantor Agency, & Freelance Independen.</p>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Komisi Developer — Dashboard Pembayaran</h1>
+                <p class="text-sm text-slate-500 mt-1">Kelola dan pantau pembayaran komisi Inhouse Agent, Kantor Agency, & Freelance Independen. <Link href="/master-leads" class="text-blue-600 hover:underline font-semibold">→ Jaringan Keagenan</Link></p>
             </div>
             <button @click="showParamModal = true" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2">
                 <span>⚙️</span>
@@ -586,7 +586,7 @@ const simNetCommission = computed(() => {
                                     🎁 {{ inv.reward_name || 'Reward iPhone 16 Pro (Konversi Cash)' }}
                                 </div>
                                 <div v-else-if="inv.invoice_type === 'closing_fee'" class="text-xs font-bold text-slate-800">
-                                    ⚡ Claim Closing Fee ({{ formatCurrency(inv.fee_per_unit || 2500000) }} / Unit)
+                                    ⚡ Claim Closing Fee ({{ formatCurrency(inv.fee_per_unit || 5000000) }} / Unit)
                                 </div>
                                 <div v-else class="text-xs font-bold text-slate-800">
                                     📄 {{ inv.commissions?.length || 0 }} Unit Properti Deal

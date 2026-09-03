@@ -763,7 +763,10 @@ const docTypeLabels = {
 
                 <!-- COMMISSION BOX -->
                 <div v-if="booking.commission_amount > 0" class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                    <h3 class="text-xs font-black uppercase tracking-wider text-slate-900 mb-4">Komisi Sales</h3>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-black uppercase tracking-wider text-slate-900">Komisi Sales</h3>
+                        <Link href="/commissions" class="text-[10px] font-bold text-blue-600 hover:underline">Lihat Semua Komisi →</Link>
+                    </div>
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-lg font-black text-blue-600">{{ formatCurrency(booking.commission_amount) }}</p>

@@ -73,6 +73,14 @@ const navigationGroups = [
         ]
     },
     {
+        title: 'Jaringan & Tim',
+        items: [
+            { name: 'Jaringan Keagenan', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') },
+            { name: 'Staff / Pengguna', href: '/users', icon: '👔', active: route().current('users.*') },
+            { name: 'Monitor Agen', href: '/agent-monitoring', icon: '👀', active: route().current('agent-monitoring.*') },
+        ]
+    },
+    {
         title: 'Marketing & Sales',
         items: [
             { name: 'Leads', href: '/leads', icon: '👥', active: route().current('leads.index') },
@@ -93,13 +101,10 @@ const navigationGroups = [
         ]
     },
     {
-        title: 'Transaksi & Tim',
+        title: 'Transaksi & Komisi',
         items: [
             { name: 'Booking & KPR', href: '/bookings', icon: '📝', active: route().current('bookings.*') },
-            { name: 'Jaringan Keagenan', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') },
-            { name: 'Staff / Pengguna', href: '/users', icon: '👔', active: route().current('users.*') },
-            { name: 'Monitor Agen', href: '/agent-monitoring', icon: '👀', active: route().current('agent-monitoring.*') },
-            { name: 'Komisi Agen', href: '/commissions', icon: '💸', active: route().current('commissions.*') },
+            { name: 'Komisi Developer', href: '/commissions', icon: '💸', active: route().current('commissions.*') },
         ]
     },
     {
@@ -214,7 +219,7 @@ const bottomNav = [
             <!-- BOTTOM -->
             <div class="border-t border-white/5 px-3 py-3 shrink-0">
                 <Link v-for="item in bottomNav" :key="item.name" :href="item.href"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:text-white hover:bg-white/5 transition-all"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all"
                 >
                     <span class="text-lg shrink-0 w-7 text-center">{{ item.icon }}</span>
                     <span v-if="sidebarOpen" class="truncate">{{ item.name }}</span>
