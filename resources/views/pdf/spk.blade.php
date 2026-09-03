@@ -179,15 +179,41 @@
 <body>
 
     @php
+        // Safe base64 image helper to prevent DOMPDF blank screen crashes
+        $getSafeBase64 = function($relativePath) {
+            if (empty($relativePath)) return null;
+            $cleanPath = ltrim(str_replace('storage/', '', $relativePath), '/');
+            $candidates = [
+                storage_path('app/public/' . $cleanPath),
+                public_path('storage/' . $cleanPath),
+                public_path($cleanPath),
+                $relativePath,
+            ];
+            foreach ($candidates as $fullPath) {
+                if (file_exists($fullPath) && is_file($fullPath)) {
+                    try {
+                        $content = @file_get_contents($fullPath);
+                        if ($content) {
+                            $mime = @mime_content_type($fullPath) ?: 'image/png';
+                            return 'data:' . $mime . ';base64,' . base64_encode($content);
+                        }
+                    } catch (\Throwable $e) {}
+                }
+            }
+            return null;
+        };
+
         // Resolve Developer / Project Logo
         $logoData = null;
         $project = $booking->unit->project ?? null;
         
-        if ($project && $project->logo && file_exists(storage_path('app/public/' . $project->logo))) {
-            $logoData = 'data:image/png;base64,' . base64_encode(file_get_contents(storage_path('app/public/' . $project->logo)));
-        } elseif (isset($settings['company_logo']) && file_exists(storage_path('app/public/' . $settings['company_logo']))) {
-            $logoData = 'data:image/png;base64,' . base64_encode(file_get_contents(storage_path('app/public/' . $settings['company_logo'])));
-        } elseif (file_exists(public_path('images/logo.png'))) {
+        if ($project && !empty($project->logo)) {
+            $logoData = $getSafeBase64($project->logo);
+        }
+        if (!$logoData && !empty($settings['company_logo'])) {
+            $logoData = $getSafeBase64($settings['company_logo']);
+        }
+        if (!$logoData && file_exists(public_path('images/logo.png'))) {
             $logoData = 'data:image/png;base64,' . base64_encode(file_get_contents(public_path('images/logo.png')));
         }
 

@@ -260,15 +260,16 @@
         $logoData = null;
         $project = $booking->unit->project ?? null;
         
-        if ($project && $project->logo) {
+        if ($project && !empty($project->logo)) {
             $logoData = $getSafeBase64($project->logo);
         }
-        if (!$logoData && isset($settings['company_logo'])) {
+        if (!$logoData && !empty($settings['company_logo'])) {
             $logoData = $getSafeBase64($settings['company_logo']);
         }
         if (!$logoData && file_exists(public_path('images/logo.png'))) {
             $logoData = 'data:image/png;base64,' . base64_encode(file_get_contents(public_path('images/logo.png')));
         }
+        $companyLogoData = $logoData;
 
         // Terms and Conditions
         $terms = $settings['spr_terms_conditions'] ?? [
@@ -351,6 +352,8 @@
     <div class="header">
         @if(!empty($companyLogoData))
             <img src="{{ $companyLogoData }}" class="logo">
+        @elseif(!empty($logoData))
+            <img src="{{ $logoData }}" class="logo">
         @endif
         <div class="document-title">Surat Pemesanan Rumah (SPR)</div>
         @php
