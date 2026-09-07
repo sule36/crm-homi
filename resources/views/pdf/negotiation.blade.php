@@ -8,13 +8,13 @@
     @endif
     <style>
         @page {
-            margin: 0.6cm 0.8cm;
+            margin: 0.5cm 0.7cm;
         }
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 8.5pt;
+            font-size: 8pt;
             color: #1e293b;
-            line-height: 1.35;
+            line-height: 1.25;
             margin: 0;
             padding: 0;
             background-color: #ffffff;
@@ -23,37 +23,42 @@
         /* HEADER & KOP SURAT */
         .header-table {
             width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
             border-bottom: 2px solid #0f172a;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+        }
+        .header-table td {
+            vertical-align: middle;
         }
         .company-logo {
-            max-height: 48px;
-            max-width: 170px;
+            max-height: 42px;
+            max-width: 160px;
             object-fit: contain;
         }
         .company-title {
-            font-size: 13pt;
+            font-size: 12pt;
             font-weight: 800;
             color: #0f172a;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         .company-subtitle {
-            font-size: 7.5pt;
+            font-size: 7pt;
             color: #475569;
-            margin-top: 2px;
+            margin-top: 1px;
         }
 
         /* WATERMARK STAMP */
         .watermark-badge {
             display: inline-block;
-            padding: 4px 10px;
+            padding: 3px 8px;
             border-radius: 4px;
-            font-size: 8pt;
+            font-size: 7.5pt;
             font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             text-align: center;
         }
         .status-approved { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
@@ -65,10 +70,10 @@
         /* DOCUMENT TITLE & REF */
         .doc-header {
             text-align: center;
-            margin-bottom: 14px;
+            margin-bottom: 10px;
         }
         .doc-title {
-            font-size: 11.5pt;
+            font-size: 11pt;
             font-weight: 800;
             color: #0f172a;
             text-transform: uppercase;
@@ -77,52 +82,58 @@
         }
         .doc-ref {
             font-size: 8pt;
-            color: #64748b;
+            color: #475569;
+        }
+        .doc-ref strong {
+            color: #0f172a;
+            font-weight: 800;
         }
 
         /* SECTION BOX */
         .section-box {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            margin-bottom: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            margin-bottom: 8px;
             overflow: hidden;
         }
         .section-header {
-            background-color: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 5px 8px;
-            font-size: 8.5pt;
-            font-weight: 800;
-            color: #0f172a;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .section-body {
-            padding: 8px;
-        }
-
-        .sub-header {
+            background-color: #f1f5f9;
+            border-bottom: 1px solid #cbd5e1;
+            padding: 4px 8px;
             font-size: 8pt;
             font-weight: 800;
             color: #0f172a;
-            margin-top: 6px;
-            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .section-body {
+            padding: 6px 8px;
+        }
+
+        .sub-header {
+            font-size: 7.5pt;
+            font-weight: 800;
+            color: #0f172a;
+            margin-top: 4px;
+            margin-bottom: 3px;
         }
 
         /* TWO COLUMN DATA TABLES */
         .data-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
         .data-table td {
-            padding: 4px 6px;
+            padding: 3px 4px;
             vertical-align: top;
-            font-size: 8.5pt;
+            font-size: 8pt;
+            word-wrap: break-word;
+            overflow: hidden;
         }
         .data-label {
-            color: #64748b;
+            color: #475569;
             font-weight: 600;
-            width: 32%;
         }
         .data-value {
             color: #0f172a;
@@ -133,81 +144,95 @@
         .price-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 2px;
+            table-layout: fixed;
         }
         .price-table th {
-            background-color: #f1f5f9;
-            padding: 5px 8px;
-            font-size: 7.5pt;
+            background-color: #f8fafc;
+            padding: 4px 6px;
+            font-size: 7pt;
             font-weight: 800;
             color: #475569;
             text-transform: uppercase;
             text-align: left;
             border-bottom: 1px solid #cbd5e1;
+            word-wrap: break-word;
         }
         .price-table td {
-            padding: 6px 8px;
+            padding: 5px 6px;
             border-bottom: 1px solid #f1f5f9;
-            font-size: 8.5pt;
+            font-size: 8pt;
+            vertical-align: middle;
+            word-wrap: break-word;
         }
 
         /* CUSTOM LAYOUT CHECKLIST GRID */
         .checklist-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
         .checklist-table td {
-            width: 50%;
-            padding: 3px 6px;
+            padding: 2px 4px;
             vertical-align: middle;
-            font-size: 8pt;
+            font-size: 7.5pt;
+            word-wrap: break-word;
         }
         .check-icon {
             display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 3px;
+            width: 11px;
+            height: 11px;
+            border-radius: 2px;
             background-color: #10b981;
             color: #ffffff;
             font-weight: bold;
-            font-size: 8pt;
+            font-size: 7.5pt;
             text-align: center;
-            line-height: 12px;
-            margin-right: 5px;
+            line-height: 11px;
+            margin-right: 4px;
         }
 
         /* NOTES TEXT AREA */
         .notes-box {
             background-color: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            padding: 6px 8px;
-            font-size: 8pt;
+            border-radius: 3px;
+            padding: 4px 6px;
+            font-size: 7.5pt;
             color: #334155;
-            white-space: pre-line;
-            margin-top: 3px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 2px;
+            line-height: 1.2;
+        }
+
+        .no-notes {
+            font-size: 7.5pt;
+            color: #94a3b8;
+            font-style: italic;
+            margin-top: 1px;
         }
 
         /* SIGNATURE SECTION */
         .signature-table {
             width: 100%;
-            margin-top: 18px;
+            margin-top: 10px;
             border-collapse: collapse;
+            table-layout: fixed;
         }
         .signature-table td {
-            width: 50%;
             text-align: center;
             vertical-align: top;
-            font-size: 8pt;
+            font-size: 7.5pt;
+            word-wrap: break-word;
         }
         .sig-box {
-            height: 55px;
-            margin: 6px 0;
+            height: 42px;
+            margin: 4px 0;
             display: block;
         }
         .sig-image {
-            max-height: 50px;
-            max-width: 180px;
+            max-height: 40px;
+            max-width: 160px;
             object-fit: contain;
         }
         .sig-name {
@@ -218,10 +243,10 @@
 
         /* FOOTER */
         .footer-note {
-            margin-top: 14px;
-            padding-top: 6px;
+            margin-top: 10px;
+            padding-top: 5px;
             border-top: 1px dashed #cbd5e1;
-            font-size: 7pt;
+            font-size: 6.5pt;
             color: #94a3b8;
             text-align: center;
         }
@@ -231,8 +256,12 @@
 
     <!-- KOP SURAT / HEADER -->
     <table class="header-table">
+        <colgroup>
+            <col style="width: 60%;">
+            <col style="width: 40%;">
+        </colgroup>
         <tr>
-            <td style="width: 60%; vertical-align: middle;">
+            <td>
                 @if(!empty($settings['company_logo']))
                     <img src="{{ public_path('storage/' . $settings['company_logo']) }}" class="company-logo" />
                 @else
@@ -243,7 +272,7 @@
                     @if(!empty($settings['company_phone'])) · Telp: {{ $settings['company_phone'] }} @endif
                 </div>
             </td>
-            <td style="width: 40%; text-align: right; vertical-align: middle;">
+            <td style="text-align: right;">
                 @php
                     $statusClass = match($negotiation->status) {
                         'approved' => 'status-approved',
@@ -269,7 +298,7 @@
     <!-- JUDUL DOKUMEN -->
     <div class="doc-header">
         <div class="doc-title">SURAT PENGAJUAN & HASIL NEGOSIASI RESMI</div>
-        <div class="doc-ref">No. Pengajuan: <strong>NEGO-{{ strtoupper($negotiation->token) }}</strong> · Tanggal: {{ optional($negotiation->created_at)->format('d/m/Y H:i') ?? date('d/m/Y') }}</div>
+        <div class="doc-ref">No. Pengajuan: <strong>{{ $negotiation->getFormattedNumber() }}</strong> · Tanggal: {{ optional($negotiation->created_at)->format('d/m/Y H:i') ?? date('d/m/Y') }}</div>
     </div>
 
     <!-- 1. DATA PEMOHON & UNIT PROPERTI -->
@@ -277,6 +306,12 @@
         <div class="section-header">1. Identitas Pemohon & Detail Unit Diminati</div>
         <div class="section-body">
             <table class="data-table">
+                <colgroup>
+                    <col style="width: 20%;">
+                    <col style="width: 30%;">
+                    <col style="width: 20%;">
+                    <col style="width: 30%;">
+                </colgroup>
                 <tr>
                     <td class="data-label">Nama Pemohon</td>
                     <td class="data-value">: {{ $negotiation->client_name }}</td>
@@ -304,6 +339,12 @@
         <div class="section-header">2. Pengajuan Harga & Skema Pembayaran</div>
         <div class="section-body">
             <table class="price-table">
+                <colgroup>
+                    <col style="width: 25%;">
+                    <col style="width: 25%;">
+                    <col style="width: 25%;">
+                    <col style="width: 25%;">
+                </colgroup>
                 <thead>
                     <tr>
                         <th>Harga Listing Resmi</th>
@@ -350,6 +391,10 @@
             <div class="sub-header">3.1 Opsi Modifikasi Denah / Custom Layout</div>
             @if(!empty($negotiation->custom_layout_options) && is_array($negotiation->custom_layout_options) && count($negotiation->custom_layout_options) > 0)
                 <table class="checklist-table">
+                    <colgroup>
+                        <col style="width: 50%;">
+                        <col style="width: 50%;">
+                    </colgroup>
                     @foreach(array_chunk($negotiation->custom_layout_options, 2) as $row)
                         <tr>
                             @foreach($row as $opt)
@@ -362,29 +407,29 @@
                     @endforeach
                 </table>
             @else
-                <div style="font-size: 8pt; color: #64748b; font-style: italic;">Tidak ada pilihan penyesuaian denah standar yang dicentang.</div>
+                <div class="no-notes">Tidak ada pilihan penyesuaian denah standar yang dicentang.</div>
             @endif
 
             <!-- 3.2 DETAIL CATATAN PENYESUAIAN DENAH -->
-            <div class="sub-header" style="margin-top: 8px;">3.2 Detail Catatan Penyesuaian Denah & Tata Letak</div>
-            @if($negotiation->custom_layout_notes)
-                <div class="notes-box">{{ $negotiation->custom_layout_notes }}</div>
+            <div class="sub-header" style="margin-top: 6px;">3.2 Detail Catatan Penyesuaian Denah & Tata Letak</div>
+            @if(!empty(trim($negotiation->custom_layout_notes ?? '')))
+                <div class="notes-box">{{ trim($negotiation->custom_layout_notes) }}</div>
             @else
-                <div style="font-size: 8pt; color: #64748b; font-style: italic;">-</div>
+                <div class="no-notes">-</div>
             @endif
 
             <!-- 3.3 PERMINTAAN KHUSUS & CATATAN LAINNYA -->
-            <div class="sub-header" style="margin-top: 8px;">3.3 Permintaan Khusus & Catatan Tambahan</div>
-            @if($negotiation->special_requests)
+            <div class="sub-header" style="margin-top: 6px;">3.3 Permintaan Khusus & Catatan Tambahan</div>
+            @if(!empty(trim($negotiation->special_requests ?? '')))
                 <div style="font-size: 7.5pt; font-weight: bold; color: #475569;">Permintaan Khusus:</div>
-                <div class="notes-box">{{ $negotiation->special_requests }}</div>
+                <div class="notes-box">{{ trim($negotiation->special_requests) }}</div>
             @endif
-            @if($negotiation->notes)
-                <div style="font-size: 7.5pt; font-weight: bold; color: #475569; margin-top: 4px;">Catatan Developer:</div>
-                <div class="notes-box">{{ $negotiation->notes }}</div>
+            @if(!empty(trim($negotiation->notes ?? '')))
+                <div style="font-size: 7.5pt; font-weight: bold; color: #475569; margin-top: 3px;">Catatan Developer:</div>
+                <div class="notes-box">{{ trim($negotiation->notes) }}</div>
             @endif
-            @if(!$negotiation->special_requests && !$negotiation->notes)
-                <div style="font-size: 8pt; color: #64748b; font-style: italic;">-</div>
+            @if(empty(trim($negotiation->special_requests ?? '')) && empty(trim($negotiation->notes ?? '')))
+                <div class="no-notes">-</div>
             @endif
         </div>
     </div>
@@ -397,14 +442,18 @@
             </div>
             <div class="section-body">
                 <table class="data-table">
+                    <colgroup>
+                        <col style="width: 25%;">
+                        <col style="width: 75%;">
+                    </colgroup>
                     <tr>
                         <td class="data-label" style="color: #6b21a8;">Nominal Counter Offer</td>
-                        <td class="data-value" style="font-size: 10pt; color: #6b21a8;">: Rp {{ number_format($negotiation->counter_price, 0, ',', '.') }}</td>
+                        <td class="data-value" style="font-size: 9.5pt; color: #6b21a8;">: Rp {{ number_format($negotiation->counter_price, 0, ',', '.') }}</td>
                     </tr>
-                    @if($negotiation->counter_notes)
+                    @if(!empty(trim($negotiation->counter_notes ?? '')))
                         <tr>
                             <td class="data-label">Catatan Reviewer</td>
-                            <td class="data-value">: <em>"{{ $negotiation->counter_notes }}"</em></td>
+                            <td class="data-value">: <em>"{{ trim($negotiation->counter_notes) }}"</em></td>
                         </tr>
                     @endif
                     @if($negotiation->client_response)
@@ -425,6 +474,10 @@
 
     <!-- LEMBAR OTENTIKASI & TANDA TANGAN -->
     <table class="signature-table">
+        <colgroup>
+            <col style="width: 50%;">
+            <col style="width: 50%;">
+        </colgroup>
         <tr>
             <td>
                 <div>Pemohon / Calon Pembeli,</div>
@@ -432,11 +485,11 @@
                     @if(!empty($negotiation->client_signature))
                         <img src="{{ $negotiation->client_signature }}" class="sig-image" />
                     @else
-                        <div style="height: 45px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto;"></div>
+                        <div style="height: 35px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto;"></div>
                     @endif
                 </div>
                 <div class="sig-name">{{ $negotiation->client_name }}</div>
-                <div style="font-size: 7.5pt; color: #64748b;">(Tanda Tangan Digital Pemohon)</div>
+                <div style="font-size: 7pt; color: #64748b;">(Tanda Tangan Digital Pemohon)</div>
             </td>
             <td>
                 @php
@@ -464,13 +517,13 @@
                     @if(!empty($devSigImage) && file_exists(public_path('storage/' . $devSigImage)))
                         <img src="{{ public_path('storage/' . $devSigImage) }}" class="sig-image" />
                     @else
-                        <div style="height: 45px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; display: flex; items-center; justify-content: center;">
-                            <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 45px;">[ Verified by System ]</span>
+                        <div style="height: 35px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; display: flex; items-center; justify-content: center;">
+                            <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 35px;">[ Verified by System ]</span>
                         </div>
                     @endif
                 </div>
                 <div class="sig-name">{{ $devSigName }}</div>
-                <div style="font-size: 7.5pt; color: #64748b;">{{ $settings['company_name'] ?? 'Homi Developer' }}</div>
+                <div style="font-size: 7pt; color: #64748b;">{{ $settings['company_name'] ?? 'Homi Developer' }}</div>
             </td>
         </tr>
     </table>

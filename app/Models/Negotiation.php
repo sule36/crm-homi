@@ -16,6 +16,9 @@ class Negotiation extends Model
         parent::boot();
         static::creating(function ($negotiation) {
             $negotiation->token = Str::random(24);
+            if (empty($negotiation->negotiation_number)) {
+                $negotiation->negotiation_number = static::generateNegotiationNumber($negotiation->project_id);
+            }
             if (!$negotiation->expired_at) {
                 $negotiation->expired_at = now()->addDays(7);
             }
@@ -23,7 +26,7 @@ class Negotiation extends Model
     }
 
     protected $fillable = [
-        'token', 'lead_id', 'unit_id', 'project_id', 'created_by',
+        'negotiation_number', 'token', 'lead_id', 'unit_id', 'project_id', 'created_by',
         // Client
         'client_name', 'client_phone', 'client_email',
         // Negotiation
@@ -141,5 +144,77 @@ class Negotiation extends Model
             'expired' => 'Kedaluwarsa',
             default => $this->status,
         };
+    }
+
+    public static function generateNegotiationNumber($projectId = null): string
+    {
+        $year = date('Y');
+        $countThisYear = static::whereYear('created_at', $year)->count();
+        $nextSeq3 = sprintf('%03d', $countThisYear + 1);
+        $nextSeq2 = sprintf('%02d', $countThisYear + 1);
+
+        $projectCode = 'ALC';
+        $project = null;
+        if ($projectId) {
+            $project = Project::find($projectId);
+        }
+        if (!$project) {
+            $project = Project::first();
+        }
+
+        if ($project) {
+            if (!empty($project->code)) {
+                $projectCode = strtoupper($project->code);
+            } else {
+                $cleanName = preg_replace('/[^A-Za-z0-9]/', '', $project->name);
+                $projectCode = strtoupper(substr($cleanName, 0, 3)) ?: 'ALC';
+            }
+        }
+
+        $romanMonths = [
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'
+        ];
+        $monthNum = (int)date('n');
+        $monthRoman = $romanMonths[$monthNum] ?? 'IX';
+
+        $format = Setting::get('negotiation_number_format');
+        if (empty($format) || !str_contains($format, '{month_roman}')) {
+            $format = '{seq}/NG-{code}/{month_roman}/{year}';
+        }
+
+        return str_replace(
+            ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
+            [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
+            $format
+        );
+    }
+
+    public function getFormattedNumber(): string
+    {
+        if (!empty($this->negotiation_number)) {
+            return $this->negotiation_number;
+        }
+
+        $seq = sprintf('%03d', $this->id ?? 1);
+        $projectCode = 'ALC';
+        if ($this->project_id) {
+            $project = $this->project ?? Project::find($this->project_id);
+            if ($project) {
+                $projectCode = !empty($project->code)
+                    ? strtoupper($project->code)
+                    : (strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $project->name), 0, 3)) ?: 'ALC');
+            }
+        }
+
+        $createdDate = $this->created_at ?? now();
+        $romanMonths = [
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI',
+            7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'
+        ];
+        $monthRoman = $romanMonths[(int)$createdDate->format('n')] ?? 'IX';
+        $year = $createdDate->format('Y');
+
+        return "{$seq}/NG-{$projectCode}/{$monthRoman}/{$year}";
     }
 }

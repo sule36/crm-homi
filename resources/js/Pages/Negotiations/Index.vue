@@ -212,6 +212,7 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                             <td class="px-6 py-5">
                                 <p class="text-sm font-black text-slate-900">{{ nego.client_name }}</p>
                                 <p class="text-[10px] text-slate-400 font-bold mt-0.5">📱 {{ nego.client_phone }}</p>
+                                <p v-if="nego.negotiation_number" class="text-[10px] text-slate-500 font-mono font-semibold">No: {{ nego.negotiation_number }}</p>
                             </td>
                             <td class="px-6 py-5">
                                 <p class="text-xs font-black text-slate-800">{{ nego.unit?.code || '-' }}</p>

@@ -386,7 +386,7 @@ function formatCurrency(val) {
                     <div class="flex items-center justify-between border-b border-slate-100 pb-4">
                         <div>
                             <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider">Ringkasan Pengajuan Anda</h3>
-                            <p class="text-[10px] text-slate-400 font-mono mt-0.5">Token: NEGO-{{ nego.token }}</p>
+                            <p class="text-[10px] text-slate-500 font-mono font-bold mt-0.5">No. Pengajuan: {{ nego.negotiation_number || `NEGO-${nego.token}` }}</p>
                         </div>
                         <span :class="['px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider', nego.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : nego.status === 'rejected' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-amber-100 text-amber-800 border border-amber-300']">
                             {{ nego.status === 'approved' ? 'Disetujui' : nego.status === 'rejected' ? 'Ditolak' : 'Sedang Ditinjau' }}
