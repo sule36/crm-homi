@@ -95,9 +95,9 @@ class NegotiationController extends Controller
         ];
 
         $units = Unit::whereIn('status', ['available', 'reserved'])
-            ->select('id', 'unit_number', 'block', 'price', 'final_price', 'project_id', 'unit_type_id', 'status')
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name', 'unitType:id,name'])
-            ->orderBy('unit_number')
+            ->orderBy('number')
             ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'project_id')

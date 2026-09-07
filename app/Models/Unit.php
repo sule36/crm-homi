@@ -17,6 +17,8 @@ class Unit extends Model
         'certificate_status', 'certificate_number', 'imb_number', 'pbb_number', 'legal_notes',
     ];
 
+    protected $appends = ['unit_number', 'label', 'display_price'];
+
     protected function casts(): array
     {
         return [
@@ -88,6 +90,11 @@ class Unit extends Model
         if ($this->floor) $parts[] = "Lt. {$this->floor}";
         $parts[] = "No. {$this->number}";
         return implode(' ', $parts);
+    }
+
+    public function getUnitNumberAttribute(): string
+    {
+        return $this->getLabelAttribute();
     }
 
     public function getDisplayPriceAttribute(): int
