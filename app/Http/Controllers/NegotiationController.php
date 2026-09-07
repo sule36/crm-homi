@@ -128,9 +128,14 @@ class NegotiationController extends Controller
             'client_name' => 'required|string|max:255',
             'client_phone' => 'required|string|max:30',
             'client_email' => 'nullable|email|max:255',
+            'developer_sig_name' => 'nullable|string|max:255',
+            'developer_sig_title' => 'nullable|string|max:255',
         ]);
 
         $unit = Unit::with('project')->findOrFail($request->unit_id);
+        $settings = $this->getSettings();
+        $defaultSigName = $settings['spr_signatures']['sig1_name'] ?? 'Sales Manager';
+        $defaultSigTitle = $settings['spr_signatures']['sig1_title'] ?? 'Developer Representative';
 
         $negotiation = Negotiation::create([
             'unit_id' => $unit->id,
@@ -141,6 +146,8 @@ class NegotiationController extends Controller
             'client_phone' => $request->client_phone,
             'client_email' => $request->client_email,
             'unit_listed_price' => $unit->final_price ?? $unit->price ?? 0,
+            'developer_sig_name' => $request->developer_sig_name ?: $defaultSigName,
+            'developer_sig_title' => $request->developer_sig_title ?: $defaultSigTitle,
             'status' => 'draft',
         ]);
 

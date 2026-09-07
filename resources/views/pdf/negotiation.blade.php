@@ -439,13 +439,35 @@
                 <div style="font-size: 7.5pt; color: #64748b;">(Tanda Tangan Digital Pemohon)</div>
             </td>
             <td>
-                <div>Developer Sales Representative,</div>
+                @php
+                    $sigs = $settings['spr_signatures'] ?? [];
+                    $devSigTitle = !empty($negotiation->developer_sig_title)
+                        ? $negotiation->developer_sig_title
+                        : (!empty($sigs['sig1_title'])
+                            ? $sigs['sig1_title']
+                            : 'Developer Sales Representative');
+
+                    $devSigName = !empty($negotiation->developer_sig_name)
+                        ? $negotiation->developer_sig_name
+                        : (!empty($sigs['sig1_name'])
+                            ? $sigs['sig1_name']
+                            : ($settings['company_name'] ?? 'Developer Management'));
+
+                    $devSigImage = $sigs['sig1_image'] ?? null;
+                    $sigCity = $sigs['city'] ?? 'Jakarta';
+                @endphp
+                <div style="font-weight: 600;">{{ $sigCity }}, {{ optional($negotiation->created_at)->format('d F Y') }}</div>
+                <div style="font-weight: 600;">{{ $devSigTitle }},</div>
                 <div class="sig-box">
-                    <div style="height: 45px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; display: flex; items-center; justify-content: center;">
-                        <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 45px;">[ Verified by System ]</span>
-                    </div>
+                    @if(!empty($devSigImage) && file_exists(public_path('storage/' . $devSigImage)))
+                        <img src="{{ public_path('storage/' . $devSigImage) }}" class="sig-image" />
+                    @else
+                        <div style="height: 45px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; display: flex; items-center; justify-content: center;">
+                            <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 45px;">[ Verified by System ]</span>
+                        </div>
+                    @endif
                 </div>
-                <div class="sig-name">{{ $negotiation->creator->name ?? $settings['spr_signature_name'] ?? 'Developer CRM Management' }}</div>
+                <div class="sig-name">{{ $devSigName }}</div>
                 <div style="font-size: 7.5pt; color: #64748b;">{{ $settings['company_name'] ?? 'Homi Developer' }}</div>
             </td>
         </tr>

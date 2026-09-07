@@ -30,6 +30,7 @@ class Negotiation extends Model
         'unit_listed_price', 'offered_price', 'payment_scheme',
         'dp_amount', 'installment_months', 'special_requests',
         'custom_layout_options', 'custom_layout_notes', 'notes', 'client_signature',
+        'developer_sig_name', 'developer_sig_title',
         // Status
         'status', 'counter_price', 'counter_notes',
         'reviewed_by', 'reviewed_at',
