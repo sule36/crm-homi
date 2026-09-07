@@ -152,11 +152,10 @@ class NegotiationController extends Controller
             ]);
         }
 
-        return back()->with('flash', [
-            'negotiation_link' => $negotiation->getPublicUrl(),
-            'negotiation_token' => $negotiation->token,
-            'message' => 'Form negosiasi berhasil dibuat!',
-        ]);
+        return back()
+            ->with('negotiation_link', $negotiation->getPublicUrl())
+            ->with('negotiation_token', $negotiation->token)
+            ->with('success', 'Form negosiasi berhasil dibuat!');
     }
 
     /**

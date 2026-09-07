@@ -47,6 +47,7 @@ class HandleInertiaRequests extends Middleware
                 'error' => $request->session()->get('error'),
                 'api_token' => $request->session()->get('api_token'),
                 'negotiation_link' => $request->session()->get('negotiation_link'),
+                'negotiation_token' => $request->session()->get('negotiation_token'),
             ],
             'partner_banks' => \Illuminate\Support\Facades\Schema::hasTable('partner_banks')
                 ? \App\Models\PartnerBank::where('is_active', true)->get()

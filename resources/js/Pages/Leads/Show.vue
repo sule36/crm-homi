@@ -23,10 +23,11 @@ function submitNegoForm() {
         onSuccess: (page) => {
             showNegoModal.value = false;
             const flashLink = page.props.flash?.negotiation_link;
+            const flashToken = page.props.flash?.negotiation_token;
             if (flashLink) {
                 createdNegoLink.value = flashLink;
-            } else {
-                createdNegoLink.value = window.location.origin + '/negotiations';
+            } else if (flashToken) {
+                createdNegoLink.value = window.location.origin + '/nego/' + flashToken;
             }
             showShareNegoModal.value = true;
         }
