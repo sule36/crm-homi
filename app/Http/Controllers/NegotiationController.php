@@ -18,6 +18,18 @@ class NegotiationController extends Controller
      */
     public function index(Request $request)
     {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('negotiations')) {
+            return Inertia::render('Negotiations/Index', [
+                'negotiations' => ['data' => [], 'total' => 0, 'from' => 0, 'to' => 0, 'last_page' => 1, 'links' => []],
+                'stats' => ['total' => 0, 'pending' => 0, 'counter_offer' => 0, 'approved' => 0, 'rejected' => 0, 'converted' => 0],
+                'filters' => $request->only(['status', 'project_id', 'created_by', 'search']),
+                'projects' => Project::select('id', 'name')->get(),
+                'agents' => [],
+                'units' => [],
+                'leads' => [],
+            ]);
+        }
+
         $user = auth()->user();
 
         $query = Negotiation::with(['lead', 'unit.unitType', 'project', 'creator', 'reviewer', 'booking'])

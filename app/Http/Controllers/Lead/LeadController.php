@@ -125,15 +125,21 @@ class LeadController extends Controller
 
     public function show(Lead $lead)
     {
-        $lead->load([
+        $relations = [
             'assignedTo', 'project', 'campaign', 'brokerCompany',
             'activities.user', 'reminders', 'bookings.unit',
-            'negotiations.unit', 'negotiations.creator',
-        ]);
+        ];
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('negotiations')) {
+            $relations[] = 'negotiations.unit';
+            $relations[] = 'negotiations.creator';
+        }
+
+        $lead->load($relations);
 
         $units = \App\Models\Unit::when($lead->project_id, fn ($q) => $q->where('project_id', $lead->project_id))
             ->whereIn('status', ['available', 'reserved'])
-            ->select('id', 'unit_number', 'price', 'final_price', 'project_id', 'status')
+            ->select('id', 'unit_number', 'price', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name', 'unitType:id,name'])
             ->get();
 
