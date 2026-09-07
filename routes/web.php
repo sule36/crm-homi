@@ -155,6 +155,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'show'])->name('negotiations.show');
     Route::post('/negotiations/{negotiation}/review', [\App\Http\Controllers\NegotiationController::class, 'review'])->name('negotiations.review');
     Route::post('/negotiations/{negotiation}/convert', [\App\Http\Controllers\NegotiationController::class, 'convertToBooking'])->name('negotiations.convert');
+    Route::delete('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'destroy'])->name('negotiations.destroy');
 
     // Reports
     Route::get('/reports', [\App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');

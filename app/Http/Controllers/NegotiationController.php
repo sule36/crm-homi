@@ -435,4 +435,23 @@ class NegotiationController extends Controller
             'rejected' => 'Negosiasi ditutup. Terima kasih atas minat Anda.',
         });
     }
+
+    /**
+     * Delete / Soft delete negotiation draft
+     */
+    public function destroy(Negotiation $negotiation)
+    {
+        if ($negotiation->lead_id) {
+            LeadActivity::create([
+                'lead_id' => $negotiation->lead_id,
+                'user_id' => auth()->id(),
+                'type' => 'note',
+                'description' => "🗑️ Form Negosiasi (Unit {$negotiation->unit?.code}) telah dihapus.",
+            ]);
+        }
+
+        $negotiation->delete();
+
+        return back()->with('success', 'Form negosiasi berhasil dihapus.');
+    }
 }

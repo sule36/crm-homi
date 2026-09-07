@@ -82,6 +82,11 @@ function shareWhatsApp() {
     window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
+function deleteNego(id) {
+    if (!confirm('Apakah Anda yakin ingin menghapus form negosiasi ini?')) return;
+    router.delete(`/negotiations/${id}`, { preserveScroll: true });
+}
+
 // Helpers
 function formatCurrency(val) {
     if (!val) return 'Rp 0';
@@ -237,10 +242,13 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                                 <p class="text-[10px] text-slate-400">oleh {{ nego.creator?.name || '-' }}</p>
                             </td>
                             <td class="px-6 py-5 text-right">
-                                <div class="flex items-center justify-end gap-2">
+                                <div class="flex items-center justify-end gap-1.5">
                                     <Link :href="`/negotiations/${nego.id}`" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold transition-all">
                                         Detail
                                     </Link>
+                                    <button @click="deleteNego(nego.id)" title="Hapus Form Negosiasi ini" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-bold border border-rose-200 transition-all">
+                                        🗑️ Hapus
+                                    </button>
                                 </div>
                             </td>
                         </tr>

@@ -47,6 +47,11 @@ function copyNegoLink(token) {
     alert('Link Form Negosiasi berhasil disalin!\n' + url);
 }
 
+function deleteNego(id) {
+    if (!confirm('Apakah Anda yakin ingin menghapus form negosiasi ini?')) return;
+    router.delete(`/negotiations/${id}`, { preserveScroll: true });
+}
+
 function negoStatusBadge(status) {
     const badges = {
         draft: 'bg-slate-100 text-slate-700',
@@ -312,11 +317,16 @@ function scoreColor(s) {
                             <div v-else class="text-[11px] text-slate-400 italic">
                                 Belum diisi client (menunggu submit)
                             </div>
-                            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
-                                <Link :href="`/negotiations/${nego.id}`" class="text-[10px] font-bold text-blue-600 hover:underline">Detail CRM →</Link>
-                                <button @click="copyNegoLink(nego.token)" class="text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-1 rounded-lg border border-emerald-200">
-                                    📋 Salin Link WA
-                                </button>
+                            <div class="flex items-center justify-between gap-1 pt-2 border-t border-slate-100">
+                                <Link :href="`/negotiations/${nego.id}`" class="text-[10px] font-bold text-blue-600 hover:underline">Detail →</Link>
+                                <div class="flex items-center gap-1">
+                                    <button @click="copyNegoLink(nego.token)" class="text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-1 rounded-lg border border-emerald-200">
+                                        📋 Salin Link
+                                    </button>
+                                    <button @click="deleteNego(nego.id)" title="Hapus Form Negosiasi ini" class="text-[10px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 py-1 rounded-lg border border-rose-200">
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
