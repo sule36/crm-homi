@@ -203,36 +203,42 @@ function scoreColor(s) {
                     <p class="text-sm text-slate-500">{{ lead.phone }} {{ lead.email ? `• ${lead.email}` : '' }}</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2 flex-wrap">
-                <button @click="showNegoModal = true" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 transition-all flex items-center gap-1">
-                    <span>🤝</span> <span>Form Negosiasi</span>
-                </button>
-                <Link :href="`/bookings/create?lead_id=${lead.id}`" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">💳 Buat Booking</Link>
-                <Link href="/kpr-scoring" class="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors flex items-center gap-1.5">
-                    <span>📊</span> <span>Analisis Neraca Client</span>
-                </Link>
-                <button @click="showKprModal = true" class="px-4 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl hover:bg-blue-100 transition-colors">🧮 Kalkulator KPR</button>
-                <button @click="showReminderModal = true" class="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-100 transition-colors">⏰ Set Reminder</button>
-                <a :href="`https://wa.me/${lead.phone?.replace(/^0/, '62')}`" target="_blank" class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">💬 WhatsApp</a>
+            <div class="w-full lg:w-auto overflow-x-auto pb-2 sm:pb-0">
+                <div class="flex items-center gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
+                    <button @click="showNegoModal = true" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-black rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 transition-all flex items-center gap-1 shrink-0">
+                        <span>🤝</span> <span>Kirim Form Negosiasi</span>
+                    </button>
+                    <Link :href="`/bookings/create?lead_id=${lead.id}`" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all shrink-0">💳 Buat Booking</Link>
+                    <Link href="/kpr-scoring" class="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl hover:bg-indigo-100 transition-colors flex items-center gap-1.5 shrink-0">
+                        <span>📊</span> <span>Analisis Neraca Client</span>
+                    </Link>
+                    <button @click="showKprModal = true" class="px-4 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl hover:bg-blue-100 transition-colors shrink-0">🧮 Kalkulator KPR</button>
+                    <button @click="showReminderModal = true" class="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-100 transition-colors shrink-0">⏰ Set Reminder</button>
+                    <a :href="`https://wa.me/${lead.phone?.replace(/^0/, '62')}`" target="_blank" class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors shrink-0">💬 WhatsApp</a>
+                </div>
             </div>
         </div>
 
         <!-- STATUS PIPELINE -->
-        <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-6 shadow-sm">
-            <div class="flex items-center justify-between overflow-x-auto">
-                <div v-for="(step, i) in statusSteps" :key="step.key" class="flex items-center flex-1 min-w-0">
-                    <button @click="editForm.status = step.key; updateLead()"
-                        :class="i <= currentStepIndex ? `bg-${step.color}-500 text-white shadow-lg` : 'bg-slate-100 text-slate-400'"
-                        class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-all hover:scale-110">
-                        {{ i + 1 }}
-                    </button>
-                    <div v-if="i < statusSteps.length - 1"
-                        :class="i < currentStepIndex ? `bg-${step.color}-300` : 'bg-slate-200'"
-                        class="h-0.5 flex-1 mx-1 transition-colors"></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-6 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto pb-2">
+                <div class="min-w-[550px]">
+                    <div class="flex items-center justify-between">
+                        <div v-for="(step, i) in statusSteps" :key="step.key" class="flex items-center flex-1 min-w-0">
+                            <button @click="editForm.status = step.key; updateLead()"
+                                :class="i <= currentStepIndex ? `bg-${step.color}-500 text-white shadow-lg` : 'bg-slate-100 text-slate-400'"
+                                class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-all hover:scale-110">
+                                {{ i + 1 }}
+                            </button>
+                            <div v-if="i < statusSteps.length - 1"
+                                :class="i < currentStepIndex ? `bg-${step.color}-300` : 'bg-slate-200'"
+                                class="h-0.5 flex-1 mx-1 transition-colors"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between mt-2 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                        <span v-for="step in statusSteps" :key="step.key" class="text-center flex-1">{{ step.label }}</span>
+                    </div>
                 </div>
-            </div>
-            <div class="flex justify-between mt-2 text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                <span v-for="step in statusSteps" :key="step.key" class="text-center flex-1">{{ step.label }}</span>
             </div>
         </div>
 
@@ -282,12 +288,12 @@ function scoreColor(s) {
             <div class="space-y-6">
                 <!-- Negotiation List Card -->
                 <div class="bg-white rounded-2xl border border-amber-200/80 p-5 shadow-sm space-y-3 bg-gradient-to-br from-amber-50/30 to-white">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                            <span>🤝</span> Pengajuan Negosiasi
+                    <div class="flex items-center justify-between gap-2">
+                        <h2 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>🤝</span> Riwayat Form Negosiasi
                         </h2>
-                        <button @click="showNegoModal = true" class="px-2.5 py-1 bg-amber-500 text-white text-[10px] font-black rounded-lg hover:bg-amber-600 transition-all shadow-sm">
-                            + Form Baru
+                        <button @click="showNegoModal = true" class="px-2.5 py-1 bg-amber-500 text-white text-[10px] font-black rounded-lg hover:bg-amber-600 transition-all shadow-sm shrink-0">
+                            + Kirim Link
                         </button>
                     </div>
                     <div v-if="lead.negotiations?.length" class="space-y-3">
@@ -497,10 +503,10 @@ function scoreColor(s) {
         <teleport to="body">
             <div v-if="showNegoModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
                 <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showNegoModal = false"></div>
-                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-hidden">
+                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
                     <div class="flex items-center justify-between mb-2">
                         <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-                            <span>🤝</span> Buat Form Pengajuan Negosiasi
+                            <span>🤝</span> Kirim Form Negosiasi
                         </h2>
                         <button @click="showNegoModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
                     </div>
