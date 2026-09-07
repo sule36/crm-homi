@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Illuminate\Support\Facades\Schema;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -29,18 +30,45 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $reminders = [];
+
+        if ($user && Schema::hasTable('follow_up_reminders')) {
+            try {
+                $reminders = \App\Models\FollowUpReminder::with('lead:id,name,phone')
+                    ->where('user_id', $user->id)
+                    ->where('status', 'pending')
+                    ->orderBy('remind_at', 'asc')
+                    ->take(10)
+                    ->get();
+            } catch (\Throwable $e) {
+                $reminders = [];
+            }
+        }
+
+        $partnerBanks = [];
+        if (Schema::hasTable('partner_banks')) {
+            try {
+                $partnerBanks = \App\Models\PartnerBank::where('is_active', true)->get();
+            } catch (\Throwable $e) {
+                $partnerBanks = [];
+            }
+        }
+
+        $activeProject = null;
+        if (Schema::hasTable('projects')) {
+            try {
+                $activeProject = \App\Models\Project::where('status', 'active')->first();
+            } catch (\Throwable $e) {
+                $activeProject = null;
+            }
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
-                'reminders' => $request->user()
-                    ? \App\Models\FollowUpReminder::with('lead:id,name,phone')
-                        ->where('user_id', $request->user()->id)
-                        ->where('status', 'pending')
-                        ->orderBy('remind_at', 'asc')
-                        ->take(10)
-                        ->get()
-                    : [],
+                'user' => $user,
+                'reminders' => $reminders,
             ],
             'flash' => [
                 'success' => $request->session()->get('success'),
@@ -49,12 +77,8 @@ class HandleInertiaRequests extends Middleware
                 'negotiation_link' => $request->session()->get('negotiation_link'),
                 'negotiation_token' => $request->session()->get('negotiation_token'),
             ],
-            'partner_banks' => \Illuminate\Support\Facades\Schema::hasTable('partner_banks')
-                ? \App\Models\PartnerBank::where('is_active', true)->get()
-                : [],
-            'active_project' => \Illuminate\Support\Facades\Schema::hasTable('projects')
-                ? \App\Models\Project::where('status', 'active')->first()
-                : null,
+            'partner_banks' => $partnerBanks,
+            'active_project' => $activeProject,
         ];
     }
 }

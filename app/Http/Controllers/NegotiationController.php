@@ -442,11 +442,12 @@ class NegotiationController extends Controller
     public function destroy(Negotiation $negotiation)
     {
         if ($negotiation->lead_id) {
+            $unitCode = $negotiation->unit ? $negotiation->unit->code : '-';
             LeadActivity::create([
                 'lead_id' => $negotiation->lead_id,
                 'user_id' => auth()->id(),
                 'type' => 'note',
-                'description' => "🗑️ Form Negosiasi (Unit {$negotiation->unit?.code}) telah dihapus.",
+                'description' => "🗑️ Form Negosiasi (Unit {$unitCode}) telah dihapus.",
             ]);
         }
 
