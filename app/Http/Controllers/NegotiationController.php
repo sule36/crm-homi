@@ -134,8 +134,8 @@ class NegotiationController extends Controller
 
         $unit = Unit::with('project')->findOrFail($request->unit_id);
         $settings = $this->getSettings();
-        $defaultSigName = $settings['spr_signatures']['sig1_name'] ?? 'Sales Manager';
-        $defaultSigTitle = $settings['spr_signatures']['sig1_title'] ?? 'Developer Representative';
+        $defaultSigName = $settings['spr_signatures']['sig2_name'] ?? $settings['spr_signatures']['sig1_name'] ?? 'Direktur';
+        $defaultSigTitle = $settings['spr_signatures']['sig2_title'] ?? $settings['spr_signatures']['sig1_title'] ?? 'Developer Representative';
 
         $negotiation = Negotiation::create([
             'unit_id' => $unit->id,

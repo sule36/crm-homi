@@ -441,19 +441,21 @@
             <td>
                 @php
                     $sigs = $settings['spr_signatures'] ?? [];
+                    
+                    // Prioritaskan Slot TTD 2 (Direktur / Developer Management) untuk Pihak Developer
                     $devSigTitle = !empty($negotiation->developer_sig_title)
                         ? $negotiation->developer_sig_title
-                        : (!empty($sigs['sig1_title'])
-                            ? $sigs['sig1_title']
-                            : 'Developer Sales Representative');
+                        : (!empty($sigs['sig2_title'])
+                            ? $sigs['sig2_title']
+                            : (!empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'Developer Representative'));
 
                     $devSigName = !empty($negotiation->developer_sig_name)
                         ? $negotiation->developer_sig_name
-                        : (!empty($sigs['sig1_name'])
-                            ? $sigs['sig1_name']
-                            : ($settings['company_name'] ?? 'Developer Management'));
+                        : (!empty($sigs['sig2_name'])
+                            ? $sigs['sig2_name']
+                            : (!empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($settings['company_name'] ?? 'Developer Management')));
 
-                    $devSigImage = $sigs['sig1_image'] ?? null;
+                    $devSigImage = !empty($sigs['sig2_image']) ? $sigs['sig2_image'] : ($sigs['sig1_image'] ?? null);
                     $sigCity = $sigs['city'] ?? 'Jakarta';
                 @endphp
                 <div style="font-weight: 600;">{{ $sigCity }}, {{ optional($negotiation->created_at)->format('d F Y') }}</div>
