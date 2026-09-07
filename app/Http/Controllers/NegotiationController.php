@@ -274,7 +274,7 @@ class NegotiationController extends Controller
      */
     public function publicForm($token)
     {
-        $negotiation = Negotiation::with(['unit.unitType', 'unit.project', 'project', 'creator'])
+        $negotiation = Negotiation::with(['unit.unitType', 'unit.project', 'project', 'creator.brokerCompany'])
             ->where('token', $token)
             ->firstOrFail();
 
