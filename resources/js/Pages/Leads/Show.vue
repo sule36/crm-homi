@@ -159,7 +159,11 @@ const activityIcons = {
 };
 
 function timeAgo(date) {
-    const diff = Date.now() - new Date(date).getTime();
+    if (!date) return '-';
+    const time = new Date(date).getTime();
+    if (isNaN(time)) return '-';
+    const diff = Date.now() - time;
+    if (diff < 0) return 'baru saja';
     const mins = Math.floor(diff / 60000);
     if (mins < 60) return `${mins}m lalu`;
     const hrs = Math.floor(mins / 60);
@@ -440,7 +444,7 @@ function scoreColor(s) {
                         </div>
                         <div v-if="generatedMessage" class="mt-4 pt-4 border-t border-slate-100 space-y-3">
                             <textarea v-model="generatedMessage" rows="5" class="w-full p-3 bg-slate-50 border-none rounded-xl text-xs leading-relaxed focus:ring-1 focus:ring-blue-500 font-sans"></textarea>
-                            <a :href="`https://wa.me/${lead.phone.replace(/^0/, '62').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(generatedMessage)}`" target="_blank"
+                            <a :href="`https://wa.me/${(lead.phone || '').replace(/^0/, '62').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(generatedMessage)}`" target="_blank"
                                 class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-lg shadow-emerald-500/20 text-center block uppercase tracking-widest">
                                 Kirim WhatsApp →
                             </a>
