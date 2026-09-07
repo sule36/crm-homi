@@ -53,6 +53,15 @@ function submitRevised() {
     counterForm.post(`/nego/${nego.value.token}/respond`, { preserveScroll: true });
 }
 
+// Agent computation (Prioritize lead assigned agent who brought the client)
+const assignedAgent = computed(() => {
+    return nego.value.lead?.assigned_to || nego.value.lead?.assignedTo || nego.value.creator;
+});
+
+const agentCompany = computed(() => {
+    return assignedAgent.value?.broker_company?.name || nego.value.lead?.broker_company?.name || null;
+});
+
 // Calculations & Simulators
 const priceDifference = computed(() => {
     const listed = Number(nego.value.unit_listed_price || 0);
@@ -130,22 +139,22 @@ function formatCurrency(val) {
         </header>
 
         <main class="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-            <!-- ISSUING AGENT BANNER CARD -->
-            <div v-if="nego.creator" class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm">
+            <!-- ISSUING / ASSIGNED SURVEY AGENT BANNER CARD -->
+            <div v-if="assignedAgent" class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm">
                 <div class="flex items-center gap-3.5">
                     <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-black text-lg shrink-0">
                         👤
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <span class="text-[10px] font-black uppercase tracking-wider text-blue-600">Agent Pendamping</span>
-                            <span v-if="nego.creator?.broker_company" class="text-[10px] font-bold text-slate-500">({{ nego.creator.broker_company.name }})</span>
+                            <span class="text-[10px] font-black uppercase tracking-wider text-blue-600">Agent Pendamping Survey</span>
+                            <span v-if="agentCompany" class="text-[10px] font-bold text-slate-500">({{ agentCompany }})</span>
                         </div>
-                        <h2 class="text-sm font-black text-slate-900">{{ nego.creator.name }}</h2>
-                        <p class="text-xs text-slate-500">{{ nego.creator.phone || nego.creator.email || 'Siap mendampingi proses negosiasi Anda' }}</p>
+                        <h2 class="text-sm font-black text-slate-900">{{ assignedAgent.name }}</h2>
+                        <p class="text-xs text-slate-500">{{ assignedAgent.phone || assignedAgent.email || 'Siap mendampingi proses negosiasi Anda' }}</p>
                     </div>
                 </div>
-                <a v-if="nego.creator.phone" :href="`https://wa.me/${nego.creator.phone.replace(/[^0-9]/g, '')}?text=Halo%20${encodeURIComponent(nego.creator.name)},%20saya%20sedang%20mengisi%20form%20negosiasi%20unit%20${encodeURIComponent(nego.unit?.code || nego.unit?.number || '')}`" target="_blank" class="shrink-0 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all">
+                <a v-if="assignedAgent.phone" :href="`https://wa.me/${assignedAgent.phone.replace(/[^0-9]/g, '')}?text=Halo%20${encodeURIComponent(assignedAgent.name)},%20saya%20sedang%20mengisi%20form%20negosiasi%20unit%20${encodeURIComponent(nego.unit?.code || nego.unit?.number || '')}`" target="_blank" class="shrink-0 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all">
                     <span>💬</span> Chat WA
                 </a>
             </div>
