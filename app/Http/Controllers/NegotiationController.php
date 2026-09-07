@@ -8,6 +8,8 @@ use App\Models\LeadActivity;
 use App\Models\Unit;
 use App\Models\Project;
 use App\Models\User;
+use App\Models\Setting;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -329,6 +331,9 @@ class NegotiationController extends Controller
             'dp_amount' => 'nullable|numeric|min:0',
             'installment_months' => 'nullable|integer|min:1|max:360',
             'special_requests' => 'nullable|string|max:2000',
+            'custom_layout_options' => 'nullable|array',
+            'custom_layout_notes' => 'nullable|string|max:2000',
+            'client_signature' => 'nullable|string',
             'notes' => 'nullable|string|max:1000',
         ]);
 
@@ -454,5 +459,79 @@ class NegotiationController extends Controller
         $negotiation->delete();
 
         return back()->with('success', 'Form negosiasi berhasil dihapus.');
+    }
+
+    // ===================================================================
+    // PDF GENERATION & EXPORT
+    // ===================================================================
+
+    /**
+     * Helper to fetch company & PDF settings
+     */
+    private function getSettings()
+    {
+        $settingsRaw = Setting::all();
+        $settings = [];
+        foreach ($settingsRaw as $s) {
+            $settings[$s->key] = Setting::get($s->key);
+        }
+        return $settings;
+    }
+
+    /**
+     * Render PDF for public client access via token
+     */
+    public function publicPdf($token)
+    {
+        $negotiation = Negotiation::with(['unit.unitType', 'unit.project', 'project', 'creator', 'reviewer', 'lead'])
+            ->where('token', $token)
+            ->firstOrFail();
+
+        return $this->generatePdfResponse($negotiation);
+    }
+
+    /**
+     * Render PDF for CRM authenticated internal users
+     */
+    public function streamPdf(Negotiation $negotiation)
+    {
+        $negotiation->load(['unit.unitType', 'unit.project', 'project', 'creator', 'reviewer', 'lead']);
+
+        return $this->generatePdfResponse($negotiation);
+    }
+
+    /**
+     * Generate DomPDF Response
+     */
+    private function generatePdfResponse(Negotiation $negotiation)
+    {
+        $settings = $this->getSettings();
+        $negotiation->update(['pdf_generated_at' => now()]);
+
+        $clientSafe = str_replace(['/', '\\', ' '], '_', $negotiation->client_name);
+        $unitCode = $negotiation->unit ? str_replace(['/', '\\', ' '], '_', $negotiation->unit->code) : 'UNIT';
+        $fileName = "Proposal_Pengajuan_{$clientSafe}_{$unitCode}.pdf";
+
+        if (request()->has('html') || request()->query('view') === 'html') {
+            return view('pdf.negotiation', compact('negotiation', 'settings'));
+        }
+
+        $pdf = Pdf::loadView('pdf.negotiation', compact('negotiation', 'settings'))
+            ->setPaper('a4', 'portrait')
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('chroot', [public_path(), storage_path()]);
+
+        if (request()->has('download')) {
+            return $pdf->download($fileName);
+        }
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"{$fileName}\"",
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 }

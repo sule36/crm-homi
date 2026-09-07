@@ -66,6 +66,10 @@ function copyLink() {
     navigator.clipboard.writeText(nego.value.token ? `${window.location.origin}/nego/${nego.value.token}` : '');
 }
 
+function openPdf() {
+    window.open(`/negotiations/${nego.value.id}/pdf`, '_blank');
+}
+
 function shareWhatsApp() {
     const link = `${window.location.origin}/nego/${nego.value.token}`;
     const msg = `Halo Bapak/Ibu *${nego.value.client_name}*,\n\nSilakan isi Form Pengajuan Negosiasi untuk unit *${nego.value.unit?.code}* melalui link berikut:\n\n🔗 ${link}\n\nTerima kasih!`;
@@ -96,6 +100,7 @@ function shareWhatsApp() {
                     {{ (statusConfig[nego.status] || statusConfig.draft).icon }}
                     {{ (statusConfig[nego.status] || statusConfig.draft).label }}
                 </span>
+                <button @click="openPdf" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5">📄 Download PDF</button>
                 <button @click="copyLink" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all">📋 Salin Link</button>
                 <button @click="shareWhatsApp" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center gap-1.5">💬 Kirim WA</button>
             </div>
@@ -160,10 +165,32 @@ function shareWhatsApp() {
                             <div><span class="font-black text-slate-400 block text-[10px] uppercase">Berlaku Sampai</span><span class="font-bold" :class="new Date(nego.expired_at) < new Date() ? 'text-rose-600' : 'text-slate-800'">{{ formatDate(nego.expired_at) }}</span></div>
                         </div>
                     </div>
-                    <div v-if="nego.special_requests" class="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <!-- Custom Layout Options & Notes -->
+                    <div v-if="nego.custom_layout_options && nego.custom_layout_options.length > 0" class="mt-5 p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
+                        <p class="text-[10px] font-black text-indigo-700 uppercase">🏗️ Modifikasi Custom Layout & Denah</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <span v-for="(opt, idx) in nego.custom_layout_options" :key="idx" class="px-2.5 py-1 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-slate-800">
+                                {{ opt }}
+                            </span>
+                        </div>
+                        <p v-if="nego.custom_layout_notes" class="text-xs text-slate-700 italic pt-1 border-t border-indigo-100">
+                            "{{ nego.custom_layout_notes }}"
+                        </p>
+                    </div>
+
+                    <div v-if="nego.special_requests" class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                         <p class="text-[10px] font-black text-amber-600 uppercase mb-1">📝 Permintaan Khusus Client</p>
                         <p class="text-xs text-amber-900 leading-relaxed whitespace-pre-wrap">{{ nego.special_requests }}</p>
                     </div>
+
+                    <div v-if="nego.client_signature" class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] font-black text-slate-500 uppercase">Tanda Tangan Digital Pembeli</p>
+                            <p class="text-xs font-bold text-slate-800 mt-0.5">{{ nego.client_name }}</p>
+                        </div>
+                        <img :src="nego.client_signature" class="h-12 max-w-[150px] object-contain border border-slate-200 rounded-lg bg-white p-1" />
+                    </div>
+
                     <div v-if="nego.notes" class="mt-3 p-4 bg-slate-50 border border-slate-100 rounded-xl">
                         <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Catatan</p>
                         <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{{ nego.notes }}</p>

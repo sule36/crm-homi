@@ -28,12 +28,13 @@ class Negotiation extends Model
         'client_name', 'client_phone', 'client_email',
         // Negotiation
         'unit_listed_price', 'offered_price', 'payment_scheme',
-        'dp_amount', 'installment_months', 'special_requests', 'notes',
+        'dp_amount', 'installment_months', 'special_requests',
+        'custom_layout_options', 'custom_layout_notes', 'notes', 'client_signature',
         // Status
         'status', 'counter_price', 'counter_notes',
         'reviewed_by', 'reviewed_at',
         'client_response', 'client_response_at',
-        'booking_id', 'expired_at',
+        'booking_id', 'expired_at', 'pdf_generated_at',
     ];
 
     protected function casts(): array
@@ -44,10 +45,17 @@ class Negotiation extends Model
             'dp_amount' => 'integer',
             'counter_price' => 'integer',
             'installment_months' => 'integer',
+            'custom_layout_options' => 'array',
             'reviewed_at' => 'datetime',
             'client_response_at' => 'datetime',
             'expired_at' => 'datetime',
+            'pdf_generated_at' => 'datetime',
         ];
+    }
+
+    public function getPublicPdfUrl(): string
+    {
+        return url("/nego/{$this->token}/pdf");
     }
 
     // --- Relationships ---

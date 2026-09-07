@@ -1,6 +1,6 @@
 <script setup>
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 
 const props = defineProps({
     negotiation: Object,
@@ -26,8 +26,86 @@ const form = useForm({
     dp_amount: nego.value.dp_amount || '',
     installment_months: nego.value.installment_months || (nego.value.payment_scheme === 'kpr' ? 120 : 12),
     special_requests: nego.value.special_requests || '',
+    custom_layout_options: nego.value.custom_layout_options || [],
+    custom_layout_notes: nego.value.custom_layout_notes || '',
+    client_signature: nego.value.client_signature || '',
     notes: nego.value.notes || '',
 });
+
+// Interactive Custom Layout Options List
+const availableLayoutOptions = [
+    { id: 'dapur', label: '🍳 Dapur Terbuka / Extensi Belakang', desc: 'Pemindahan atau perluasan area dapur ke lahan sisa belakang.' },
+    { id: 'kamar', label: '🛏️ Penambahan Kamar Tidur / Ruang Kerja', desc: 'Penambahan sekat ruangan kamar tambahan.' },
+    { id: 'kanopi', label: '🚗 Kanopi Carport & Stepping Stone', desc: 'Pemasangan atap kanopi carport & sikat carport.' },
+    { id: 'km', label: '🚿 Ubah Tata Letak Kamar Mandi', desc: 'Penyesuaian posisi kran, shower, atau kloset duduk.' },
+    { id: 'granit', label: '🧱 Upgrade Keramik ke Granit 60x60', desc: 'Penggantian lantai keramik standar dengan granit tile.' },
+    { id: 'listrik', label: '⚡ Tambah Saklar/AC & Stopkontak', desc: 'Instalasi titik kelistrikan baru di ruangan tertentu.' },
+    { id: 'fasad', label: '🎨 Modifikasi Cat & Ornamen Fasad', desc: 'Penyesuaian warna cat atau aksen ornamen tampak depan.' },
+];
+
+function toggleLayoutOption(label) {
+    if (!Array.isArray(form.custom_layout_options)) {
+        form.custom_layout_options = [];
+    }
+    const idx = form.custom_layout_options.indexOf(label);
+    if (idx > -1) {
+        form.custom_layout_options.splice(idx, 1);
+    } else {
+        form.custom_layout_options.push(label);
+    }
+}
+
+function isLayoutOptionSelected(label) {
+    return Array.isArray(form.custom_layout_options) && form.custom_layout_options.includes(label);
+}
+
+// Digital Signature Canvas Logic
+const sigCanvas = ref(null);
+const isDrawing = ref(false);
+const hasSignature = ref(Boolean(nego.value.client_signature));
+
+function startDrawing(e) {
+    isDrawing.value = true;
+    draw(e);
+}
+
+function stopDrawing() {
+    if (isDrawing.value && sigCanvas.value) {
+        isDrawing.value = false;
+        const ctx = sigCanvas.value.getContext('2d');
+        ctx.beginPath();
+        form.client_signature = sigCanvas.value.toDataURL('image/png');
+        hasSignature.value = true;
+    }
+}
+
+function draw(e) {
+    if (!isDrawing.value || !sigCanvas.value) return;
+    const canvas = sigCanvas.value;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0f172a';
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+}
+
+function clearSignature() {
+    if (!sigCanvas.value) return;
+    const ctx = sigCanvas.value.getContext('2d');
+    ctx.clearRect(0, 0, sigCanvas.value.width, sigCanvas.value.height);
+    form.client_signature = '';
+    hasSignature.value = false;
+}
 
 function submitForm() {
     form.post(`/nego/${nego.value.token}`, { preserveScroll: true });
@@ -53,7 +131,24 @@ function submitRevised() {
     counterForm.post(`/nego/${nego.value.token}/respond`, { preserveScroll: true });
 }
 
-// Agent computation (Prioritize lead assigned agent who brought the client)
+// PDF Export Actions
+function downloadPdf() {
+    window.open(`/nego/${nego.value.token}/pdf?download=1`, '_blank');
+}
+
+function openPdfInline() {
+    window.open(`/nego/${nego.value.token}/pdf`, '_blank');
+}
+
+function sharePdfWhatsApp() {
+    const pdfUrl = `${window.location.origin}/nego/${nego.value.token}/pdf`;
+    const msg = `Halo, berikut dokumen *Surat Hasil Pengajuan & Negosiasi Resmi* unit *${nego.value.unit?.code || ''}*:\n\n🔗 Ringkasan & Form Web: ${window.location.origin}/nego/${nego.value.token}\n📄 Download PDF Resmi: ${pdfUrl}\n\nTerima kasih.`;
+    const phone = (nego.value.client_phone || '').replace(/[^0-9]/g, '');
+    const waPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
+    window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// Agent computation
 const assignedAgent = computed(() => {
     return nego.value.lead?.assigned_to || nego.value.lead?.assignedTo || nego.value.creator;
 });
@@ -82,19 +177,16 @@ const estimatedMonthlyInstallment = computed(() => {
     const loanPrincipal = Math.max(0, offered - dp);
 
     if (form.payment_scheme === 'kpr') {
-        // Simple KPR estimation at ~5% p.a. fixed
         const annualRate = 0.05;
         const monthlyRate = annualRate / 12;
         const emi = (loanPrincipal * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
         return isNaN(emi) ? null : Math.round(emi);
     } else if (form.payment_scheme === 'cash_bertahap') {
-        // Flat monthly installment for direct developer
         return Math.round(loanPrincipal / months);
     }
     return null;
 });
 
-// Standard Developer Inclusions List
 const standardInclusions = [
     { title: 'Legalitas Resmi', desc: 'Sertifikat (SHM/HGB), PBG/IMB, & PBB Pecah' },
     { title: 'Spesifikasi Premium', desc: 'Struktur Beton Bertulang, Atap Baja Ringan' },
@@ -102,7 +194,6 @@ const standardInclusions = [
     { title: 'Garansi Bangunan', desc: 'Free Jaminan Pemeliharaan 3 Bulan Pertama' },
 ];
 
-// Helpers
 function formatCurrency(val) {
     if (!val) return 'Rp 0';
     return 'Rp ' + Number(val).toLocaleString('id-ID');
@@ -130,16 +221,21 @@ function formatCurrency(val) {
                     </div>
                 </div>
 
-                <!-- Verified Badge -->
-                <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 text-xs font-bold">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Link Resmi Konsumen
+                <!-- PDF Export & Verified Badge -->
+                <div class="flex items-center gap-2">
+                    <button @click="openPdfInline" title="Cetak atau Lihat Dokumen PDF Pengajuan Resmi" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all">
+                        <span>📄</span> PDF
+                    </button>
+                    <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 text-xs font-bold">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Resmi Konsumen
+                    </div>
                 </div>
             </div>
         </header>
 
         <main class="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-            <!-- ISSUING / ASSIGNED SURVEY AGENT BANNER CARD -->
+            <!-- AGENT BANNER CARD -->
             <div v-if="assignedAgent" class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm">
                 <div class="flex items-center gap-3.5">
                     <div class="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-black text-lg shrink-0">
@@ -159,7 +255,7 @@ function formatCurrency(val) {
                 </a>
             </div>
 
-            <!-- UNIT PROPERTY CARD SHOWCASE -->
+            <!-- UNIT PROPERTY CARD -->
             <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-sm relative overflow-hidden">
                 <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-6 relative z-10">
                     <div class="space-y-3">
@@ -175,7 +271,7 @@ function formatCurrency(val) {
                             </p>
                         </div>
 
-                        <!-- PROPERTY SPECS BADGES -->
+                        <!-- SPECS BADGES -->
                         <div class="flex flex-wrap items-center gap-2 pt-1">
                             <div v-if="nego.unit?.unit_type?.building_area || nego.unit?.building_area" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold flex items-center gap-1">
                                 🏠 LB: {{ nego.unit?.unit_type?.building_area || nego.unit?.building_area }} m²
@@ -189,13 +285,10 @@ function formatCurrency(val) {
                             <div v-if="nego.unit?.unit_type?.bathrooms" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold flex items-center gap-1">
                                 🚿 {{ nego.unit.unit_type.bathrooms }} KM
                             </div>
-                            <div v-if="nego.unit?.facing_direction" class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold flex items-center gap-1">
-                                🧭 Hadap {{ nego.unit.facing_direction }}
-                            </div>
                         </div>
                     </div>
 
-                    <!-- PRICE HIGHLIGHT BOX -->
+                    <!-- PRICE BOX -->
                     <div class="sm:text-right shrink-0 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 border border-blue-100 rounded-2xl p-4 sm:p-5">
                         <p class="text-[10px] font-black uppercase tracking-wider text-slate-500">Harga Resmi Listing</p>
                         <p class="text-xl sm:text-2xl font-black text-blue-700 font-mono mt-1">
@@ -206,7 +299,7 @@ function formatCurrency(val) {
                 </div>
             </div>
 
-            <!-- FASILITAS STANDAR TERMASUK DARI DEVELOPER (NORMAL PRICE) -->
+            <!-- FASILITAS STANDAR TERMASUK -->
             <div class="bg-gradient-to-br from-emerald-50/40 via-white to-slate-50 border border-emerald-200/80 rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg font-black shrink-0">
@@ -241,7 +334,7 @@ function formatCurrency(val) {
             </div>
 
             <!-- SUCCESS STATE AFTER SUBMIT -->
-            <div v-else-if="flash.success && !isCounterOffer" class="bg-emerald-50 border border-emerald-200 rounded-3xl p-8 text-center space-y-3">
+            <div v-else-if="flash.success && !isCounterOffer" class="bg-emerald-50 border border-emerald-200 rounded-3xl p-8 text-center space-y-4">
                 <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto">
                     🎉
                 </div>
@@ -249,6 +342,16 @@ function formatCurrency(val) {
                 <p class="text-xs text-emerald-700 max-w-md mx-auto">
                     Pengajuan negosiasi Anda telah resmi diterima oleh sistem CRM Developer. Tim kami akan meninjau dan memberikan tanggapan secepatnya.
                 </p>
+
+                <!-- DOWNLOAD & SHARE ACTIONS -->
+                <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button @click="downloadPdf" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2">
+                        <span>📄</span> Download Dokumen PDF
+                    </button>
+                    <button @click="sharePdfWhatsApp" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2">
+                        <span>💬</span> Kirim Dokumen PDF via WA
+                    </button>
+                </div>
             </div>
 
             <!-- SUBMITTED / IN REVIEW STATE (STEPPER & SUMMARY) -->
@@ -281,7 +384,10 @@ function formatCurrency(val) {
                 <!-- SUMMARY BOX -->
                 <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                        <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider">Ringkasan Pengajuan Anda</h3>
+                        <div>
+                            <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider">Ringkasan Pengajuan Anda</h3>
+                            <p class="text-[10px] text-slate-400 font-mono mt-0.5">Token: NEGO-{{ nego.token }}</p>
+                        </div>
                         <span :class="['px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider', nego.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : nego.status === 'rejected' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-amber-100 text-amber-800 border border-amber-300']">
                             {{ nego.status === 'approved' ? 'Disetujui' : nego.status === 'rejected' ? 'Ditolak' : 'Sedang Ditinjau' }}
                         </span>
@@ -306,9 +412,32 @@ function formatCurrency(val) {
                         </div>
                     </div>
 
+                    <!-- CUSTOM LAYOUT SUMMARY IN SUBMITTED VIEW -->
+                    <div v-if="nego.custom_layout_options && nego.custom_layout_options.length > 0" class="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
+                        <p class="text-[10px] font-black uppercase text-blue-700">🏗️ Modifikasi Custom Layout yang Diajukan:</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <span v-for="(opt, idx) in nego.custom_layout_options" :key="idx" class="px-2.5 py-1 bg-white border border-blue-200 rounded-lg text-xs font-bold text-slate-800">
+                                {{ opt }}
+                            </span>
+                        </div>
+                        <p v-if="nego.custom_layout_notes" class="text-xs text-slate-700 italic pt-1 border-t border-blue-100">
+                            "{{ nego.custom_layout_notes }}"
+                        </p>
+                    </div>
+
                     <div v-if="nego.special_requests" class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
                         <p class="text-[10px] font-black uppercase text-slate-500">Permintaan Khusus Tambahan:</p>
                         <p class="text-xs text-slate-800 whitespace-pre-line font-medium">{{ nego.special_requests }}</p>
+                    </div>
+
+                    <!-- ACTION PDF & SHARE BUTTONS -->
+                    <div class="flex flex-wrap gap-3 pt-3 border-t border-slate-100">
+                        <button @click="downloadPdf" class="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-2">
+                            <span>📄</span> Download Proposal PDF
+                        </button>
+                        <button @click="sharePdfWhatsApp" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-2">
+                            <span>💬</span> Bagikan PDF via WA
+                        </button>
                     </div>
                 </div>
             </div>
@@ -358,9 +487,14 @@ function formatCurrency(val) {
                         </div>
                     </div>
 
-                    <button @click="respondToCounter('rejected')" :disabled="counterForm.processing" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all disabled:opacity-40">
-                        Tolak Penawaran Ini
-                    </button>
+                    <div class="flex gap-2">
+                        <button @click="downloadPdf" class="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5">
+                            <span>📄</span> Unduh PDF
+                        </button>
+                        <button @click="respondToCounter('rejected')" :disabled="counterForm.processing" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all disabled:opacity-40">
+                            Tolak Penawaran
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -368,7 +502,7 @@ function formatCurrency(val) {
             <div v-else-if="isDraft" class="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-8">
                 <div>
                     <h3 class="text-xl font-black text-slate-900 tracking-tight">Form Pengajuan Harga & Ketentuan</h3>
-                    <p class="text-xs text-slate-500 mt-1">Isi data pribadi dan rencana pembayaran yang Anda harapkan di bawah ini.</p>
+                    <p class="text-xs text-slate-500 mt-1">Isi data pribadi, rencana pembayaran, dan pengajuan custom layout denah di bawah ini.</p>
                 </div>
 
                 <form @submit.prevent="submitForm" class="space-y-7">
@@ -404,7 +538,6 @@ function formatCurrency(val) {
                             <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Pengajuan Harga & Pembayaran</h4>
                         </div>
 
-                        <!-- OFFER PRICE INPUT WITH LIVE DIFFERENCE CALCULATION -->
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Harga yang Anda Ajukan (Rp) <span class="text-rose-500">*</span></label>
                             <div class="relative">
@@ -413,7 +546,6 @@ function formatCurrency(val) {
                             </div>
                             <p v-if="form.errors.offered_price" class="text-xs text-rose-500 mt-1">{{ form.errors.offered_price }}</p>
 
-                            <!-- LIVE SELISIH BADGE -->
                             <div v-if="priceDifference" class="mt-2.5 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
                                 <span class="text-emerald-800 font-bold">✨ Potongan Penawaran:</span>
                                 <span class="font-black text-emerald-700 font-mono">
@@ -422,25 +554,21 @@ function formatCurrency(val) {
                             </div>
                         </div>
 
-                        <!-- INTERACTIVE PAYMENT SCHEME SELECTION -->
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-2">Pilih Skema Pembayaran <span class="text-rose-500">*</span></label>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <!-- KPR BANK -->
                                 <div @click="form.payment_scheme = 'kpr'; form.installment_months = 120" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'kpr' ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
                                     <div class="text-xl">🏦</div>
                                     <p class="text-xs font-black text-slate-900">KPR Bank</p>
                                     <p class="text-[10px] text-slate-500 leading-snug">Cicilan bulanan melalui fasilitas bank pilihan.</p>
                                 </div>
 
-                                <!-- CASH KERAS -->
                                 <div @click="form.payment_scheme = 'cash_keras'; form.installment_months = 1; form.dp_amount = ''" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'cash_keras' ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
                                     <div class="text-xl">💰</div>
                                     <p class="text-xs font-black text-slate-900">Cash Keras</p>
                                     <p class="text-[10px] text-slate-500 leading-snug">Pembayaran pelunasan tunai dalam 30 hari.</p>
                                 </div>
 
-                                <!-- CASH BERTAHAP -->
                                 <div @click="form.payment_scheme = 'cash_bertahap'; form.installment_months = 12" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'cash_bertahap' ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
                                     <div class="text-xl">📅</div>
                                     <p class="text-xs font-black text-slate-900">Cash Bertahap</p>
@@ -449,7 +577,6 @@ function formatCurrency(val) {
                             </div>
                         </div>
 
-                        <!-- DP AND TENOR INPUTS (IF APPLICABLE) -->
                         <div v-if="form.payment_scheme !== 'cash_keras'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1.5">Rencana Nominal Uang Muka (DP)</label>
@@ -478,7 +605,6 @@ function formatCurrency(val) {
                             </div>
                         </div>
 
-                        <!-- ESTIMATED MONTHLY INSTALLMENT SIMULATOR CARD -->
                         <div v-if="estimatedMonthlyInstallment" class="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between">
                             <div>
                                 <p class="text-[10px] font-black uppercase text-blue-700">Estimasi Cicilan per Bulan</p>
@@ -490,17 +616,58 @@ function formatCurrency(val) {
                         </div>
                     </div>
 
-                    <!-- SECTION 3: FREE TEXT SPECIAL REQUESTS & NOTES -->
+                    <!-- SECTION 3: CUSTOM LAYOUT & DENAH MODIFICATION -->
                     <div class="space-y-4">
                         <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
-                            <span class="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-black text-xs">3</span>
-                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Permintaan Khusus & Catatan Lainnya</h4>
+                            <span class="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-black text-xs">3</span>
+                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Pengajuan Custom Layout & Modifikasi Denah</h4>
+                        </div>
+
+                        <p class="text-xs text-slate-500">Pilih opsi modifikasi denah yang Anda inginkan (centang opsi di bawah):</p>
+
+                        <!-- CHECKLIST OPTIONS GRID -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div v-for="opt in availableLayoutOptions" :key="opt.id" @click="toggleLayoutOption(opt.label)" :class="['p-3.5 rounded-2xl border cursor-pointer transition-all flex items-start gap-3 select-none', isLayoutOptionSelected(opt.label) ? 'bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
+                                <div :class="['w-5 h-5 rounded-lg border flex items-center justify-center font-black text-xs shrink-0 mt-0.5 transition-all', isLayoutOptionSelected(opt.label) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white']">
+                                    ✓
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black text-slate-900">{{ opt.label }}</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5 leading-snug">{{ opt.desc }}</p>
+                                </div>
+                            </div>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Permintaan Khusus Tambahan (Free Text List)</label>
-                            <textarea v-model="form.special_requests" rows="4" placeholder="Tuliskan permintaan khusus Anda dalam bentuk poin/list, contoh:&#10;1. Diskon khusus pelunasan tunai&#10;2. Minta percepatan serah terima kunci&#10;3. Penambahan titik stop kontak..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"></textarea>
-                            <p class="text-[10px] text-slate-400 mt-1">*Di luar fasilitas standar dari developer yang sudah termasuk di atas</p>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Detail Catatan Denah Custom & Tata Letak Ruangan</label>
+                            <textarea v-model="form.custom_layout_notes" rows="3" placeholder="Tuliskan spesifikasi penyesuaian denah yang Anda harapkan, contoh:&#10;Dapur dipindah ke halaman belakang sisa 2.5m, kamar mandi utama ingin kloset duduk merek Toto, keramik diganti granit 60x60..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 4: FREE TEXT SPECIAL REQUESTS & DIGITAL SIGNATURE -->
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <span class="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-black text-xs">4</span>
+                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Permintaan Khusus & Tanda Tangan Digital</h4>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Permintaan Khusus Tambahan</label>
+                            <textarea v-model="form.special_requests" rows="3" placeholder="Tuliskan permintaan khusus Anda di luar fasilitas standar..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"></textarea>
+                        </div>
+
+                        <!-- E-SIGN DIGITAL CANVAS -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-xs font-bold text-slate-700">Tanda Tangan Digital Pembeli (Opsional)</label>
+                                <button type="button" @click="clearSignature" class="text-[10px] font-bold text-rose-500 hover:underline">Hapus Tanda Tangan</button>
+                            </div>
+                            <div class="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 p-2 text-center relative overflow-hidden">
+                                <canvas ref="sigCanvas" width="400" height="120" @mousedown="startDrawing" @mousemove="draw" @mouseup="stopDrawing" @mouseleave="stopDrawing" @touchstart.prevent="startDrawing" @touchmove.prevent="draw" @touchend.prevent="stopDrawing" class="w-full h-28 bg-white rounded-xl border border-slate-200 touch-none cursor-crosshair"></canvas>
+                                <p v-if="!hasSignature" class="text-[10px] text-slate-400 pointer-events-none absolute inset-0 flex items-center justify-center">
+                                    ✍️ Goreskan tanda tangan Anda di dalam kotak ini
+                                </p>
+                            </div>
                         </div>
 
                         <div>
@@ -518,8 +685,9 @@ function formatCurrency(val) {
             </div>
 
             <!-- FOOTER -->
-            <footer class="text-center py-6 text-slate-400 text-xs">
+            <footer class="text-center py-6 text-slate-400 text-xs space-y-1">
                 <p>Sistem Pengajuan Negosiasi Resmi &copy; {{ new Date().getFullYear() }} {{ settings?.company_name || 'Homi Developer CRM' }}</p>
+                <p class="text-[10px] text-slate-350">Dokumen PDF resmi dapat langsung diunduh setelah pengajuan dikirim.</p>
             </footer>
         </main>
     </div>

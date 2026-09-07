@@ -18,6 +18,7 @@ Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController:
 
 // Public Negotiation Form (No Auth)
 Route::get('/nego/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicForm'])->name('public.negotiation');
+Route::get('/nego/{token}/pdf', [\App\Http\Controllers\NegotiationController::class, 'publicPdf'])->name('public.negotiation.pdf');
 Route::post('/nego/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicSubmit'])->name('public.negotiation.submit');
 Route::post('/nego/{token}/respond', [\App\Http\Controllers\NegotiationController::class, 'publicCounterResponse'])->name('public.negotiation.respond');
 
@@ -153,6 +154,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/negotiations', [\App\Http\Controllers\NegotiationController::class, 'index'])->name('negotiations.index');
     Route::post('/negotiations', [\App\Http\Controllers\NegotiationController::class, 'store'])->name('negotiations.store');
     Route::get('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'show'])->name('negotiations.show');
+    Route::get('/negotiations/{negotiation}/pdf', [\App\Http\Controllers\NegotiationController::class, 'streamPdf'])->name('negotiations.pdf');
     Route::post('/negotiations/{negotiation}/review', [\App\Http\Controllers\NegotiationController::class, 'review'])->name('negotiations.review');
     Route::post('/negotiations/{negotiation}/convert', [\App\Http\Controllers\NegotiationController::class, 'convertToBooking'])->name('negotiations.convert');
     Route::delete('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'destroy'])->name('negotiations.destroy');

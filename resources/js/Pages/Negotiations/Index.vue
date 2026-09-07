@@ -243,6 +243,9 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                             </td>
                             <td class="px-6 py-5 text-right">
                                 <div class="flex items-center justify-end gap-1.5">
+                                    <a :href="`/negotiations/${nego.id}/pdf`" target="_blank" title="Download Dokumen PDF Pengajuan" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10px] font-bold transition-all flex items-center gap-1">
+                                        <span>📄</span> PDF
+                                    </a>
                                     <Link :href="`/negotiations/${nego.id}`" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold transition-all">
                                         Detail
                                     </Link>
