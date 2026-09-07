@@ -535,7 +535,7 @@ function formatCurrency(val) {
                     <div class="space-y-4">
                         <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
                             <span class="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-black text-xs">2</span>
-                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Pengajuan Harga & Pembayaran</h4>
+                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Pengajuan Harga & Skema Pembayaran</h4>
                         </div>
 
                         <div>
@@ -557,122 +557,94 @@ function formatCurrency(val) {
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-2">Pilih Skema Pembayaran <span class="text-rose-500">*</span></label>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div @click="form.payment_scheme = 'kpr'; form.installment_months = 120" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'kpr' ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
+                                <div @click="form.payment_scheme = 'kpr'" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'kpr' ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
                                     <div class="text-xl">🏦</div>
                                     <p class="text-xs font-black text-slate-900">KPR Bank</p>
-                                    <p class="text-[10px] text-slate-500 leading-snug">Cicilan bulanan melalui fasilitas bank pilihan.</p>
+                                    <p class="text-[10px] text-slate-500 leading-snug">Fasilitas pembiayaan kredit melalui bank partner.</p>
                                 </div>
 
-                                <div @click="form.payment_scheme = 'cash_keras'; form.installment_months = 1; form.dp_amount = ''" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'cash_keras' ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
+                                <div @click="form.payment_scheme = 'cash_keras'" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'cash_keras' ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
                                     <div class="text-xl">💰</div>
                                     <p class="text-xs font-black text-slate-900">Cash Keras</p>
                                     <p class="text-[10px] text-slate-500 leading-snug">Pembayaran pelunasan tunai dalam 30 hari.</p>
                                 </div>
 
-                                <div @click="form.payment_scheme = 'cash_bertahap'; form.installment_months = 12" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'cash_bertahap' ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
+                                <div @click="form.payment_scheme = 'cash_bertahap'" :class="['p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5', form.payment_scheme === 'cash_bertahap' ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
                                     <div class="text-xl">📅</div>
                                     <p class="text-xs font-black text-slate-900">Cash Bertahap</p>
-                                    <p class="text-[10px] text-slate-500 leading-snug">Cicilan langsung ke developer tanpa bank.</p>
+                                    <p class="text-[10px] text-slate-500 leading-snug">Cicilan bertahap langsung ke developer.</p>
                                 </div>
                             </div>
                         </div>
-
-                        <div v-if="form.payment_scheme !== 'cash_keras'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Rencana Nominal Uang Muka (DP)</label>
-                                <input v-model="form.dp_amount" type="number" min="0" placeholder="Nominal DP (Rp)" class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all" />
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">
-                                    Tenor Cicilan {{ form.payment_scheme === 'kpr' ? '(Bulan)' : '(Bulan / Kali)' }}
-                                </label>
-                                <select v-model="form.installment_months" class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                                    <template v-if="form.payment_scheme === 'kpr'">
-                                        <option :value="60">5 Tahun (60 Bulan)</option>
-                                        <option :value="120">10 Tahun (120 Bulan)</option>
-                                        <option :value="180">15 Tahun (180 Bulan)</option>
-                                        <option :value="240">20 Tahun (240 Bulan)</option>
-                                        <option :value="300">25 Tahun (300 Bulan)</option>
-                                    </template>
-                                    <template v-else>
-                                        <option :value="6">6 Bulan (6x Cicilan)</option>
-                                        <option :value="12">12 Bulan (12x Cicilan)</option>
-                                        <option :value="18">18 Bulan (18x Cicilan)</option>
-                                        <option :value="24">24 Bulan (24x Cicilan)</option>
-                                        <option :value="36">36 Bulan (36x Cicilan)</option>
-                                    </template>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div v-if="estimatedMonthlyInstallment" class="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between">
-                            <div>
-                                <p class="text-[10px] font-black uppercase text-blue-700">Estimasi Cicilan per Bulan</p>
-                                <p class="text-xs text-slate-500 mt-0.5">*Perhitungan estimasi & belum mengikat</p>
-                            </div>
-                            <p class="text-lg font-black text-blue-900 font-mono">
-                                ~{{ formatCurrency(estimatedMonthlyInstallment) }}<span class="text-xs font-normal text-slate-500">/bln</span>
-                            </p>
-                        </div>
                     </div>
 
-                    <!-- SECTION 3: CUSTOM LAYOUT & DENAH MODIFICATION -->
-                    <div class="space-y-4">
+                    <!-- SECTION 3: CATATAN PENGAJUAN & CUSTOM LAYOUT -->
+                    <div class="space-y-6">
                         <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
                             <span class="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-black text-xs">3</span>
-                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Pengajuan Custom Layout & Modifikasi Denah</h4>
+                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Catatan Pengajuan & Custom Layout</h4>
                         </div>
 
-                        <p class="text-xs text-slate-500">Pilih opsi modifikasi denah yang Anda inginkan (centang opsi di bawah):</p>
+                        <!-- 3.1 OPSI MODIFIKASI DENAH -->
+                        <div class="space-y-3">
+                            <h5 class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-mono text-[10px]">3.1</span>
+                                Opsi Modifikasi Denah / Custom Layout
+                            </h5>
+                            <p class="text-xs text-slate-500">Pilih opsi modifikasi denah yang Anda harapkan (centang pada opsi di bawah):</p>
 
-                        <!-- CHECKLIST OPTIONS GRID -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div v-for="opt in availableLayoutOptions" :key="opt.id" @click="toggleLayoutOption(opt.label)" :class="['p-3.5 rounded-2xl border cursor-pointer transition-all flex items-start gap-3 select-none', isLayoutOptionSelected(opt.label) ? 'bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
-                                <div :class="['w-5 h-5 rounded-lg border flex items-center justify-center font-black text-xs shrink-0 mt-0.5 transition-all', isLayoutOptionSelected(opt.label) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white']">
-                                    ✓
-                                </div>
-                                <div>
-                                    <p class="text-xs font-black text-slate-900">{{ opt.label }}</p>
-                                    <p class="text-[10px] text-slate-500 mt-0.5 leading-snug">{{ opt.desc }}</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div v-for="opt in availableLayoutOptions" :key="opt.id" @click="toggleLayoutOption(opt.label)" :class="['p-3.5 rounded-2xl border cursor-pointer transition-all flex items-start gap-3 select-none', isLayoutOptionSelected(opt.label) ? 'bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/20' : 'bg-slate-50 border-slate-200 hover:border-slate-300']">
+                                    <div :class="['w-5 h-5 rounded-lg border flex items-center justify-center font-black text-xs shrink-0 mt-0.5 transition-all', isLayoutOptionSelected(opt.label) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white']">
+                                        ✓
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-black text-slate-900">{{ opt.label }}</p>
+                                        <p class="text-[10px] text-slate-500 mt-0.5 leading-snug">{{ opt.desc }}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Detail Catatan Denah Custom & Tata Letak Ruangan</label>
+                        <!-- 3.2 DETAIL CATATAN PENYESUAIAN DENAH -->
+                        <div class="space-y-2 pt-2 border-t border-slate-100">
+                            <h5 class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-mono text-[10px]">3.2</span>
+                                Detail Catatan Penyesuaian Denah & Tata Letak
+                            </h5>
                             <textarea v-model="form.custom_layout_notes" rows="3" placeholder="Tuliskan spesifikasi penyesuaian denah yang Anda harapkan, contoh:&#10;Dapur dipindah ke halaman belakang sisa 2.5m, kamar mandi utama ingin kloset duduk merek Toto, keramik diganti granit 60x60..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"></textarea>
                         </div>
-                    </div>
 
-                    <!-- SECTION 4: FREE TEXT SPECIAL REQUESTS & DIGITAL SIGNATURE -->
-                    <div class="space-y-4">
-                        <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
-                            <span class="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-black text-xs">4</span>
-                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Permintaan Khusus & Tanda Tangan Digital</h4>
-                        </div>
+                        <!-- 3.3 PERMINTAAN KHUSUS & TANDA TANGAN DIGITAL -->
+                        <div class="space-y-4 pt-2 border-t border-slate-100">
+                            <h5 class="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-mono text-[10px]">3.3</span>
+                                Permintaan Khusus, Tanda Tangan Digital & Catatan Tambahan
+                            </h5>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Permintaan Khusus Tambahan</label>
-                            <textarea v-model="form.special_requests" rows="3" placeholder="Tuliskan permintaan khusus Anda di luar fasilitas standar..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"></textarea>
-                        </div>
-
-                        <!-- E-SIGN DIGITAL CANVAS -->
-                        <div>
-                            <div class="flex items-center justify-between mb-1.5">
-                                <label class="block text-xs font-bold text-slate-700">Tanda Tangan Digital Pembeli (Opsional)</label>
-                                <button type="button" @click="clearSignature" class="text-[10px] font-bold text-rose-500 hover:underline">Hapus Tanda Tangan</button>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Permintaan Khusus Tambahan</label>
+                                <textarea v-model="form.special_requests" rows="3" placeholder="Tuliskan permintaan khusus Anda di luar fasilitas standar..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"></textarea>
                             </div>
-                            <div class="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 p-2 text-center relative overflow-hidden">
-                                <canvas ref="sigCanvas" width="400" height="120" @mousedown="startDrawing" @mousemove="draw" @mouseup="stopDrawing" @mouseleave="stopDrawing" @touchstart.prevent="startDrawing" @touchmove.prevent="draw" @touchend.prevent="stopDrawing" class="w-full h-28 bg-white rounded-xl border border-slate-200 touch-none cursor-crosshair"></canvas>
-                                <p v-if="!hasSignature" class="text-[10px] text-slate-400 pointer-events-none absolute inset-0 flex items-center justify-center">
-                                    ✍️ Goreskan tanda tangan Anda di dalam kotak ini
-                                </p>
-                            </div>
-                        </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Catatan Tambahan untuk Developer</label>
-                            <textarea v-model="form.notes" rows="2" placeholder="Catatan tambahan mengenai permohonan kunjungan atau syarat khusus..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"></textarea>
+                            <!-- E-SIGN DIGITAL CANVAS -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="block text-xs font-bold text-slate-700">Tanda Tangan Digital Pembeli (Opsional)</label>
+                                    <button type="button" @click="clearSignature" class="text-[10px] font-bold text-rose-500 hover:underline">Hapus Tanda Tangan</button>
+                                </div>
+                                <div class="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 p-2 text-center relative overflow-hidden">
+                                    <canvas ref="sigCanvas" width="400" height="120" @mousedown="startDrawing" @mousemove="draw" @mouseup="stopDrawing" @mouseleave="stopDrawing" @touchstart.prevent="startDrawing" @touchmove.prevent="draw" @touchend.prevent="stopDrawing" class="w-full h-28 bg-white rounded-xl border border-slate-200 touch-none cursor-crosshair"></canvas>
+                                    <p v-if="!hasSignature" class="text-[10px] text-slate-400 pointer-events-none absolute inset-0 flex items-center justify-center">
+                                        ✍️ Goreskan tanda tangan Anda di dalam kotak ini
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Catatan Tambahan untuk Developer</label>
+                                <textarea v-model="form.notes" rows="2" placeholder="Catatan tambahan mengenai permohonan kunjungan atau syarat khusus..." class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"></textarea>
+                            </div>
                         </div>
                     </div>
 

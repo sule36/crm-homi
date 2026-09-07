@@ -156,8 +156,8 @@ function shareWhatsApp() {
                     <div class="grid grid-cols-2 gap-4 text-xs">
                         <div class="space-y-3">
                             <div><span class="font-black text-slate-400 block text-[10px] uppercase">Skema Pembayaran</span><span class="font-bold text-slate-800">{{ paymentLabels[nego.payment_scheme] || nego.payment_scheme || '-' }}</span></div>
-                            <div><span class="font-black text-slate-400 block text-[10px] uppercase">Nominal DP</span><span class="font-bold text-slate-800">{{ nego.dp_amount ? formatCurrency(nego.dp_amount) : '-' }}</span></div>
-                            <div><span class="font-black text-slate-400 block text-[10px] uppercase">Tenor Cicilan</span><span class="font-bold text-slate-800">{{ nego.installment_months ? nego.installment_months + ' bulan' : '-' }}</span></div>
+                            <div v-if="nego.dp_amount"><span class="font-black text-slate-400 block text-[10px] uppercase">Nominal DP</span><span class="font-bold text-slate-800">{{ formatCurrency(nego.dp_amount) }}</span></div>
+                            <div v-if="nego.installment_months"><span class="font-black text-slate-400 block text-[10px] uppercase">Tenor Cicilan</span><span class="font-bold text-slate-800">{{ nego.installment_months }} bulan</span></div>
                         </div>
                         <div class="space-y-3">
                             <div><span class="font-black text-slate-400 block text-[10px] uppercase">Dibuat Oleh</span><span class="font-bold text-slate-800">{{ nego.creator?.name || '-' }}</span></div>

@@ -101,6 +101,14 @@
             padding: 8px;
         }
 
+        .sub-header {
+            font-size: 8pt;
+            font-weight: 800;
+            color: #0f172a;
+            margin-top: 6px;
+            margin-bottom: 4px;
+        }
+
         /* TWO COLUMN DATA TABLES */
         .data-table {
             width: 100%;
@@ -125,7 +133,7 @@
         .price-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 4px;
+            margin-top: 2px;
         }
         .price-table th {
             background-color: #f1f5f9;
@@ -177,7 +185,7 @@
             font-size: 8pt;
             color: #334155;
             white-space: pre-line;
-            margin-top: 4px;
+            margin-top: 3px;
         }
 
         /* SIGNATURE SECTION */
@@ -291,7 +299,7 @@
         </div>
     </div>
 
-    <!-- 2. RINCIAN PENGAJUAN HARGA & PEMBAYARAN -->
+    <!-- 2. RINCIAN PENGAJUAN HARGA & SKEMA PEMBAYARAN -->
     <div class="section-box">
         <div class="section-header">2. Pengajuan Harga & Skema Pembayaran</div>
         <div class="section-body">
@@ -331,36 +339,15 @@
                     </tr>
                 </tbody>
             </table>
-
-            <table class="data-table" style="margin-top: 8px;">
-                <tr>
-                    <td class="data-label">Rencana Nominal DP</td>
-                    <td class="data-value">: {{ $negotiation->dp_amount ? 'Rp ' . number_format($negotiation->dp_amount, 0, ',', '.') : '-' }}</td>
-                    <td class="data-label">Tenor Cicilan</td>
-                    <td class="data-value">: {{ $negotiation->installment_months ? $negotiation->installment_months . ' Bulan' : '-' }}</td>
-                </tr>
-                @if($negotiation->payment_scheme === 'kpr' && $negotiation->offered_price && $negotiation->installment_months)
-                    @php
-                        $principal = max(0, $negotiation->offered_price - ($negotiation->dp_amount ?? 0));
-                        $rate = 0.05 / 12;
-                        $months = $negotiation->installment_months;
-                        $emi = ($principal * $rate * pow(1 + $rate, $months)) / (pow(1 + $rate, $months) - 1);
-                    @endphp
-                    <tr>
-                        <td class="data-label">Estimasi Angsuran KPR</td>
-                        <td class="data-value" colspan="3" style="color: #1d4ed8;">
-                            : ~Rp {{ number_format(round($emi), 0, ',', '.') }} / bulan *(Estimasi bunga 5% p.a. fixed)*
-                        </td>
-                    </tr>
-                @endif
-            </table>
         </div>
     </div>
 
-    <!-- 3. PENGAJUAN CUSTOM LAYOUT & MODIFIKASI DENAH -->
+    <!-- 3. CATATAN PENGAJUAN & CUSTOM LAYOUT -->
     <div class="section-box">
-        <div class="section-header">3. Pengajuan Custom Layout & Modifikasi Denah Bangunan</div>
+        <div class="section-header">3. Catatan Pengajuan & Custom Layout</div>
         <div class="section-body">
+            <!-- 3.1 OPSI MODIFIKASI DENAH -->
+            <div class="sub-header">3.1 Opsi Modifikasi Denah / Custom Layout</div>
             @if(!empty($negotiation->custom_layout_options) && is_array($negotiation->custom_layout_options) && count($negotiation->custom_layout_options) > 0)
                 <table class="checklist-table">
                     @foreach(array_chunk($negotiation->custom_layout_options, 2) as $row)
@@ -378,9 +365,26 @@
                 <div style="font-size: 8pt; color: #64748b; font-style: italic;">Tidak ada pilihan penyesuaian denah standar yang dicentang.</div>
             @endif
 
+            <!-- 3.2 DETAIL CATATAN PENYESUAIAN DENAH -->
+            <div class="sub-header" style="margin-top: 8px;">3.2 Detail Catatan Penyesuaian Denah & Tata Letak</div>
             @if($negotiation->custom_layout_notes)
-                <div style="font-size: 8pt; font-weight: bold; color: #0f172a; margin-top: 6px;">Detail Catatan Denah Custom & Tata Letak:</div>
                 <div class="notes-box">{{ $negotiation->custom_layout_notes }}</div>
+            @else
+                <div style="font-size: 8pt; color: #64748b; font-style: italic;">-</div>
+            @endif
+
+            <!-- 3.3 PERMINTAAN KHUSUS & CATATAN LAINNYA -->
+            <div class="sub-header" style="margin-top: 8px;">3.3 Permintaan Khusus & Catatan Tambahan</div>
+            @if($negotiation->special_requests)
+                <div style="font-size: 7.5pt; font-weight: bold; color: #475569;">Permintaan Khusus:</div>
+                <div class="notes-box">{{ $negotiation->special_requests }}</div>
+            @endif
+            @if($negotiation->notes)
+                <div style="font-size: 7.5pt; font-weight: bold; color: #475569; margin-top: 4px;">Catatan Developer:</div>
+                <div class="notes-box">{{ $negotiation->notes }}</div>
+            @endif
+            @if(!$negotiation->special_requests && !$negotiation->notes)
+                <div style="font-size: 8pt; color: #64748b; font-style: italic;">-</div>
             @endif
         </div>
     </div>
@@ -415,23 +419,6 @@
                         </tr>
                     @endif
                 </table>
-            </div>
-        </div>
-    @endif
-
-    <!-- 5. PERMINTAAN KHUSUS TAMBAHAN & CATATAN -->
-    @if($negotiation->special_requests || $negotiation->notes)
-        <div class="section-box">
-            <div class="section-header">5. Permintaan Khusus & Catatan Lainnya</div>
-            <div class="section-body">
-                @if($negotiation->special_requests)
-                    <div style="font-size: 8pt; font-weight: bold; color: #0f172a;">Permintaan Khusus Tambahan:</div>
-                    <div class="notes-box">{{ $negotiation->special_requests }}</div>
-                @endif
-                @if($negotiation->notes)
-                    <div style="font-size: 8pt; font-weight: bold; color: #0f172a; margin-top: 6px;">Catatan Tambahan:</div>
-                    <div class="notes-box">{{ $negotiation->notes }}</div>
-                @endif
             </div>
         </div>
     @endif
