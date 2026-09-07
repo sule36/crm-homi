@@ -102,9 +102,20 @@ function generateWaMessage(type) {
     }
 }
 
-// Quick update
+// Quick update & Profile Edit
+const showEditLeadModal = ref(false);
 const editForm = useForm({
-    status: props.lead.status,
+    name: props.lead.name || '',
+    phone: props.lead.phone || '',
+    email: props.lead.email || '',
+    identity_number: props.lead.identity_number || '',
+    npwp: props.lead.npwp || '',
+    address: props.lead.address || '',
+    job: props.lead.job || '',
+    source: props.lead.source || 'walk_in',
+    status: props.lead.status || 'new',
+    project_id: props.lead.project_id || '',
+    broker_company_id: props.lead.broker_company_id || '',
     assigned_to: typeof props.lead.assigned_to === 'object' && props.lead.assigned_to !== null 
         ? props.lead.assigned_to.id 
         : (props.lead.assigned_to_user?.id || props.lead.assigned_to || null),
@@ -112,7 +123,12 @@ const editForm = useForm({
 });
 
 function updateLead() {
-    editForm.put(`/leads/${props.lead.id}`, { preserveScroll: true });
+    editForm.put(`/leads/${props.lead.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showEditLeadModal.value = false;
+        }
+    });
 }
 
 const agentSearchQuery = ref('');
@@ -174,7 +190,12 @@ function scoreColor(s) {
                     {{ lead.score }}
                 </div>
                 <div>
-                    <h1 class="text-2xl font-black text-slate-900 tracking-tight">{{ lead.name }}</h1>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-2xl font-black text-slate-900 tracking-tight">{{ lead.name }}</h1>
+                        <button @click="showEditLeadModal = true" class="px-2 py-0.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 border border-blue-200 cursor-pointer">
+                            ✏️ Edit Profil
+                        </button>
+                    </div>
                     <p class="text-sm text-slate-500">{{ lead.phone }} {{ lead.email ? `• ${lead.email}` : '' }}</p>
                 </div>
             </div>
@@ -298,13 +319,23 @@ function scoreColor(s) {
 
                 <!-- Lead Info -->
                 <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-                    <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider mb-4">Detail Lead</h2>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-sm font-black text-slate-900 uppercase tracking-wider">Detail Lead</h2>
+                        <button @click="showEditLeadModal = true" class="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer">
+                            ✏️ Edit Data
+                        </button>
+                    </div>
                     <div class="space-y-3 text-sm">
-                        <div class="flex justify-between"><span class="text-slate-500">Proyek</span><span class="font-bold">{{ lead.project?.name || '-' }}</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">Sumber</span><span class="font-bold capitalize">{{ lead.source?.replace('_', ' ') }}</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">Broker</span><span class="font-bold">{{ lead.broker_company?.name || '-' }}</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">Terakhir Kontak</span><span class="font-bold">{{ lead.last_contacted_at ? timeAgo(lead.last_contacted_at) : '-' }}</span></div>
-                        <div class="flex justify-between"><span class="text-slate-500">Masuk</span><span class="font-bold">{{ new Date(lead.created_at).toLocaleDateString('id-ID') }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Nama</span><span class="font-bold text-slate-900">{{ lead.name }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">No. HP</span><span class="font-bold text-slate-900">{{ lead.phone }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Email</span><span class="font-bold text-slate-900">{{ lead.email || '-' }}</span></div>
+                        <div v-if="lead.identity_number" class="flex justify-between"><span class="text-slate-500">NIK (KTP)</span><span class="font-bold text-slate-900">{{ lead.identity_number }}</span></div>
+                        <div v-if="lead.job" class="flex justify-between"><span class="text-slate-500">Pekerjaan</span><span class="font-bold text-slate-900">{{ lead.job }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Proyek</span><span class="font-bold text-slate-900">{{ lead.project?.name || '-' }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Sumber</span><span class="font-bold capitalize text-slate-900">{{ lead.source?.replace('_', ' ') }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Broker</span><span class="font-bold text-slate-900">{{ lead.broker_company?.name || '-' }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Terakhir Kontak</span><span class="font-bold text-slate-900">{{ lead.last_contacted_at ? timeAgo(lead.last_contacted_at) : '-' }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Masuk</span><span class="font-bold text-slate-900">{{ new Date(lead.created_at).toLocaleDateString('id-ID') }}</span></div>
                     </div>
                 </div>
 
@@ -540,6 +571,93 @@ function scoreColor(s) {
                             Tutup
                         </button>
                     </div>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- EDIT LEAD PROFILE MODAL -->
+        <teleport to="body">
+            <div v-if="showEditLeadModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showEditLeadModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                            <span>✏️</span> Edit Profil Lead
+                        </h2>
+                        <button @click="showEditLeadModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                    </div>
+
+                    <form @submit.prevent="updateLead" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap <span class="text-rose-500">*</span></label>
+                                <input v-model="editForm.name" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">No. WhatsApp / HP <span class="text-rose-500">*</span></label>
+                                <input v-model="editForm.phone" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Email</label>
+                                <input v-model="editForm.email" type="email" placeholder="email@domain.com" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Pekerjaan</label>
+                                <input v-model="editForm.job" type="text" placeholder="PNS, Swasta, Wiraswasta..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">NIK (No. KTP)</label>
+                                <input v-model="editForm.identity_number" type="text" placeholder="320xxxxxxxxxxxxx" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">NPWP</label>
+                                <input v-model="editForm.npwp" type="text" placeholder="NPWP..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Alamat Lengkap</label>
+                            <textarea v-model="editForm.address" rows="2" placeholder="Alamat tinggal client..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/20 resize-none"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Sumber Lead</label>
+                                <select v-model="editForm.source" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                                    <option value="facebook">Facebook Ads</option>
+                                    <option value="instagram">Instagram Ads</option>
+                                    <option value="google">Google Ads</option>
+                                    <option value="tiktok">TikTok Ads</option>
+                                    <option value="walk_in">Walk-in (Datang Langsung)</option>
+                                    <option value="referral">Referral</option>
+                                    <option value="broker">Broker / Agency</option>
+                                    <option value="website">Website</option>
+                                    <option value="other">Lainnya</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Status Pipeline</label>
+                                <select v-model="editForm.status" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                                    <option v-for="step in statusSteps" :key="step.key" :value="step.key">
+                                        {{ step.label }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
+                            <button type="button" @click="showEditLeadModal = false" class="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
+                            <button type="submit" :disabled="editForm.processing" class="px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50">
+                                💾 Simpan Perubahan
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </teleport>
