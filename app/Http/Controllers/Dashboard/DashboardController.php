@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Models\FollowUpReminder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -19,78 +20,95 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        // Stats Overview (Cached for 1 hour)
-        $stats = Cache::remember('dashboard_stats_' . $user->id, 3600, function () {
+        // Stats Overview (Cached for 5 minutes)
+        $stats = Cache::remember('dashboard_stats_' . $user->id, 300, function () {
+            $hasTransactions = Schema::hasTable('transactions');
+            $hasBookings = Schema::hasTable('bookings');
+
             return [
-                'total_projects' => Project::count(),
-                'total_units' => Unit::count(),
-                'available_units' => Unit::where('status', 'available')->count(),
-                'sold_units' => Unit::where('status', 'sold')->count(),
-                'booked_units' => Unit::where('status', 'booked')->count(),
-                'total_leads' => Lead::count(),
-                'active_leads' => Lead::whereNotIn('status', ['won', 'lost'])->count(),
-                'hot_leads' => Lead::where('score', '>=', 60)->count(),
-                'total_revenue' => Transaction::sum('amount'),
-                'this_month_revenue' => Transaction::whereMonth('created_at', now()->month)->sum('amount'),
-                'conversion_rate' => Lead::count() > 0
+                'total_projects' => Schema::hasTable('projects') ? Project::count() : 0,
+                'total_units' => Schema::hasTable('units') ? Unit::count() : 0,
+                'available_units' => Schema::hasTable('units') ? Unit::where('status', 'available')->count() : 0,
+                'sold_units' => Schema::hasTable('units') ? Unit::where('status', 'sold')->count() : 0,
+                'booked_units' => Schema::hasTable('units') ? Unit::where('status', 'booked')->count() : 0,
+                'total_leads' => Schema::hasTable('leads') ? Lead::count() : 0,
+                'active_leads' => Schema::hasTable('leads') ? Lead::whereNotIn('status', ['won', 'lost'])->count() : 0,
+                'hot_leads' => Schema::hasTable('leads') ? Lead::where('score', '>=', 60)->count() : 0,
+                'total_revenue' => $hasTransactions ? (Transaction::sum('amount') ?? 0) : 0,
+                'this_month_revenue' => $hasTransactions ? (Transaction::whereMonth('created_at', now()->month)->sum('amount') ?? 0) : 0,
+                'conversion_rate' => Schema::hasTable('leads') && Lead::count() > 0
                     ? round((Lead::where('status', 'won')->count() / Lead::count()) * 100, 1)
                     : 0,
-                'pending_bookings' => Booking::where('status', 'pending')->count(),
+                'pending_bookings' => $hasBookings ? Booking::where('status', 'pending')->count() : 0,
             ];
         });
 
         // Lead Pipeline
-        $pipeline = Cache::remember('dashboard_pipeline', 3600, function () {
+        $pipeline = Cache::remember('dashboard_pipeline', 300, function () {
+            if (!Schema::hasTable('leads')) return [];
             return Lead::select('status', DB::raw('count(*) as total'))
                 ->groupBy('status')
                 ->pluck('total', 'status')
                 ->toArray();
         });
 
-        // Recent Leads
-        $recentLeads = Lead::with(['assignedTo', 'project'])
-            ->latest()
-            ->take(8)
-            ->get()
-            ->map(fn ($lead) => [
-                'id' => $lead->id,
-                'name' => $lead->name,
-                'phone' => $lead->phone,
-                'status' => $lead->status,
-                'score' => $lead->score,
-                'source' => $lead->source,
-                'project' => $lead->project?->name,
-                'assigned_to' => $lead->assignedTo?->name,
-                'created_at' => $lead->created_at->diffForHumans(),
-            ]);
+        // Recent Leads (Null safe)
+        $recentLeads = [];
+        if (Schema::hasTable('leads')) {
+            $recentLeads = Lead::with(['assignedTo', 'project'])
+                ->latest()
+                ->take(8)
+                ->get()
+                ->map(fn ($lead) => [
+                    'id' => $lead->id,
+                    'name' => $lead->name ?? 'Tanpa Nama',
+                    'phone' => $lead->phone ?? '-',
+                    'status' => $lead->status ?? 'new',
+                    'score' => $lead->score ?? 0,
+                    'source' => $lead->source ?? 'direct',
+                    'project' => $lead->project?->name ?? '-',
+                    'assigned_to' => $lead->assignedTo?->name ?? '-',
+                    'created_at' => $lead->created_at ? $lead->created_at->diffForHumans() : 'baru saja',
+                ]);
+        }
 
         // Today's Follow-ups
-        $todayReminders = FollowUpReminder::with(['lead', 'user'])
-            ->where('user_id', $user->id)
-            ->whereDate('remind_at', today())
-            ->where('status', 'pending')
-            ->get();
+        $todayReminders = [];
+        if (Schema::hasTable('follow_up_reminders')) {
+            $todayReminders = FollowUpReminder::with(['lead', 'user'])
+                ->where('user_id', $user->id)
+                ->whereDate('remind_at', today())
+                ->where('status', 'pending')
+                ->get();
+        }
 
         // Unit Status by Project
-        $projectStats = Cache::remember('dashboard_project_stats', 3600, function () {
+        $projectStats = Cache::remember('dashboard_project_stats', 300, function () {
+            if (!Schema::hasTable('projects')) return [];
             return Project::select('id', 'name', 'code', 'total_units', 'sold_units', 'booked_units', 'available_units')
                 ->where('status', 'active')
                 ->get();
         });
 
-        // Monthly Revenue Trend (last 6 months)
-        $revenueTrend = Cache::remember('dashboard_revenue_trend', 3600, function () {
-            $isSqlite = DB::getDriverName() === 'sqlite';
-            $dateFormat = $isSqlite ? "strftime('%Y-%m', created_at)" : "DATE_FORMAT(created_at, '%Y-%m')";
+        // Monthly Revenue Trend (last 6 months - with MySQL strict mode fix & fallback)
+        $revenueTrend = Cache::remember('dashboard_revenue_trend', 300, function () {
+            if (!Schema::hasTable('transactions')) return [];
 
-            return Transaction::select(
-                    DB::raw("{$dateFormat} as month"),
-                    DB::raw('SUM(amount) as total')
-                )
-                ->where('created_at', '>=', now()->subMonths(6))
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get();
+            try {
+                $isSqlite = DB::getDriverName() === 'sqlite';
+                $dateFormat = $isSqlite ? "strftime('%Y-%m', created_at)" : "DATE_FORMAT(created_at, '%Y-%m')";
+
+                return Transaction::select(
+                        DB::raw("{$dateFormat} as month"),
+                        DB::raw('SUM(amount) as total')
+                    )
+                    ->where('created_at', '>=', now()->subMonths(6))
+                    ->groupBy(DB::raw($dateFormat))
+                    ->orderBy(DB::raw($dateFormat))
+                    ->get();
+            } catch (\Throwable $e) {
+                return [];
+            }
         });
 
         return Inertia::render('Dashboard/Index', [
