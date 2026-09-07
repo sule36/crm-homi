@@ -60,6 +60,11 @@ class Lead extends Model
         return $this->hasMany(Booking::class);
     }
 
+    public function negotiations()
+    {
+        return $this->hasMany(Negotiation::class)->latest();
+    }
+
     public function chatMessages()
     {
         return $this->hasMany(ChatMessage::class);

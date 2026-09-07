@@ -128,10 +128,18 @@ class LeadController extends Controller
         $lead->load([
             'assignedTo', 'project', 'campaign', 'brokerCompany',
             'activities.user', 'reminders', 'bookings.unit',
+            'negotiations.unit', 'negotiations.creator',
         ]);
+
+        $units = \App\Models\Unit::when($lead->project_id, fn ($q) => $q->where('project_id', $lead->project_id))
+            ->whereIn('status', ['available', 'reserved'])
+            ->select('id', 'unit_number', 'price', 'final_price', 'project_id', 'status')
+            ->with(['project:id,name', 'unitType:id,name'])
+            ->get();
 
         return Inertia::render('Leads/Show', [
             'lead' => $lead,
+            'units' => $units,
             'agents' => User::with('brokerCompany:id,name,code')
                 ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id')
                 ->get(),

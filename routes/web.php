@@ -16,6 +16,11 @@ Route::get('/', function () {
 Route::get('/track/{token}', [\App\Http\Controllers\PublicTrackingController::class, 'show'])->name('public.tracking');
 Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spk.stream');
 
+// Public Negotiation Form (No Auth)
+Route::get('/nego/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicForm'])->name('public.negotiation');
+Route::post('/nego/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicSubmit'])->name('public.negotiation.submit');
+Route::post('/nego/{token}/respond', [\App\Http\Controllers\NegotiationController::class, 'publicCounterResponse'])->name('public.negotiation.respond');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -143,6 +148,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/agent-monitoring', [\App\Http\Controllers\AgentMonitorController::class, 'index'])->name('agent-monitoring.index');
     Route::post('/agent-monitoring/{user}/toggle', [\App\Http\Controllers\AgentMonitorController::class, 'toggleAssignment'])->name('agent-monitoring.toggle');
     Route::post('/agent-monitoring/{user}/capacity', [\App\Http\Controllers\AgentMonitorController::class, 'updateCapacity'])->name('agent-monitoring.capacity');
+
+    // Negotiations
+    Route::get('/negotiations', [\App\Http\Controllers\NegotiationController::class, 'index'])->name('negotiations.index');
+    Route::post('/negotiations', [\App\Http\Controllers\NegotiationController::class, 'store'])->name('negotiations.store');
+    Route::get('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'show'])->name('negotiations.show');
+    Route::post('/negotiations/{negotiation}/review', [\App\Http\Controllers\NegotiationController::class, 'review'])->name('negotiations.review');
+    Route::post('/negotiations/{negotiation}/convert', [\App\Http\Controllers\NegotiationController::class, 'convertToBooking'])->name('negotiations.convert');
 
     // Reports
     Route::get('/reports', [\App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
