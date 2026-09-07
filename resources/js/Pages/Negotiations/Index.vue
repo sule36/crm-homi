@@ -9,6 +9,8 @@ const props = defineProps({
     filters: Object,
     projects: Array,
     agents: Array,
+    units: { type: Array, default: () => [] },
+    leads: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -37,6 +39,21 @@ const createForm = useForm({
     client_name: '',
     client_phone: '',
     client_email: '',
+});
+
+function onLeadSelect(leadId) {
+    if (!leadId) return;
+    const selected = props.leads.find(l => l.id === Number(leadId));
+    if (selected) {
+        createForm.client_name = selected.name || '';
+        createForm.client_phone = selected.phone || '';
+        createForm.client_email = selected.email || '';
+    }
+}
+
+const selectedUnitDetail = computed(() => {
+    if (!createForm.unit_id) return null;
+    return props.units.find(u => u.id === Number(createForm.unit_id));
 });
 
 function submitCreate() {
@@ -101,14 +118,26 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
         <template #breadcrumb>Pengajuan Negosiasi</template>
 
         <!-- HEADER -->
-        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-black text-slate-900 tracking-tight">📋 Pengajuan Negosiasi</h1>
-                <p class="text-sm text-slate-500 mt-1">Kelola pengajuan negosiasi harga dari calon pembeli. <Link href="/leads" class="text-blue-600 hover:underline font-semibold">→ Leads</Link></p>
+                <p class="text-sm text-slate-500 mt-1">Inbox review & approval negosiasi harga dari calon pembeli.</p>
             </div>
-            <button @click="showCreateModal = true" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-xl shadow-lg flex items-center gap-2 transition-all">
-                <span>📋</span> Buat Form Negosiasi
+            <button @click="showCreateModal = true" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2">
+                <span>📋</span> <span>Buat Form Negosiasi (Manual)</span>
             </button>
+        </div>
+
+        <!-- WORKFLOW INFO BANNER -->
+        <div class="mb-8 p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-amber-50/80 border border-blue-200/80 rounded-2xl flex items-start gap-3 shadow-xs">
+            <span class="text-xl">💡</span>
+            <div class="text-xs leading-relaxed text-slate-700">
+                <strong class="text-slate-900 font-black">Alur Kerja Satu Pintu:</strong><br />
+                1. Master Lead / Agent mengirimkan link form dari halaman <Link href="/leads" class="text-blue-600 font-bold hover:underline">Detail Lead</Link>.<br />
+                2. Calon pembeli menerima link via WhatsApp dan mengisi penawaran harga & permintaan secara mandiri.<br />
+                3. Pengajuan yang telah diisi akan <strong>otomatis masuk ke halaman ini</strong> dengan status <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded">Menunggu Review</span> untuk disetujui / di-counter oleh Developer.<br />
+                4. Negosiasi yang disetujui dapat langsung dikonversi menjadi data <strong>Booking / SPR</strong>.
+            </div>
         </div>
 
         <!-- STATS -->
@@ -248,28 +277,52 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                     </div>
 
                     <form @submit.prevent="submitCreate" class="space-y-4">
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Client *</label>
-                            <input v-model="createForm.client_name" type="text" required placeholder="Nama lengkap calon pembeli" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            <p v-if="createForm.errors.client_name" class="text-[10px] text-rose-500 mt-1">{{ createForm.errors.client_name }}</p>
+                        <!-- Select Lead (Optional) -->
+                        <div v-if="leads?.length">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Pilih Lead Terdaftar (Opsional)</label>
+                            <select v-model="createForm.lead_id" @change="onLeadSelect(createForm.lead_id)" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-blue-500">
+                                <option value="">-- Pilih Lead (Otomatis Isi Data Client) --</option>
+                                <option v-for="l in leads" :key="l.id" :value="l.id">
+                                    👤 {{ l.name }} ({{ l.phone }})
+                                </option>
+                            </select>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">No HP Client *</label>
-                                <input v-model="createForm.client_phone" type="text" required placeholder="08xxxxxxxxxx" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Client *</label>
+                                <input v-model="createForm.client_name" type="text" required placeholder="Nama lengkap calon pembeli" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
+                                <p v-if="createForm.errors.client_name" class="text-[10px] text-rose-500 mt-1">{{ createForm.errors.client_name }}</p>
                             </div>
                             <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Email (Opsional)</label>
-                                <input v-model="createForm.client_email" type="email" placeholder="email@example.com" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">No HP Client *</label>
+                                <input v-model="createForm.client_phone" type="text" required placeholder="08xxxxxxxxxx" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
                             </div>
                         </div>
 
                         <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Pilih Unit Rumah *</label>
-                            <input v-model="createForm.unit_id" type="number" required placeholder="ID Unit (misal: 1, 2, 3...)" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            <p class="text-[9px] text-slate-400 mt-1">Masukkan ID unit dari halaman Inventori Unit.</p>
+                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Email (Opsional)</label>
+                            <input v-model="createForm.client_email" type="email" placeholder="email@example.com" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Pilih Unit Rumah (Available) *</label>
+                            <select v-model="createForm.unit_id" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-blue-500">
+                                <option value="">-- Pilih Unit Rumah Yang Tersedia --</option>
+                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                    Unit {{ u.unit_number }} {{ u.block ? `(Blok ${u.block})` : '' }} - {{ u.unit_type?.name || 'Standard' }} | Rp {{ Number(u.final_price || u.price).toLocaleString('id-ID') }} [{{ u.project?.name || 'Proyek' }}]
+                                </option>
+                            </select>
                             <p v-if="createForm.errors.unit_id" class="text-[10px] text-rose-500 mt-1">{{ createForm.errors.unit_id }}</p>
+                        </div>
+
+                        <!-- Selected Unit Detail Card -->
+                        <div v-if="selectedUnitDetail" class="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs space-y-1">
+                            <div class="flex justify-between items-center font-bold text-blue-950">
+                                <span>Unit {{ selectedUnitDetail.unit_number }} ({{ selectedUnitDetail.project?.name }})</span>
+                                <span class="text-emerald-700 font-mono">Listing: Rp {{ Number(selectedUnitDetail.final_price || selectedUnitDetail.price).toLocaleString('id-ID') }}</span>
+                            </div>
+                            <p class="text-[10px] text-blue-700">Tipe: {{ selectedUnitDetail.unit_type?.name || 'Standard' }} • Status: Available</p>
                         </div>
 
                         <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">

@@ -14,16 +14,34 @@ const negoForm = useForm({
     client_email: props.lead?.email || '',
 });
 
+const showShareNegoModal = ref(false);
+const createdNegoLink = ref('');
+
 function submitNegoForm() {
     negoForm.post('/negotiations', {
-        onSuccess: () => {
+        preserveScroll: true,
+        onSuccess: (page) => {
             showNegoModal.value = false;
+            const flashLink = page.props.flash?.negotiation_link;
+            if (flashLink) {
+                createdNegoLink.value = flashLink;
+            } else {
+                createdNegoLink.value = window.location.origin + '/negotiations';
+            }
+            showShareNegoModal.value = true;
         }
     });
 }
 
+function shareNegoWa() {
+    const msg = `Halo Bapak/Ibu *${props.lead.name}*,\n\nSilakan isi Form Pengajuan Negosiasi penawaran harga & opsi pembayaran melalui link berikut:\n\n🔗 ${createdNegoLink.value}\n\nForm akan langsung terkirim untuk ditinjau oleh pihak Developer.\n\nTerima kasih!`;
+    const phone = (props.lead.phone || '').replace(/[^0-9]/g, '');
+    const waPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
+    window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
 function copyNegoLink(token) {
-    const url = `${window.location.origin}/nego/${token}`;
+    const url = typeof token === 'string' && token.startsWith('http') ? token : `${window.location.origin}/nego/${token}`;
     navigator.clipboard.writeText(url);
     alert('Link Form Negosiasi berhasil disalin!\n' + url);
 }
@@ -489,6 +507,39 @@ function scoreColor(s) {
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- SHARE NEGO LINK MODAL -->
+        <teleport to="body">
+            <div v-if="showShareNegoModal && createdNegoLink" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showShareNegoModal = false"></div>
+                <div class="relative bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in zoom-in duration-150">
+                    <div class="text-center">
+                        <div class="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">🤝</div>
+                        <h3 class="text-base font-black text-slate-900">Form Negosiasi Siap Dikirim!</h3>
+                        <p class="text-xs text-slate-500 mt-1">Kirimkan link form ini ke <strong>{{ lead.name }}</strong> agar client mengisi penawaran harga secara mandiri.</p>
+                    </div>
+
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                        <p class="text-[10px] font-black text-slate-500 uppercase tracking-wider">Link Form Negosiasi</p>
+                        <div class="flex items-center gap-2">
+                            <input :value="createdNegoLink" readonly class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-blue-600 truncate" />
+                            <button @click="copyNegoLink(createdNegoLink)" class="px-3 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold hover:bg-slate-800 transition-all shrink-0">
+                                📋 Salin
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button @click="shareNegoWa" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
+                            💬 Kirim via WhatsApp
+                        </button>
+                        <button @click="showShareNegoModal = false" class="px-5 py-3 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all">
+                            Tutup
+                        </button>
+                    </div>
                 </div>
             </div>
         </teleport>

@@ -82,12 +82,24 @@ class NegotiationController extends Controller
             'converted' => (clone $statsBase)->whereNotNull('booking_id')->count(),
         ];
 
+        $units = Unit::whereIn('status', ['available', 'reserved'])
+            ->select('id', 'unit_number', 'block', 'price', 'final_price', 'project_id', 'unit_type_id', 'status')
+            ->with(['project:id,name', 'unitType:id,name'])
+            ->orderBy('unit_number')
+            ->get();
+
+        $leads = Lead::select('id', 'name', 'phone', 'email', 'project_id')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('Negotiations/Index', [
             'negotiations' => $negotiations,
             'stats' => $stats,
             'filters' => $request->only(['status', 'project_id', 'created_by', 'search']),
             'projects' => Project::select('id', 'name')->get(),
             'agents' => User::select('id', 'name')->whereIn('agent_type', ['inhouse', 'freelance', 'master_lead'])->orWhereHas('roles', fn ($q) => $q->whereIn('name', ['sales_agent', 'master_lead', 'broker']))->get(),
+            'units' => $units,
+            'leads' => $leads,
         ]);
     }
 
