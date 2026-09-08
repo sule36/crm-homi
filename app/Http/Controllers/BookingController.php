@@ -40,7 +40,7 @@ class BookingController extends Controller
             'unit' => $unitId ? Unit::with('project', 'unitType')->find($unitId) : null,
             'lead' => $leadId ? Lead::find($leadId) : null,
             'reservation' => $reservation,
-            'availableUnits' => Unit::whereIn('status', ['available', 'reserved'])->with('project', 'unitType')->get(),
+            'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderBy('block')->orderByRaw('CAST(number AS UNSIGNED) ASC')->get(),
             'leads' => Lead::whereNotIn('status', ['won', 'lost'])->get(),
             'agents' => \App\Models\User::orderBy('name', 'asc')->get(),
         ]);

@@ -119,14 +119,10 @@ class ReservationController extends Controller
         $selectedLeadId = $request->query('lead_id');
         $selectedNegoId = $request->query('negotiation_id');
 
-        $units = Unit::where(function ($q) use ($selectedUnitId) {
-            $q->where('status', 'available');
-            if ($selectedUnitId) {
-                $q->orWhere('id', $selectedUnitId);
-            }
-        })
+        $units = Unit::where('status', '!=', 'sold')
         ->with(['project:id,name', 'unitType:id,name,current_price'])
-        ->orderBy('number')
+        ->orderBy('block')
+        ->orderByRaw('CAST(number AS UNSIGNED) ASC')
         ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'identity_number', 'assigned_to')

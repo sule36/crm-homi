@@ -330,9 +330,9 @@ class DatabaseSeeder extends Seeder
             ['block' => 'A', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
             ['block' => 'A', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
             ['block' => 'A', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '8', 'type' => $typeStandard,  'status' => 'hold',      'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '9', 'type' => $typeStandard,  'status' => 'hold',      'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '10', 'type' => $typeLt141,    'status' => 'hold',      'price' => 4985553600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '10', 'type' => $typeLt141,    'status' => 'available', 'price' => 4985553600, 'facing' => 'Utara'],
 
             // BLOK B
             ['block' => 'B', 'number' => '1', 'type' => $typeHookFront, 'status' => 'sold',      'price' => 4140993600, 'facing' => 'Selatan'],

@@ -96,10 +96,11 @@ class NegotiationController extends Controller
             'converted' => (clone $statsBase)->whereNotNull('booking_id')->count(),
         ];
 
-        $units = Unit::whereIn('status', ['available', 'reserved'])
+        $units = Unit::where('status', '!=', 'sold')
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name', 'unitType:id,name'])
-            ->orderBy('number')
+            ->orderBy('block')
+            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
             ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'project_id')
