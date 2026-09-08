@@ -72,6 +72,16 @@ class Unit extends Model
         return $this->hasOne(Booking::class)->latestOfMany();
     }
 
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class)->latest();
+    }
+
+    public function latestReservation()
+    {
+        return $this->hasOne(Reservation::class)->latestOfMany();
+    }
+
     public function progressHistory()
     {
         return $this->hasMany(UnitProgress::class)->orderBy('recorded_date', 'desc')->orderBy('created_at', 'desc');

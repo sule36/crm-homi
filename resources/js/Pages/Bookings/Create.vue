@@ -6,6 +6,7 @@ import { computed, watch } from 'vue';
 const props = defineProps({
     unit: Object,
     lead: Object,
+    reservation: Object,
     availableUnits: Array,
     leads: Array,
     agents: Array,
@@ -15,8 +16,9 @@ const page = usePage();
 const currentUser = computed(() => page.props.auth.user);
 
 const form = useForm({
-    unit_id: props.unit?.id || '',
-    lead_id: props.lead?.id || '',
+    reservation_id: props.reservation?.id || '',
+    unit_id: props.unit?.id || props.reservation?.unit_id || '',
+    lead_id: props.lead?.id || props.reservation?.lead_id || '',
     booked_by: props.lead?.assigned_to || page.props.auth.user.id || '',
     booking_date: new Date().toISOString().substring(0, 10),
     booking_fee: '',
@@ -141,6 +143,15 @@ const formatCurrency = (value) => {
             <div class="mb-8">
                 <h1 class="text-2xl font-black text-slate-900 tracking-tight">Formulir Booking</h1>
                 <p class="text-sm text-slate-500 mt-1">Isi detail unit dan data konsumen untuk membuat pesanan.</p>
+            </div>
+
+            <div v-if="props.reservation" class="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-start gap-3">
+                <span class="text-2xl">🔖</span>
+                <div>
+                    <h4 class="font-black text-sm text-emerald-950">Dikonversi dari Reservasi #{{ props.reservation.reservation_number }}</h4>
+                    <p class="mt-0.5">Pemohon: <strong>{{ props.reservation.client_name }}</strong> · Kredit Biaya Reservasi: <strong class="font-mono text-emerald-800 text-sm">{{ formatCurrency(props.reservation.amount) }}</strong></p>
+                    <p class="text-[11px] text-emerald-700 mt-1 font-semibold">💡 Nominal reservasi sebesar {{ formatCurrency(props.reservation.amount) }} memotong Booking Fee (UTJ). Contoh: Jika UTJ Rp 17.000.000, maka sisa tagihan UTJ yang dibayar = Rp 7.000.000.</p>
+                </div>
             </div>
 
             <form @submit.prevent="submit" class="grid grid-cols-1 md:grid-cols-3 gap-6">

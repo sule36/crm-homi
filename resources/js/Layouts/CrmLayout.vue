@@ -104,6 +104,7 @@ const navigationGroups = [
         title: 'Transaksi & Komisi',
         items: [
             { name: 'Pengajuan Negosiasi', href: '/negotiations', icon: '🤝', active: route().current('negotiations.*') },
+            { name: 'Reservasi Unit (100% Refundable)', href: '/reservations', icon: '🔖', active: route().current('reservations.*') },
             { name: 'Booking & KPR', href: '/bookings', icon: '📝', active: route().current('bookings.*') },
             { name: 'Komisi Developer', href: '/commissions', icon: '💸', active: route().current('commissions.*') },
         ]

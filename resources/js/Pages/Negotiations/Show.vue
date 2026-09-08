@@ -100,6 +100,9 @@ function shareWhatsApp() {
                     {{ (statusConfig[nego.status] || statusConfig.draft).icon }}
                     {{ (statusConfig[nego.status] || statusConfig.draft).label }}
                 </span>
+                <Link v-if="nego.status === 'approved' || nego.client_response === 'accepted'" :href="`/reservations/create?negotiation_id=${nego.id}&unit_id=${nego.unit_id}&lead_id=${nego.lead_id}`" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                    <span>🔖</span> Buat Reservasi Unit
+                </Link>
                 <button @click="openPdf" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5">📄 Download PDF</button>
                 <button @click="copyLink" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all">📋 Salin Link</button>
                 <button @click="shareWhatsApp" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center gap-1.5">💬 Kirim WA</button>

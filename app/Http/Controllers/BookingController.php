@@ -32,10 +32,15 @@ class BookingController extends Controller
 
     public function create(Request $request)
     {
+        $reservation = $request->reservation_id ? Reservation::with(['unit', 'lead'])->find($request->reservation_id) : null;
+        $unitId = $request->unit_id ?? $reservation?->unit_id;
+        $leadId = $request->lead_id ?? $reservation?->lead_id;
+
         return Inertia::render('Bookings/Create', [
-            'unit' => $request->unit_id ? Unit::with('project', 'unitType')->find($request->unit_id) : null,
-            'lead' => $request->lead_id ? Lead::find($request->lead_id) : null,
-            'availableUnits' => Unit::where('status', 'available')->with('project', 'unitType')->get(),
+            'unit' => $unitId ? Unit::with('project', 'unitType')->find($unitId) : null,
+            'lead' => $leadId ? Lead::find($leadId) : null,
+            'reservation' => $reservation,
+            'availableUnits' => Unit::whereIn('status', ['available', 'reserved'])->with('project', 'unitType')->get(),
             'leads' => Lead::whereNotIn('status', ['won', 'lost'])->get(),
             'agents' => \App\Models\User::orderBy('name', 'asc')->get(),
         ]);
@@ -44,6 +49,7 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'reservation_id' => 'nullable|exists:reservations,id',
             'unit_id' => 'required|exists:units,id',
             'lead_id' => 'required|exists:leads,id',
             'booked_by' => 'required|exists:users,id',
@@ -80,7 +86,7 @@ class BookingController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated) {
+        return DB::transaction(function () use ($validated, $request) {
             $unit = Unit::findOrFail($validated['unit_id']);
             $agent = \App\Models\User::findOrFail($validated['booked_by']);
             $agent->load('brokerCompany');
@@ -123,6 +129,17 @@ class BookingController extends Controller
                 'notes' => $validated['notes'],
                 'commission_amount' => $commissionAmount,
             ]);
+
+            // Update linked reservation if present
+            if (!empty($validated['reservation_id'])) {
+                $reservation = Reservation::find($validated['reservation_id']);
+                if ($reservation) {
+                    $reservation->update([
+                        'status' => 'converted',
+                        'booking_id' => $booking->id,
+                    ]);
+                }
+            }
 
             // Update Lead info
             $lead = \App\Models\Lead::find($validated['lead_id']);

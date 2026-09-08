@@ -159,6 +159,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/negotiations/{negotiation}/convert', [\App\Http\Controllers\NegotiationController::class, 'convertToBooking'])->name('negotiations.convert');
     Route::delete('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'destroy'])->name('negotiations.destroy');
 
+    // Reservations (100% Refundable)
+    Route::get('/reservations', [\App\Http\Controllers\ReservationController::class, 'index'])->name('reservations.index');
+    Route::get('/reservations/create', [\App\Http\Controllers\ReservationController::class, 'create'])->name('reservations.create');
+    Route::post('/reservations', [\App\Http\Controllers\ReservationController::class, 'store'])->name('reservations.store');
+    Route::get('/reservations/{reservation}', [\App\Http\Controllers\ReservationController::class, 'show'])->name('reservations.show');
+    Route::post('/reservations/{reservation}/refund', [\App\Http\Controllers\ReservationController::class, 'processRefund'])->name('reservations.refund');
+    Route::get('/reservations/{reservation}/convert', [\App\Http\Controllers\ReservationController::class, 'convertToBooking'])->name('reservations.convert');
+    Route::get('/reservations/{reservation}/receipt', [\App\Http\Controllers\ReservationController::class, 'streamReceiptPdf'])->name('reservations.receipt');
+    Route::delete('/reservations/{reservation}', [\App\Http\Controllers\ReservationController::class, 'destroy'])->name('reservations.destroy');
+
     // Reports
     Route::get('/reports', [\App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
 
