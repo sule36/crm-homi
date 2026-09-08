@@ -86,7 +86,8 @@ class Lead extends Model
             'contacted' => 10,
             'visited' => 30,
             'negotiation' => 50,
-            'booking' => 80,
+            'reservation' => 70,
+            'booking' => 85,
             'won' => 100,
             'lost' => 0,
         ];

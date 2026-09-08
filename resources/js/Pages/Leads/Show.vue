@@ -69,6 +69,7 @@ const statusSteps = [
     { key: 'contacted', label: 'Dihubungi', color: 'cyan' },
     { key: 'visited', label: 'Kunjungan', color: 'purple' },
     { key: 'negotiation', label: 'Negosiasi', color: 'amber' },
+    { key: 'reservation', label: 'Reservasi Unit', color: 'teal' },
     { key: 'booking', label: 'Booking', color: 'emerald' },
     { key: 'won', label: 'Won', color: 'green' },
 ];
@@ -335,6 +336,44 @@ function scoreColor(s) {
                         <button @click="showNegoModal = true" class="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold rounded-xl hover:scale-105 transition-all shadow-sm">
                             🤝 Generate Form Negosiasi Pertama
                         </button>
+                    </div>
+                </div>
+
+                <!-- Reservation List Card -->
+                <div class="bg-white rounded-2xl border border-teal-200/80 p-5 shadow-sm space-y-3 bg-gradient-to-br from-teal-50/30 to-white">
+                    <div class="flex items-center justify-between gap-2">
+                        <h2 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>🔖</span> Riwayat Reservasi Unit
+                        </h2>
+                        <Link :href="`/reservations/create?lead_id=${lead.id}`" class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-black rounded-lg transition-all shadow-sm shrink-0">
+                            + Buat Reservasi
+                        </Link>
+                    </div>
+                    <div v-if="lead.reservations?.length" class="space-y-3">
+                        <div v-for="res in lead.reservations" :key="res.id" class="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-2 shadow-xs">
+                            <div class="flex items-center justify-between">
+                                <span class="font-black text-slate-800">#{{ res.reservation_number }}</span>
+                                <span class="px-2 py-0.5 rounded-full font-bold uppercase text-[9px] bg-teal-100 text-teal-800 border border-teal-300">
+                                    {{ res.status }}
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-600 space-y-0.5">
+                                <div>Unit: <strong>{{ res.unit?.code || res.unit?.number || '-' }}</strong></div>
+                                <div>Biaya Reservasi: <strong class="text-emerald-700">Rp {{ Number(res.amount).toLocaleString('id-ID') }}</strong> (100% Refundable)</div>
+                            </div>
+                            <div class="flex items-center justify-between gap-1 pt-2 border-t border-slate-100">
+                                <Link :href="`/reservations/${res.id}`" class="text-[10px] font-bold text-blue-600 hover:underline">Detail Reservasi →</Link>
+                                <a :href="`/reservations/${res.id}/receipt`" target="_blank" class="text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded-lg">
+                                    📄 Kwitansi
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="p-3 bg-slate-50/80 rounded-xl text-center border border-slate-100">
+                        <p class="text-[11px] text-slate-500 mb-2 font-medium">Belum ada reservasi unit untuk lead ini.</p>
+                        <Link :href="`/reservations/create?lead_id=${lead.id}`" class="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 text-white text-xs font-bold rounded-xl hover:scale-105 transition-all shadow-sm inline-block">
+                            🔖 Hold Unit & Buat Reservasi
+                        </Link>
                     </div>
                 </div>
 

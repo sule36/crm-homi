@@ -44,6 +44,7 @@ const kanbanColumns = [
     { key: 'contacted', label: 'Dihubungi', color: 'cyan', icon: '📞' },
     { key: 'visited', label: 'Kunjungan', color: 'purple', icon: '🏠' },
     { key: 'negotiation', label: 'Negosiasi', color: 'amber', icon: '🤝' },
+    { key: 'reservation', label: 'Reservasi Unit', color: 'teal', icon: '🔖' },
     { key: 'booking', label: 'Booking', color: 'emerald', icon: '📋' },
     { key: 'won', label: 'Won', color: 'green', icon: '🏆' },
     { key: 'lost', label: 'Lost', color: 'rose', icon: '❌' },

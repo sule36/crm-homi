@@ -141,15 +141,17 @@ class BookingController extends Controller
                 }
             }
 
-            // Update Lead info
+            // Update Lead info & status to 'booking'
             $lead = \App\Models\Lead::find($validated['lead_id']);
             if ($lead) {
-                $lead->update(array_filter([
+                $lead->update(array_merge([
+                    'status' => 'booking',
+                ], array_filter([
                     'identity_number' => $validated['buyer_nik'] ?? $lead->identity_number,
                     'npwp' => $validated['buyer_npwp'] ?? $lead->npwp,
                     'address' => $validated['buyer_address'] ?? $lead->address,
                     'job' => $validated['buyer_job'] ?? $lead->job,
-                ]));
+                ])));
             }
 
             // 2. Update Unit Status to 'hold'

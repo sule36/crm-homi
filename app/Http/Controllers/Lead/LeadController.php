@@ -135,6 +135,10 @@ class LeadController extends Controller
             $relations[] = 'negotiations.creator';
         }
 
+        if (\Illuminate\Support\Facades\Schema::hasTable('reservations')) {
+            $relations[] = 'reservations.unit';
+        }
+
         $lead->load($relations);
 
         $units = \App\Models\Unit::when($lead->project_id, fn ($q) => $q->where('project_id', $lead->project_id))
@@ -170,7 +174,7 @@ class LeadController extends Controller
             'assigned_to' => 'nullable|exists:users,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'source' => 'sometimes|in:facebook,instagram,google,tiktok,walk_in,referral,broker,website,other',
-            'status' => 'sometimes|in:new,contacted,visited,negotiation,booking,won,lost',
+            'status' => 'sometimes|in:new,contacted,visited,negotiation,reservation,booking,won,lost',
             'notes' => 'nullable|string',
             'lost_reason' => 'nullable|string',
             'preferences' => 'nullable|array',
@@ -277,7 +281,7 @@ class LeadController extends Controller
     public function updateStatus(Request $request, Lead $lead)
     {
         $validated = $request->validate([
-            'status' => 'required|in:new,contacted,visited,negotiation,booking,won,lost',
+            'status' => 'required|in:new,contacted,visited,negotiation,reservation,booking,won,lost',
         ]);
 
         $oldStatus = $lead->status;

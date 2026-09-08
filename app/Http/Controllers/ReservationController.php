@@ -31,6 +31,15 @@ class ReservationController extends Controller
      */
     public function index(Request $request)
     {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('reservations')) {
+            return Inertia::render('Reservations/Index', [
+                'reservations' => ['data' => [], 'total' => 0, 'from' => 0, 'to' => 0, 'last_page' => 1, 'links' => []],
+                'stats' => ['total' => 0, 'active' => 0, 'converted' => 0, 'refunded' => 0, 'total_amount' => 0, 'total_refunded' => 0],
+                'filters' => $request->only(['status', 'project_id', 'search']),
+                'projects' => Project::select('id', 'name')->get(),
+            ]);
+        }
+
         $user = auth()->user();
 
         $query = Reservation::with(['project', 'unit.unitType', 'lead', 'creator', 'agentCoordinator', 'booking'])
@@ -210,11 +219,11 @@ class ReservationController extends Controller
             'held_until' => $expiresAt,
         ]);
 
-        // If linked to lead, record activity and set status
+        // If linked to lead, record activity and set status to 'reservation'
         if ($reservation->lead_id) {
             $lead = Lead::find($reservation->lead_id);
             if ($lead) {
-                $lead->update(['status' => 'negotiation']);
+                $lead->update(['status' => 'reservation']);
                 LeadActivity::create([
                     'lead_id' => $lead->id,
                     'user_id' => auth()->id(),

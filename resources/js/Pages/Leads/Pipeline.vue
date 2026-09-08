@@ -13,6 +13,7 @@ const statuses = [
     { id: 'contacted', name: 'Contacted', color: 'bg-amber-500', icon: '📞' },
     { id: 'visited', name: 'Visit / Survey', color: 'bg-purple-500', icon: '🏠' },
     { id: 'negotiation', name: 'Negotiation', color: 'bg-indigo-500', icon: '🤝' },
+    { id: 'reservation', name: 'Reservasi Unit', color: 'bg-teal-500', icon: '🔖' },
     { id: 'booking', name: 'Booking', color: 'bg-emerald-500', icon: '💰' },
     { id: 'won', name: 'Closed Won', color: 'bg-green-600', icon: '🏆' },
     { id: 'lost', name: 'Closed Lost', color: 'bg-slate-500', icon: '❌' },
