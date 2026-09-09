@@ -214,6 +214,28 @@
 </head>
 <body>
 
+    @php
+        $getSafeBase64 = function($path) {
+            if (empty($path)) return null;
+            $fullPath = str_starts_with($path, '/') ? $path : public_path('storage/' . $path);
+            if (file_exists($fullPath) && is_file($fullPath)) {
+                try {
+                    $content = @file_get_contents($fullPath);
+                    if ($content) {
+                        $mime = @mime_content_type($fullPath) ?: 'image/png';
+                        return 'data:' . $mime . ';base64,' . base64_encode($content);
+                    }
+                } catch (\Throwable $e) {}
+            }
+            return null;
+        };
+
+        $logoData = !empty($settings['company_logo']) ? $getSafeBase64($settings['company_logo']) : null;
+        if (!$logoData && file_exists(public_path('images/logo.png'))) {
+            $logoData = 'data:image/png;base64,' . base64_encode(@file_get_contents(public_path('images/logo.png')));
+        }
+    @endphp
+
     <!-- KOP SURAT / HEADER -->
     <table class="header-table">
         <colgroup>
@@ -222,8 +244,8 @@
         </colgroup>
         <tr>
             <td>
-                @if(!empty($settings['company_logo']))
-                    <img src="{{ public_path('storage/' . $settings['company_logo']) }}" class="company-logo" />
+                @if($logoData)
+                    <img src="{{ $logoData }}" class="company-logo" />
                 @else
                     <div class="company-title">{{ $settings['company_name'] ?? 'HOMI DEVELOPER' }}</div>
                 @endif

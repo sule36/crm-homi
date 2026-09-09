@@ -339,14 +339,23 @@ class ReservationController extends Controller
         $reservation->load(['project', 'unit.unitType', 'lead', 'creator', 'agentCoordinator']);
         $settings = $this->getSettings();
 
-        $pdf = Pdf::loadView('pdf.reservation_receipt', compact('reservation', 'settings'))
-            ->setPaper('a4', 'portrait');
-
-        if (request()->has('download')) {
-            return $pdf->download("Kwitansi_Reservasi_{$reservation->reservation_number}.pdf");
+        if (request()->has('html') || request()->query('view') === 'html') {
+            return view('pdf.reservation_receipt', compact('reservation', 'settings'));
         }
 
-        return $pdf->stream("Kwitansi_Reservasi_{$reservation->reservation_number}.pdf");
+        $pdf = Pdf::loadView('pdf.reservation_receipt', compact('reservation', 'settings'))
+            ->setPaper('a4', 'portrait')
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('chroot', [public_path(), storage_path()]);
+
+        $safeNumber = str_replace(['/', '\\', ' '], '_', $reservation->reservation_number ?: 'RES-' . $reservation->id);
+
+        if (request()->has('download')) {
+            return $pdf->download("Kwitansi_Reservasi_{$safeNumber}.pdf");
+        }
+
+        return $pdf->stream("Kwitansi_Reservasi_{$safeNumber}.pdf");
     }
 
     /**
