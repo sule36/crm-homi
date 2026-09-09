@@ -23,13 +23,33 @@ const form = useForm({
     amount: 10000000, // Default 10 Juta (dapat diubah-ubah)
     payment_method: 'transfer',
     payment_proof: null,
+    company_name: '',
     agent_coordinator_id: '',
+    agent_coordinator_name: '',
+    agent_coordinator_title: 'Master Lead / Agent Coordinator',
     expires_days: 7,
     notes: props.preselectedNego ? `Dibuat dari Pengajuan Negosiasi #${props.preselectedNego.negotiation_number || props.preselectedNego.token}` : '',
 });
 
 const selectedUnit = computed(() => {
     return props.units.find(u => u.id == form.unit_id);
+});
+
+watch(() => form.unit_id, () => {
+    if (selectedUnit.value?.project?.name && !form.company_name) {
+        form.company_name = `PT ${selectedUnit.value.project.name} Development`;
+    }
+}, { immediate: true });
+
+watch(() => form.agent_coordinator_id, (coordId) => {
+    if (!coordId) return;
+    const coord = props.coordinators.find(c => c.id == coordId);
+    if (coord) {
+        form.agent_coordinator_name = coord.name || '';
+        form.agent_coordinator_title = coord.agent_type === 'master_lead'
+            ? 'Master Lead / Agent Coordinator'
+            : 'Sales Coordinator / Agent Representative';
+    }
 });
 
 watch(() => form.lead_id, (leadId) => {
@@ -193,9 +213,30 @@ const formatCurrency = (val) => {
                     </div>
                 </div>
 
-                <!-- SEKSI 4: MASA BERLAKU & CATATAN -->
+                <!-- SEKSI 4: OTENTIKASI KWITANSI & PT DEVELOPER (DINAMIS) -->
                 <div>
-                    <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">4. Masa Berlaku & Catatan</h3>
+                    <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">4. Otentikasi Kwitansi & PT Developer (Dinamis)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Nama PT / Perusahaan Developer</label>
+                            <input v-model="form.company_name" type="text" placeholder="Contoh: PT Serangkai Roden Development" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                            <p class="text-[10px] text-slate-400 mt-1">Dapat diubah bebas per kwitansi.</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Nama Penandatangan (Koordinator)</label>
+                            <input v-model="form.agent_coordinator_name" type="text" placeholder="Nama Penandatangan..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                            <p class="text-[10px] text-slate-400 mt-1">Dapat disesuaikan bebas.</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Jabatan Penandatangan</label>
+                            <input v-model="form.agent_coordinator_title" type="text" placeholder="Master Lead / Agent Coordinator" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEKSI 5: MASA BERLAKU & CATATAN -->
+                <div>
+                    <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">5. Masa Berlaku & Catatan</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Masa Berlaku Reservasi (Hari)</label>

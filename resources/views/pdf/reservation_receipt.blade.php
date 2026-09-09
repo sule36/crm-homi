@@ -215,6 +215,14 @@
 <body>
 
     @php
+        $companyName = $reservation->company_name ?: ($settings['company_name'] ?? 'HOMI DEVELOPER');
+        $companyAddress = $settings['company_address'] ?? 'Official Real Estate & Property Developer';
+        $companyPhone = $settings['company_phone'] ?? null;
+
+        $coordName = $reservation->agent_coordinator_name ?: ($reservation->agentCoordinator?->name ?? 'Agent Coordinator');
+        $coordTitle = $reservation->agent_coordinator_title ?: 'Master Lead / Agent Coordinator';
+        $city = $settings['spr_signatures']['city'] ?? 'Jakarta';
+
         $getSafeBase64 = function($path) {
             if (empty($path)) return null;
             $fullPath = str_starts_with($path, '/') ? $path : public_path('storage/' . $path);
@@ -247,11 +255,11 @@
                 @if($logoData)
                     <img src="{{ $logoData }}" class="company-logo" />
                 @else
-                    <div class="company-title">{{ $settings['company_name'] ?? 'HOMI DEVELOPER' }}</div>
+                    <div class="company-title">{{ strtoupper($companyName) }}</div>
                 @endif
                 <div class="company-subtitle">
-                    {{ $settings['company_address'] ?? 'Official Real Estate & Property Developer' }}
-                    @if(!empty($settings['company_phone'])) · Telp: {{ $settings['company_phone'] }} @endif
+                    {{ $companyAddress }}
+                    @if(!empty($companyPhone)) · Telp: {{ $companyPhone }} @endif
                 </div>
             </td>
             <td style="text-align: right;">
@@ -351,11 +359,6 @@
                 <div style="font-size: 7pt; color: #64748b;">(Tanda Tangan Pemohon)</div>
             </td>
             <td>
-                @php
-                    $coordName = $reservation->agent_coordinator_name ?: ($reservation->agentCoordinator?->name ?? 'Agent Coordinator');
-                    $coordTitle = $reservation->agent_coordinator_title ?: 'Agent Coordinator / Master Lead';
-                    $city = $settings['spr_signatures']['city'] ?? 'Jakarta';
-                @endphp
                 <div style="font-weight: 600;">{{ $city }}, {{ optional($reservation->created_at)->format('d F Y') }}</div>
                 <div style="font-weight: 600;">{{ $coordTitle }},</div>
                 <div class="sig-box">
@@ -364,7 +367,7 @@
                     </div>
                 </div>
                 <div class="sig-name">{{ $coordName }}</div>
-                <div style="font-size: 7pt; color: #64748b;">{{ $settings['company_name'] ?? 'Homi Developer' }}</div>
+                <div style="font-size: 7.5pt; color: #475569; font-weight: 600; margin-top: 2px;">{{ $companyName }}</div>
             </td>
         </tr>
     </table>

@@ -9,6 +9,7 @@ const props = defineProps({
 });
 
 const showRefundModal = ref(false);
+const showEditModal = ref(false);
 
 const refundForm = useForm({
     refund_bank_name: '',
@@ -17,6 +18,27 @@ const refundForm = useForm({
     refund_reason: 'Pengajuan tidak dapat disetujui / Client mengajukan pembatalan reservasi (100% Refundable).',
     refund_proof: null,
 });
+
+const editForm = useForm({
+    client_name: props.reservation.client_name || '',
+    client_phone: props.reservation.client_phone || '',
+    client_email: props.reservation.client_email || '',
+    client_nik: props.reservation.client_nik || '',
+    amount: props.reservation.amount || 10000000,
+    payment_method: props.reservation.payment_method || 'transfer',
+    company_name: props.reservation.company_name || props.settings?.company_name || 'PT Serangkai Roden Development',
+    agent_coordinator_name: props.reservation.agent_coordinator_name || props.reservation.agent_coordinator?.name || '',
+    agent_coordinator_title: props.reservation.agent_coordinator_title || 'Master Lead / Agent Coordinator',
+    notes: props.reservation.notes || '',
+});
+
+const submitEdit = () => {
+    editForm.put(`/reservations/${props.reservation.id}`, {
+        onSuccess: () => {
+            showEditModal.value = false;
+        }
+    });
+};
 
 const handleRefundProofChange = (e) => {
     refundForm.refund_proof = e.target.files[0];
@@ -72,7 +94,10 @@ const statusConfig = {
                     </div>
 
                     <!-- ACTION BUTTONS -->
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button @click="showEditModal = true" class="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+                            <span>✏️</span> Edit PT & Penandatangan
+                        </button>
                         <a :href="`/reservations/${reservation.id}/receipt`" target="_blank" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
                             <span>📄</span> Cetak Kwitansi PDF
                         </a>
@@ -264,6 +289,60 @@ const statusConfig = {
                         <button type="button" @click="showRefundModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold">Batal</button>
                         <button type="submit" :disabled="refundForm.processing" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-md shadow-amber-600/20">
                             {{ refundForm.processing ? 'Memproses...' : 'Konfirmasi Refund 100%' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL EDIT OTENTIKASI & PT DEVELOPER -->
+        <div v-if="showEditModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-xl space-y-5 relative animate-in fade-in zoom-in duration-200">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">✏️</span>
+                        <h3 class="text-base font-black text-slate-900">Edit PT Developer & Otentikasi Kwitansi</h3>
+                    </div>
+                    <button @click="showEditModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+                </div>
+
+                <form @submit.prevent="submitEdit" class="space-y-4 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Nama PT / Perusahaan Developer (Kwitansi) <span class="text-rose-500">*</span></label>
+                        <input v-model="editForm.company_name" type="text" placeholder="Contoh: PT Serangkai Roden Development" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-[10px] text-slate-400 mt-1">Nama ini akan tercetak sebagai nama PT pada Kop Surat & Tanda Tangan Kwitansi.</p>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Nama Penandatangan (Agent Coordinator) <span class="text-rose-500">*</span></label>
+                        <input v-model="editForm.agent_coordinator_name" type="text" placeholder="Masukkan nama penandatangan..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Jabatan Penandatangan <span class="text-rose-500">*</span></label>
+                        <input v-model="editForm.agent_coordinator_title" type="text" placeholder="Contoh: Master Lead / Agent Coordinator" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Nama Pemohon</label>
+                            <input v-model="editForm.client_name" type="text" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Nominal Reservasi (Rp)</label>
+                            <input v-model="editForm.amount" type="number" step="500000" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-700 font-mono focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Catatan</label>
+                        <input v-model="editForm.notes" type="text" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                        <button type="button" @click="showEditModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold">Batal</button>
+                        <button type="submit" :disabled="editForm.processing" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-600/20">
+                            {{ editForm.processing ? 'Menyimpan...' : 'Simpan Perubahan' }}
                         </button>
                     </div>
                 </form>

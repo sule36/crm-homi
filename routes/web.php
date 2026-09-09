@@ -164,6 +164,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/reservations/create', [\App\Http\Controllers\ReservationController::class, 'create'])->name('reservations.create');
     Route::post('/reservations', [\App\Http\Controllers\ReservationController::class, 'store'])->name('reservations.store');
     Route::get('/reservations/{reservation}', [\App\Http\Controllers\ReservationController::class, 'show'])->name('reservations.show');
+    Route::put('/reservations/{reservation}', [\App\Http\Controllers\ReservationController::class, 'update'])->name('reservations.update');
     Route::post('/reservations/{reservation}/refund', [\App\Http\Controllers\ReservationController::class, 'processRefund'])->name('reservations.refund');
     Route::get('/reservations/{reservation}/convert', [\App\Http\Controllers\ReservationController::class, 'convertToBooking'])->name('reservations.convert');
     Route::get('/reservations/{reservation}/receipt', [\App\Http\Controllers\ReservationController::class, 'streamReceiptPdf'])->name('reservations.receipt');

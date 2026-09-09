@@ -26,7 +26,7 @@ class Reservation extends Model
     protected $fillable = [
         'reservation_number', 'project_id', 'unit_id', 'lead_id', 'negotiation_id', 'created_by',
         'client_name', 'client_phone', 'client_email', 'client_nik',
-        'amount', 'payment_method', 'payment_proof', 'status', 'refundable_policy',
+        'amount', 'payment_method', 'payment_proof', 'status', 'refundable_policy', 'company_name',
         'agent_coordinator_id', 'agent_coordinator_name', 'agent_coordinator_title',
         'refund_amount', 'refund_date', 'refund_bank_name', 'refund_account_number', 'refund_account_name',
         'refund_reason', 'refund_proof', 'refunded_by',

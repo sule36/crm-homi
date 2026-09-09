@@ -168,7 +168,10 @@ class ReservationController extends Controller
             'amount' => 'required|numeric|min:0',
             'payment_method' => 'required|string|max:50',
             'payment_proof' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120',
+            'company_name' => 'nullable|string|max:255',
             'agent_coordinator_id' => 'nullable|exists:users,id',
+            'agent_coordinator_name' => 'nullable|string|max:255',
+            'agent_coordinator_title' => 'nullable|string|max:255',
             'expires_days' => 'nullable|integer|min:1|max:30',
             'notes' => 'nullable|string|max:1000',
         ]);
@@ -184,10 +187,19 @@ class ReservationController extends Controller
             ? User::find($validated['agent_coordinator_id'])
             : auth()->user();
 
-        $coordName = $coordUser ? $coordUser->name : 'Agent Coordinator';
-        $coordTitle = $coordUser && $coordUser->agent_type === 'master_lead'
-            ? 'Master Lead / Agent Coordinator'
-            : ($coordUser ? 'Sales Coordinator' : 'Coordinator Representative');
+        $coordName = !empty($validated['agent_coordinator_name'])
+            ? $validated['agent_coordinator_name']
+            : ($coordUser ? $coordUser->name : 'Agent Coordinator');
+
+        $coordTitle = !empty($validated['agent_coordinator_title'])
+            ? $validated['agent_coordinator_title']
+            : ($coordUser && $coordUser->agent_type === 'master_lead'
+                ? 'Master Lead / Agent Coordinator'
+                : ($coordUser ? 'Sales Coordinator' : 'Coordinator Representative'));
+
+        $companyName = !empty($validated['company_name'])
+            ? $validated['company_name']
+            : null;
 
         $expiresAt = now()->addDays($validated['expires_days'] ?? 7);
 
@@ -206,6 +218,7 @@ class ReservationController extends Controller
             'payment_proof' => $proofPath,
             'status' => 'active',
             'refundable_policy' => '100% Refundable (Garansi Pengembalian Utuh)',
+            'company_name' => $companyName,
             'agent_coordinator_id' => $coordUser?->id,
             'agent_coordinator_name' => $coordName,
             'agent_coordinator_title' => $coordTitle,
@@ -252,6 +265,30 @@ class ReservationController extends Controller
             'reservation' => $reservation,
             'settings' => $settings,
         ]);
+    }
+
+    /**
+     * Update reservation data & receipt authentication (PT & Signatures)
+     */
+    public function update(Request $request, Reservation $reservation)
+    {
+        $validated = $request->validate([
+            'client_name' => 'required|string|max:255',
+            'client_phone' => 'required|string|max:30',
+            'client_email' => 'nullable|email|max:255',
+            'client_nik' => 'nullable|string|max:30',
+            'amount' => 'required|numeric|min:0',
+            'payment_method' => 'required|string|max:50',
+            'company_name' => 'nullable|string|max:255',
+            'agent_coordinator_id' => 'nullable|exists:users,id',
+            'agent_coordinator_name' => 'nullable|string|max:255',
+            'agent_coordinator_title' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $reservation->update($validated);
+
+        return back()->with('success', 'Data reservasi & otentikasi kwitansi berhasil diperbarui.');
     }
 
     /**
