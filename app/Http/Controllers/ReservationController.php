@@ -298,11 +298,15 @@ class ReservationController extends Controller
             'policy_title' => 'nullable|string|max:255',
             'policy_text' => 'nullable|string|max:2000',
             'custom_overrides' => 'nullable|array',
-            'agent_coordinator_id' => 'nullable|exists:users,id',
+            'agent_coordinator_id' => 'nullable',
             'agent_coordinator_name' => 'nullable|string|max:255',
             'agent_coordinator_title' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:1000',
         ]);
+
+        if (array_key_exists('agent_coordinator_id', $validated) && empty($validated['agent_coordinator_id'])) {
+            $validated['agent_coordinator_id'] = null;
+        }
 
         $reservation->update($validated);
 
