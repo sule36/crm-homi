@@ -23,7 +23,12 @@ class ReservationController extends Controller
      */
     private function getSettings()
     {
-        return Setting::getAll();
+        $settingsRaw = Setting::all();
+        $settings = [];
+        foreach ($settingsRaw as $s) {
+            $settings[$s->key] = Setting::get($s->key);
+        }
+        return $settings;
     }
 
     /**

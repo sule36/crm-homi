@@ -170,9 +170,6 @@
             font-weight: 800;
             color: #0f172a;
             margin-bottom: 3px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
         }
 
         /* SIGNATURE SECTION */
@@ -236,7 +233,7 @@
                 </div>
             </td>
             <td style="text-align: right;">
-                <span class="badge-stamp">🛡️ 100% REFUNDABLE</span>
+                <span class="badge-stamp">100% REFUNDABLE</span>
             </td>
         </tr>
     </table>
@@ -304,9 +301,9 @@
 
     <!-- 3. GARANSI KLAUSA 100% REFUNDABLE -->
     <div class="policy-box">
-        <div class="policy-title">🔒 GARANSI KLAUSA 100% REFUNDABLE (PENGEMBALIAN DANA UTUH)</div>
+        <div class="policy-title">GARANSI KLAUSA 100% REFUNDABLE (PENGEMBALIAN DANA UTUH)</div>
         <div>
-            Apabila pengajuan penawaran harga/skema pembayaran tidak disetujui oleh Developer atau Calon Pembeli memutuskan untuk membatalkan pengajuan sebelum penandatanganan Surat Pemesanan Rumah (SPR), dana reservasi ini <strong>DIJAMIN DIKEMBALIKAN 100% UTUH WITHOUT ANY DEDUCTIONS (TANPA POTONGAN BIAYA APAPUN)</strong>.
+            Apabila pengajuan penawaran harga/skema pembayaran tidak disetujui oleh Developer atau Calon Pembeli memutuskan untuk membatalkan pengajuan sebelum penandatanganan Surat Pemesanan Rumah (SPR), dana reservasi ini <strong>DIJAMIN DIKEMBALIKAN 100% UTUH (TANPA POTONGAN BIAYA APAPUN)</strong>.
         </div>
     </div>
 
@@ -340,7 +337,7 @@
                 <div style="font-weight: 600;">{{ $city }}, {{ optional($reservation->created_at)->format('d F Y') }}</div>
                 <div style="font-weight: 600;">{{ $coordTitle }},</div>
                 <div class="sig-box">
-                    <div style="height: 38px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; display: flex; items-center; justify-content: center;">
+                    <div style="height: 38px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; text-align: center;">
                         <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 38px;">[ Verified Agent System ]</span>
                     </div>
                 </div>
