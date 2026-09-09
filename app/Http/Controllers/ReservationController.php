@@ -14,6 +14,7 @@ use App\Models\AuditLog;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class ReservationController extends Controller
@@ -209,7 +210,7 @@ class ReservationController extends Controller
 
         $expiresAt = now()->addDays($validated['expires_days'] ?? 7);
 
-        $reservation = Reservation::create([
+        $reservationData = [
             'project_id' => $unit->project_id,
             'unit_id' => $unit->id,
             'lead_id' => $validated['lead_id'] ?? null,
@@ -236,7 +237,17 @@ class ReservationController extends Controller
             'agent_coordinator_title' => $coordTitle,
             'expires_at' => $expiresAt,
             'notes' => $validated['notes'] ?? null,
-        ]);
+        ];
+
+        // Safe filter against actual database schema to prevent crashes if migrations aren't executed yet
+        $safeData = [];
+        foreach ($reservationData as $column => $value) {
+            if (Schema::hasColumn('reservations', $column)) {
+                $safeData[$column] = $value;
+            }
+        }
+
+        $reservation = Reservation::create($safeData);
 
         // Lock unit status to 'reserved'
         $unit->update([
@@ -308,7 +319,15 @@ class ReservationController extends Controller
             $validated['agent_coordinator_id'] = null;
         }
 
-        $reservation->update($validated);
+        // Safe filter against actual database schema to prevent crashes if migrations aren't executed yet
+        $safeData = [];
+        foreach ($validated as $column => $value) {
+            if (Schema::hasColumn('reservations', $column)) {
+                $safeData[$column] = $value;
+            }
+        }
+
+        $reservation->update($safeData);
 
         return back()->with('success', 'Kwitansi reservasi berhasil diperbarui.');
     }
