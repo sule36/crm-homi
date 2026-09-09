@@ -221,7 +221,17 @@
 
         $coordName = $reservation->agent_coordinator_name ?: ($reservation->agentCoordinator?->name ?? 'Agent Coordinator');
         $coordTitle = $reservation->agent_coordinator_title ?: 'Master Lead / Agent Coordinator';
-        $city = $settings['spr_signatures']['city'] ?? 'Jakarta';
+        $city = $reservation->city ?: ($settings['spr_signatures']['city'] ?? 'Jakarta');
+
+        $docTitle = $reservation->receipt_title ?: 'KWITANSI TANDA TERIMA RESERVASI UNIT';
+        $policyTitle = $reservation->policy_title ?: 'GARANSI KLAUSA 100% REFUNDABLE (PENGEMBALIAN DANA UTUH)';
+        $policyText = $reservation->policy_text ?: 'Apabila pengajuan penawaran harga/skema pembayaran tidak disetujui oleh Developer atau Calon Pembeli memutuskan untuk membatalkan pengajuan sebelum penandatanganan Surat Pemesanan Rumah (SPR), dana reservasi ini DIJAMIN DIKEMBALIKAN 100% UTUH (TANPA POTONGAN BIAYA APAPUN).';
+
+        $overrides = $reservation->custom_overrides ?? [];
+        $projectName = $overrides['project_name'] ?? ($reservation->project->name ?? '-');
+        $unitCode = $overrides['unit_code'] ?? ($reservation->unit->code ?? $reservation->unit->number ?? '-');
+        $unitTypeName = $overrides['unit_type_name'] ?? ($reservation->unit->unitType->name ?? '-');
+        $specText = $overrides['spec_text'] ?? ('LB ' . ($reservation->unit->building_area ?? $reservation->unit->unitType->building_area ?? '-') . ' m² / LT ' . ($reservation->unit->surface_area ?? $reservation->unit->unitType->surface_area ?? '-') . ' m²');
 
         $getSafeBase64 = function($path) {
             if (empty($path)) return null;
@@ -270,7 +280,7 @@
 
     <!-- JUDUL DOKUMEN -->
     <div class="doc-header">
-        <div class="doc-title">KWITANSI TANDA TERIMA RESERVASI UNIT</div>
+        <div class="doc-title">{{ strtoupper($docTitle) }}</div>
         <div class="doc-ref">No. Reservasi: <strong>{{ $reservation->reservation_number }}</strong> · Tanggal: {{ optional($reservation->created_at)->format('d/m/Y H:i') ?? date('d/m/Y') }}</div>
     </div>
 
@@ -296,25 +306,25 @@
                     <td class="data-label">Nama Pemohon</td>
                     <td class="data-value">: {{ $reservation->client_name }}</td>
                     <td class="data-label">Nama Proyek</td>
-                    <td class="data-value">: {{ $reservation->project->name ?? '-' }}</td>
+                    <td class="data-value">: {{ $projectName }}</td>
                 </tr>
                 <tr>
                     <td class="data-label">No. WhatsApp / HP</td>
                     <td class="data-value">: {{ $reservation->client_phone }}</td>
                     <td class="data-label">Kode / No. Unit</td>
-                    <td class="data-value">: Unit {{ $reservation->unit->code ?? $reservation->unit->number ?? '-' }}</td>
+                    <td class="data-value">: Unit {{ $unitCode }}</td>
                 </tr>
                 <tr>
                     <td class="data-label">Email</td>
                     <td class="data-value">: {{ $reservation->client_email ?? '-' }}</td>
                     <td class="data-label">Tipe Properti</td>
-                    <td class="data-value">: Tipe {{ $reservation->unit->unitType->name ?? '-' }}</td>
+                    <td class="data-value">: Tipe {{ $unitTypeName }}</td>
                 </tr>
                 <tr>
                     <td class="data-label">NIK Pemohon</td>
                     <td class="data-value">: {{ $reservation->client_nik ?? '-' }}</td>
                     <td class="data-label">Spesifikasi Unit</td>
-                    <td class="data-value">: LB {{ $reservation->unit->building_area ?? $reservation->unit->unitType->building_area ?? '-' }} m² / LT {{ $reservation->unit->surface_area ?? $reservation->unit->unitType->surface_area ?? '-' }} m²</td>
+                    <td class="data-value">: {{ $specText }}</td>
                 </tr>
             </table>
         </div>
@@ -324,16 +334,20 @@
     <div class="section-box">
         <div class="section-header">2. Ketentuan Kredit Pemotongan Uang Tanda Jadi (UTJ)</div>
         <div class="section-body" style="font-size: 8pt; color: #334155; line-height: 1.4;">
-            <p style="margin: 0 0 4px 0;">• Pembayaran reservasi ini sebesar <strong>Rp {{ number_format($reservation->amount, 0, ',', '.') }}</strong> akan <strong>memotong total Booking Fee (UTJ)</strong> secara otomatis saat pengajuan disetujui dan dikonversi menjadi Surat Pemesanan Rumah (SPR).</p>
-            <p style="margin: 0;">• Contoh Kalkulasi: Apabila Booking Fee (UTJ) standar sebesar Rp 17.000.000, maka sisa pembayaran UTJ saat naik booking adalah <strong>Rp 17.000.000 - Rp {{ number_format($reservation->amount, 0, ',', '.') }} = Sisa UTJ yang harus dibayar saat booking.</strong></p>
+            @if($reservation->terms_text)
+                {!! nl2br(e($reservation->terms_text)) !!}
+            @else
+                <p style="margin: 0 0 4px 0;">• Pembayaran reservasi ini sebesar <strong>Rp {{ number_format($reservation->amount, 0, ',', '.') }}</strong> akan <strong>memotong total Booking Fee (UTJ)</strong> secara otomatis saat pengajuan disetujui dan dikonversi menjadi Surat Pemesanan Rumah (SPR).</p>
+                <p style="margin: 0;">• Contoh Kalkulasi: Apabila Booking Fee (UTJ) standar sebesar Rp 17.000.000, maka sisa pembayaran UTJ saat naik booking adalah <strong>Rp 17.000.000 - Rp {{ number_format($reservation->amount, 0, ',', '.') }} = Sisa UTJ yang harus dibayar saat booking.</strong></p>
+            @endif
         </div>
     </div>
 
     <!-- 3. GARANSI KLAUSA 100% REFUNDABLE -->
     <div class="policy-box">
-        <div class="policy-title">GARANSI KLAUSA 100% REFUNDABLE (PENGEMBALIAN DANA UTUH)</div>
+        <div class="policy-title">{{ strtoupper($policyTitle) }}</div>
         <div>
-            Apabila pengajuan penawaran harga/skema pembayaran tidak disetujui oleh Developer atau Calon Pembeli memutuskan untuk membatalkan pengajuan sebelum penandatanganan Surat Pemesanan Rumah (SPR), dana reservasi ini <strong>DIJAMIN DIKEMBALIKAN 100% UTUH (TANPA POTONGAN BIAYA APAPUN)</strong>.
+            {{ $policyText }}
         </div>
     </div>
 

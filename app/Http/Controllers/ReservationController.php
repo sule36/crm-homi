@@ -169,6 +169,12 @@ class ReservationController extends Controller
             'payment_method' => 'required|string|max:50',
             'payment_proof' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120',
             'company_name' => 'nullable|string|max:255',
+            'receipt_title' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'terms_text' => 'nullable|string|max:2000',
+            'policy_title' => 'nullable|string|max:255',
+            'policy_text' => 'nullable|string|max:2000',
+            'custom_overrides' => 'nullable|array',
             'agent_coordinator_id' => 'nullable|exists:users,id',
             'agent_coordinator_name' => 'nullable|string|max:255',
             'agent_coordinator_title' => 'nullable|string|max:255',
@@ -219,6 +225,12 @@ class ReservationController extends Controller
             'status' => 'active',
             'refundable_policy' => '100% Refundable (Garansi Pengembalian Utuh)',
             'company_name' => $companyName,
+            'receipt_title' => $validated['receipt_title'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'terms_text' => $validated['terms_text'] ?? null,
+            'policy_title' => $validated['policy_title'] ?? null,
+            'policy_text' => $validated['policy_text'] ?? null,
+            'custom_overrides' => $validated['custom_overrides'] ?? null,
             'agent_coordinator_id' => $coordUser?->id,
             'agent_coordinator_name' => $coordName,
             'agent_coordinator_title' => $coordTitle,
@@ -268,7 +280,7 @@ class ReservationController extends Controller
     }
 
     /**
-     * Update reservation data & receipt authentication (PT & Signatures)
+     * Update reservation data & receipt authentication (PT & Signatures & Template Overrides)
      */
     public function update(Request $request, Reservation $reservation)
     {
@@ -280,6 +292,12 @@ class ReservationController extends Controller
             'amount' => 'required|numeric|min:0',
             'payment_method' => 'required|string|max:50',
             'company_name' => 'nullable|string|max:255',
+            'receipt_title' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'terms_text' => 'nullable|string|max:2000',
+            'policy_title' => 'nullable|string|max:255',
+            'policy_text' => 'nullable|string|max:2000',
+            'custom_overrides' => 'nullable|array',
             'agent_coordinator_id' => 'nullable|exists:users,id',
             'agent_coordinator_name' => 'nullable|string|max:255',
             'agent_coordinator_title' => 'nullable|string|max:255',
@@ -288,7 +306,7 @@ class ReservationController extends Controller
 
         $reservation->update($validated);
 
-        return back()->with('success', 'Data reservasi & otentikasi kwitansi berhasil diperbarui.');
+        return back()->with('success', 'Kwitansi reservasi berhasil diperbarui.');
     }
 
     /**
