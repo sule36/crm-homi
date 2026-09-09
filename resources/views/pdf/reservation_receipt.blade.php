@@ -215,8 +215,9 @@
 <body>
 
     @php
+        $overrides = $reservation->custom_overrides ?? [];
         $companyName = $reservation->company_name ?: ($settings['company_name'] ?? 'HOMI DEVELOPER');
-        $companyAddress = $settings['company_address'] ?? 'Official Real Estate & Property Developer';
+        $companyAddress = $overrides['company_address'] ?? ($reservation->company_address ?? ($settings['company_address'] ?? 'Official Real Estate & Property Developer'));
         $companyPhone = $settings['company_phone'] ?? null;
 
         $coordName = $reservation->agent_coordinator_name ?: ($reservation->agentCoordinator?->name ?? 'Agent Coordinator');

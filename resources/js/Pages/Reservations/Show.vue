@@ -33,11 +33,12 @@ const editForm = useForm({
     terms_text: props.reservation.terms_text || '',
     policy_title: props.reservation.policy_title || 'GARANSI KLAUSA 100% REFUNDABLE (PENGEMBALIAN DANA UTUH)',
     policy_text: props.reservation.policy_text || 'Apabila pengajuan penawaran harga/skema pembayaran tidak disetujui oleh Developer atau Calon Pembeli memutuskan untuk membatalkan pengajuan sebelum penandatanganan Surat Pemesanan Rumah (SPR), dana reservasi ini DIJAMIN DIKEMBALIKAN 100% UTUH (TANPA POTONGAN BIAYA APAPUN).',
-    custom_overrides: props.reservation.custom_overrides || {
-        project_name: props.reservation.project?.name || '',
-        unit_code: props.reservation.unit?.code || props.reservation.unit?.number || '',
-        unit_type_name: props.reservation.unit?.unit_type?.name || '',
-        spec_text: `LB ${props.reservation.unit?.building_area || props.reservation.unit?.unit_type?.building_area || ''} m² / LT ${props.reservation.unit?.surface_area || props.reservation.unit?.unit_type?.surface_area || ''} m²`,
+    custom_overrides: {
+        project_name: props.reservation.custom_overrides?.project_name || props.reservation.project?.name || '',
+        unit_code: props.reservation.custom_overrides?.unit_code || props.reservation.unit?.code || props.reservation.unit?.number || '',
+        unit_type_name: props.reservation.custom_overrides?.unit_type_name || props.reservation.unit?.unit_type?.name || '',
+        spec_text: props.reservation.custom_overrides?.spec_text || `LB ${props.reservation.unit?.building_area || props.reservation.unit?.unit_type?.building_area || ''} m² / LT ${props.reservation.unit?.surface_area || props.reservation.unit?.unit_type?.surface_area || ''} m²`,
+        company_address: props.reservation.custom_overrides?.company_address || props.settings?.company_address || '',
     },
     agent_coordinator_name: props.reservation.agent_coordinator_name || props.reservation.agent_coordinator?.name || '',
     agent_coordinator_title: props.reservation.agent_coordinator_title || 'Master Lead / Agent Coordinator',
@@ -342,6 +343,12 @@ const statusConfig = {
                             <label class="block font-bold text-slate-700 mb-1">Nama PT / Perusahaan Developer (Kwitansi) <span class="text-rose-500">*</span></label>
                             <input v-model="editForm.company_name" type="text" placeholder="Contoh: PT Serangkai Roden Development" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
                             <p class="text-[10px] text-slate-400 mt-1">Nama PT yang tercetak pada Kop Surat & Tanda Tangan Kwitansi.</p>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Alamat Perusahaan / Kop Kwitansi</label>
+                            <input v-model="editForm.custom_overrides.company_address" type="text" placeholder="Contoh: Tb Simatupang No. 88, Jakarta Selatan" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-blue-500" />
+                            <p class="text-[10px] text-slate-400 mt-1">Alamat di Kop Surat Kwitansi di bawah logo/nama PT (kosongkan jika ingin pakai default sistem).</p>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
