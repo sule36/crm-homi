@@ -192,6 +192,7 @@ class DatabaseSeeder extends Seeder
             'location' => 'Cilandak Timur, Jakarta Selatan',
             'address' => 'Jl. Cilandak KKO / Jl. Margasatwa, Cilandak Timur, Pasar Minggu, Jakarta Selatan',
             'status' => 'active',
+            'master_plan_image' => 'projects/masterplans/alonica_siteplan.jpg',
             'amenities' => [
                 'Exclusive Community',
                 'Natural Surroundings',
@@ -222,7 +223,7 @@ class DatabaseSeeder extends Seeder
             'bathrooms' => 4,
             'floors' => 3,
             'base_price' => 3840921600,
-            'current_price' => 3990957600,
+            'current_price' => 3840921600,
             'specs' => [
                 'pondasi' => 'Bored Pile',
                 'dinding' => 'Bata Merah & Cat Weathershield',
@@ -246,7 +247,21 @@ class DatabaseSeeder extends Seeder
             'bathrooms' => 4,
             'floors' => 3,
             'base_price' => 3990957600,
-            'current_price' => 4140993600,
+            'current_price' => 3990957600,
+            'specs' => $typeStandard->specs,
+        ]);
+
+        $typeLt131 = UnitType::create([
+            'project_id' => $project->id,
+            'name' => 'Alonica Large Corner (LB 198 / LT 131)',
+            'code' => 'CNR-131',
+            'building_area' => 198,
+            'land_area' => 131,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 4621879523,
+            'current_price' => 4621879523,
             'specs' => $typeStandard->specs,
         ]);
 
@@ -260,7 +275,7 @@ class DatabaseSeeder extends Seeder
             'bathrooms' => 4,
             'floors' => 3,
             'base_price' => 4691867600,
-            'current_price' => 4868253600,
+            'current_price' => 4691867600,
             'specs' => $typeStandard->specs,
         ]);
 
@@ -274,21 +289,7 @@ class DatabaseSeeder extends Seeder
             'bathrooms' => 4,
             'floors' => 3,
             'base_price' => 4804917600,
-            'current_price' => 4985553600,
-            'specs' => $typeStandard->specs,
-        ]);
-
-        $typeLt147 = UnitType::create([
-            'project_id' => $project->id,
-            'name' => 'Alonica Large Corner (LB 198 / LT 147)',
-            'code' => 'CNR-147',
-            'building_area' => 198,
-            'land_area' => 147,
-            'bedrooms' => 4,
-            'bathrooms' => 4,
-            'floors' => 3,
-            'base_price' => 4940577600,
-            'current_price' => 5126313600,
+            'current_price' => 4804917600,
             'specs' => $typeStandard->specs,
         ]);
 
@@ -302,7 +303,35 @@ class DatabaseSeeder extends Seeder
             'bathrooms' => 4,
             'floors' => 3,
             'base_price' => 5460607600,
-            'current_price' => 5665893600,
+            'current_price' => 5460607600,
+            'specs' => $typeStandard->specs,
+        ]);
+
+        $typeHook170 = UnitType::create([
+            'project_id' => $project->id,
+            'name' => 'Alonica Hook Premium (LB 198 / LT 170)',
+            'code' => 'HOOK-170',
+            'building_area' => 198,
+            'land_area' => 170,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 5862666059,
+            'current_price' => 5862666059,
+            'specs' => $typeStandard->specs,
+        ]);
+
+        $typeLt215 = UnitType::create([
+            'project_id' => $project->id,
+            'name' => 'Alonica Grand Villa (LB 198 / LT 215)',
+            'code' => 'VIL-215',
+            'building_area' => 198,
+            'land_area' => 215,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+            'floors' => 3,
+            'base_price' => 6499699523,
+            'current_price' => 6499699523,
             'specs' => $typeStandard->specs,
         ]);
 
@@ -316,7 +345,7 @@ class DatabaseSeeder extends Seeder
             'bathrooms' => 4,
             'floors' => 3,
             'base_price' => 7337237600,
-            'current_price' => 7613073600,
+            'current_price' => 7337237600,
             'specs' => $typeStandard->specs,
         ]);
 
@@ -324,49 +353,49 @@ class DatabaseSeeder extends Seeder
         // Price list matrix from PT. Serangkai Roden Development
         $unitInventory = [
             // BLOK A
-            ['block' => 'A', 'number' => '1', 'type' => $typeHookFront, 'status' => 'available', 'price' => 4140993600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Utara'],
-            ['block' => 'A', 'number' => '10', 'type' => $typeLt141,    'status' => 'available', 'price' => 4985553600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '1', 'type' => $typeHookFront, 'status' => 'sold',      'price' => 3990957600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '2', 'type' => $typeStandard,  'status' => 'sold',      'price' => 3840921600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Utara'],
+            ['block' => 'A', 'number' => '10', 'type' => $typeLt141,    'status' => 'booked',    'price' => 4804917600, 'facing' => 'Utara'],
 
             // BLOK B
-            ['block' => 'B', 'number' => '1', 'type' => $typeHookFront, 'status' => 'sold',      'price' => 4140993600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '10', 'type' => $typeStandard, 'status' => 'available', 'price' => 3990957600, 'facing' => 'Selatan'],
-            ['block' => 'B', 'number' => '11', 'type' => $typeLt136,    'status' => 'available', 'price' => 4868253600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '1', 'type' => $typeHook170,   'status' => 'sold',      'price' => 5862666059, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '10', 'type' => $typeStandard, 'status' => 'available', 'price' => 3840921600, 'facing' => 'Selatan'],
+            ['block' => 'B', 'number' => '11', 'type' => $typeLt136,    'status' => 'available', 'price' => 4691867600, 'facing' => 'Selatan'],
 
             // BLOK C
-            ['block' => 'C', 'number' => '1', 'type' => $typeHookFront, 'status' => 'available', 'price' => 4140993600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Timur'],
-            ['block' => 'C', 'number' => '10', 'type' => $typeLt253,    'status' => 'available', 'price' => 7613073600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '1', 'type' => $typeLt215,     'status' => 'available', 'price' => 6499699523, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Timur'],
+            ['block' => 'C', 'number' => '10', 'type' => $typeLt253,    'status' => 'available', 'price' => 7337237600, 'facing' => 'Timur'],
 
             // BLOK D
-            ['block' => 'D', 'number' => '1', 'type' => $typeLt147,    'status' => 'available', 'price' => 5126313600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3990957600, 'facing' => 'Barat'],
-            ['block' => 'D', 'number' => '10', 'type' => $typeLt170,    'status' => 'available', 'price' => 5665893600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '1', 'type' => $typeLt131,     'status' => 'available', 'price' => 4621879523, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '2', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '3', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '5', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '6', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '7', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '8', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '9', 'type' => $typeStandard,  'status' => 'available', 'price' => 3840921600, 'facing' => 'Barat'],
+            ['block' => 'D', 'number' => '10', 'type' => $typeLt170,    'status' => 'available', 'price' => 5460607600, 'facing' => 'Barat'],
         ];
 
         foreach ($unitInventory as $uData) {
