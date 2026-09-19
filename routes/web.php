@@ -4,6 +4,7 @@ use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Project\ProjectController;
 use App\Http\Controllers\Lead\LeadController;
 use App\Http\Controllers\Inventory\UnitController;
+use App\Http\Controllers\Inventory\SitePlanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
@@ -26,7 +27,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Projects
+    // Projects & Interactive Site Plan
+    Route::get('/projects/{project}/site-plan', [SitePlanController::class, 'index'])->name('projects.siteplan');
+    Route::post('/projects/{project}/site-plan/coordinates', [SitePlanController::class, 'updateCoordinates'])->name('projects.siteplan.coordinates');
+    Route::get('/projects/{project}/price-list/export-excel', [SitePlanController::class, 'exportExcel'])->name('projects.pricelist.export-excel');
     Route::resource('projects', ProjectController::class);
 
     // Leads
@@ -43,6 +47,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
     Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
     Route::post('/units/bulk', [UnitController::class, 'bulkStore'])->name('units.bulk');
+    Route::post('/units/bulk-update', [UnitController::class, 'bulkUpdate'])->name('units.bulkUpdate');
     Route::post('/units/progress', [\App\Http\Controllers\Inventory\UnitProgressController::class, 'store'])->name('units.progress.store');
 
     // Unit Types

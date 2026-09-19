@@ -94,7 +94,8 @@ const navigationGroups = [
     {
         title: 'Operasional & Unit',
         items: [
-            { name: 'Proyek', href: '/projects', icon: '🏗️', active: route().current('projects.*') },
+            { name: 'Interactive Site Plan', href: '/projects/1/site-plan', icon: '🗺️', active: route().current('projects.siteplan') },
+            { name: 'Proyek', href: '/projects', icon: '🏗️', active: route().current('projects.index') || route().current('projects.show') || route().current('projects.edit') },
             { name: 'Inventory / Unit', href: '/units', icon: '🏠', active: route().current('units.*') },
             { name: 'Kalkulator KPR', href: '/kalkulator-kpr', icon: '🧮', active: route().current('kpr.calculator') },
             { name: 'Analisis Neraca KPR', href: '/kpr-scoring', icon: '📊', active: route().current('kpr.scoring') || route().current('client-balance-sheets.*') },

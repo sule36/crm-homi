@@ -14,7 +14,7 @@ class Project extends Model
         'name', 'code', 'description', 'location', 'address',
         'latitude', 'longitude', 'total_units', 'sold_units',
         'booked_units', 'available_units', 'price_range_min',
-        'price_range_max', 'master_plan_image', 'brochure_file',
+        'price_range_max', 'master_plan_image', 'siteplan_image', 'siteplan_config', 'brochure_file',
         'logo', 'status', 'amenities', 'settings',
     ];
 
@@ -23,6 +23,7 @@ class Project extends Model
         return [
             'amenities' => 'array',
             'settings' => 'array',
+            'siteplan_config' => 'array',
             'price_range_min' => 'integer',
             'price_range_max' => 'integer',
         ];

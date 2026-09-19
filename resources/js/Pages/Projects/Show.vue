@@ -95,7 +95,10 @@ const unitStats = computed(() => {
                     {{ project.location }} — {{ project.address }}
                 </p>
             </div>
-            <div class="flex gap-2 shrink-0">
+            <div class="flex items-center gap-2 shrink-0">
+                <Link :href="`/projects/${project.id}/site-plan`" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2">
+                    <span>🗺️ Interactive Site Plan & Price List</span>
+                </Link>
                 <Link :href="`/projects/${project.id}/edit`" class="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors">Edit Proyek</Link>
             </div>
         </div>

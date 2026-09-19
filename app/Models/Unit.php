@@ -13,6 +13,8 @@ class Unit extends Model
     protected $fillable = [
         'project_id', 'unit_type_id', 'block', 'number', 'floor',
         'status', 'facing_direction', 'premium_charge', 'final_price',
+        'promo', 'discount_amount', 'carport', 'net_price', 'commission_notes',
+        'management_notes', 'siteplan_coordinates',
         'held_by', 'held_until', 'notes',
         'certificate_status', 'certificate_number', 'imb_number', 'pbb_number', 'legal_notes',
     ];
@@ -24,6 +26,10 @@ class Unit extends Model
         return [
             'final_price' => 'integer',
             'premium_charge' => 'integer',
+            'discount_amount' => 'integer',
+            'net_price' => 'integer',
+            'carport' => 'integer',
+            'siteplan_coordinates' => 'array',
             'held_until' => 'datetime',
         ];
     }
@@ -90,6 +96,16 @@ class Unit extends Model
     public function latestProgress()
     {
         return $this->hasOne(UnitProgress::class)->latestOfMany();
+    }
+
+    public function priceHistories()
+    {
+        return $this->hasMany(UnitPriceHistory::class)->with('user')->latest();
+    }
+
+    public function statusHistories()
+    {
+        return $this->hasMany(UnitStatusHistory::class)->with('user')->latest();
     }
 
     // Label: "Blok A No. 01"
