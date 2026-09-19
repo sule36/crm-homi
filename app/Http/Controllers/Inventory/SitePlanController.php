@@ -183,4 +183,53 @@ class SitePlanController extends Controller
 
         return response()->stream($callback, 200, $headers);
     }
+
+    public function exportPdf(Request $request, Project $project)
+    {
+        $mode = $request->input('mode', 'combined'); // siteplan | pricelist | combined
+        $version = $request->input('version', 'customer'); // customer | agent | internal
+
+        // Check if user is allowed to download internal version
+        $user = Auth::user();
+        $isInternalUser = $user && ($user->hasRole(['super_admin', 'project_manager', 'sales_manager', 'finance', 'admin']) || $user->is_admin);
+        if ($version === 'internal' && !$isInternalUser) {
+            $version = 'agent';
+        }
+
+        // Fetch filtered units
+        $query = Unit::with(['unitType', 'heldByUser'])
+            ->where('project_id', $project->id)
+            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            ->when($request->unit_type_id, fn ($q, $t) => $q->where('unit_type_id', $t))
+            ->when($request->block, fn ($q, $b) => $q->where('block', $b))
+            ->when($request->min_price, fn ($q, $min) => $q->where('final_price', '>=', $min))
+            ->when($request->max_price, fn ($q, $max) => $q->where('final_price', '<=', $max));
+
+        $units = $query->orderBy('block')->orderBy('number')->get();
+        $unitsByBlock = $units->groupBy('block');
+
+        // Stats
+        $allUnits = Unit::where('project_id', $project->id)->get();
+        $stats = [
+            'total' => $allUnits->count(),
+            'available' => $allUnits->where('status', 'available')->count(),
+            'reserved' => $allUnits->where('status', 'reserved')->count(),
+            'booked' => $allUnits->where('status', 'booked')->count(),
+            'sold' => $allUnits->where('status', 'sold')->count(),
+            'hold' => $allUnits->where('status', 'hold')->count(),
+        ];
+
+        $printedAt = date('d F Y, H:i') . ' WIB';
+        $docCode = 'DOC-' . strtoupper($project->code ?: 'PRJ') . '-' . date('Ymd-Hi');
+
+        $title = "Site Plan & Price List " . $project->name;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.siteplan_pricelist', compact(
+            'project', 'units', 'unitsByBlock', 'stats', 'mode', 'version', 'printedAt', 'docCode', 'title'
+        ))->setPaper('a4', 'landscape');
+
+        $filename = "SitePlan_PriceList_" . str_replace(' ', '_', $project->name) . "_" . date('Ymd_His') . ".pdf";
+
+        return $pdf->stream($filename);
+    }
 }

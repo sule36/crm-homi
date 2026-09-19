@@ -6,6 +6,7 @@ import InteractiveMap from '@/Components/SitePlan/InteractiveMap.vue';
 import PriceListTable from '@/Components/SitePlan/PriceListTable.vue';
 import UnitDetailModal from '@/Components/SitePlan/UnitDetailModal.vue';
 import BulkUpdateModal from '@/Components/SitePlan/BulkUpdateModal.vue';
+import PdfDownloadModal from '@/Components/SitePlan/PdfDownloadModal.vue';
 
 const props = defineProps({
     project: Object,
@@ -65,6 +66,7 @@ function handleProjectChange(e) {
 const selectedUnit = ref(null);
 const showDetailModal = ref(false);
 const showBulkModal = ref(false);
+const showPdfModal = ref(false);
 const bulkUnitIds = ref([]);
 
 function openUnitDetail(unit) {
@@ -101,6 +103,14 @@ function openBulkUpdate(unitIds) {
             </div>
 
             <div class="flex items-center gap-3 shrink-0">
+                <!-- DOWNLOAD PDF TERUPDATE BUTTON -->
+                <button
+                    @click="showPdfModal = true"
+                    class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-rose-600/20 flex items-center gap-2"
+                >
+                    <span>📄 Download PDF Terupdate</span>
+                </button>
+
                 <!-- PROJECT SWITCHER DROPDOWN -->
                 <div class="flex items-center gap-2 bg-white p-1.5 pl-3 rounded-2xl border border-slate-200/80 shadow-sm">
                     <span class="text-xs font-bold text-slate-400 uppercase">Ganti Proyek:</span>
@@ -279,6 +289,7 @@ function openBulkUpdate(unitIds) {
                 :filters="filters"
                 @select-unit="openUnitDetail"
                 @open-bulk-update="openBulkUpdate"
+                @open-pdf-modal="showPdfModal = true"
             />
         </div>
 
@@ -294,6 +305,14 @@ function openBulkUpdate(unitIds) {
             v-if="showBulkModal"
             :unitIds="bulkUnitIds"
             @close="showBulkModal = false"
+        />
+
+        <PdfDownloadModal
+            v-if="showPdfModal"
+            :project="project"
+            :isInternal="isInternal"
+            :filters="filters"
+            @close="showPdfModal = false"
         />
     </CrmLayout>
 </template>

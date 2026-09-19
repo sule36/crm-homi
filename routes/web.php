@@ -31,6 +31,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/projects/{project}/site-plan', [SitePlanController::class, 'index'])->name('projects.siteplan');
     Route::post('/projects/{project}/site-plan/coordinates', [SitePlanController::class, 'updateCoordinates'])->name('projects.siteplan.coordinates');
     Route::get('/projects/{project}/price-list/export-excel', [SitePlanController::class, 'exportExcel'])->name('projects.pricelist.export-excel');
+    Route::get('/projects/{project}/price-list/export-pdf', [SitePlanController::class, 'exportPdf'])->name('projects.pricelist.export-pdf');
     Route::resource('projects', ProjectController::class);
 
     // Leads
