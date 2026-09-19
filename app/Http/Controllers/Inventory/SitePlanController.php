@@ -232,4 +232,27 @@ class SitePlanController extends Controller
 
         return $pdf->stream($filename);
     }
+
+    public function updatePdfSettings(Request $request, Project $project)
+    {
+        $validated = $request->validate([
+            'valid_until' => 'nullable|string',
+            'bank_info' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'order_steps' => 'nullable|string',
+            'partner_banks' => 'nullable|array',
+        ]);
+
+        $settings = $project->settings ?? [];
+        $settings['pricelist_valid_until'] = $validated['valid_until'] ?? null;
+        $settings['pricelist_bank_info'] = $validated['bank_info'] ?? null;
+        $settings['pricelist_notes'] = $validated['notes'] ?? null;
+        $settings['pricelist_order_steps'] = $validated['order_steps'] ?? null;
+        $settings['pricelist_partner_banks'] = $validated['partner_banks'] ?? [];
+
+        $project->update(['settings' => $settings]);
+        AuditLog::record('updated_pricelist_settings', $project, null, $settings);
+
+        return back()->with('success', 'Pengaturan Keterangan & Bank Price List PDF berhasil diperbarui.');
+    }
 }

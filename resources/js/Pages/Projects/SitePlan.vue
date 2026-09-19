@@ -7,6 +7,7 @@ import PriceListTable from '@/Components/SitePlan/PriceListTable.vue';
 import UnitDetailModal from '@/Components/SitePlan/UnitDetailModal.vue';
 import BulkUpdateModal from '@/Components/SitePlan/BulkUpdateModal.vue';
 import PdfDownloadModal from '@/Components/SitePlan/PdfDownloadModal.vue';
+import PdfSettingsModal from '@/Components/SitePlan/PdfSettingsModal.vue';
 
 const props = defineProps({
     project: Object,
@@ -67,6 +68,7 @@ const selectedUnit = ref(null);
 const showDetailModal = ref(false);
 const showBulkModal = ref(false);
 const showPdfModal = ref(false);
+const showSettingsModal = ref(false);
 const bulkUnitIds = ref([]);
 
 function openUnitDetail(unit) {
@@ -109,6 +111,16 @@ function openBulkUpdate(unitIds) {
                     class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-rose-600/20 flex items-center gap-2"
                 >
                     <span>📄 Download PDF Terupdate</span>
+                </button>
+
+                <!-- PENGATURAN PDF & BANK BUTTON (INTERNAL ONLY) -->
+                <button
+                    v-if="isInternal"
+                    @click="showSettingsModal = true"
+                    class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+                    title="Edit Keterangan, Catatan, & Bank Kerjasama PDF"
+                >
+                    <span>⚙️ Setting PDF</span>
                 </button>
 
                 <!-- PROJECT SWITCHER DROPDOWN -->
@@ -313,6 +325,12 @@ function openBulkUpdate(unitIds) {
             :isInternal="isInternal"
             :filters="filters"
             @close="showPdfModal = false"
+        />
+
+        <PdfSettingsModal
+            v-if="showSettingsModal"
+            :project="project"
+            @close="showSettingsModal = false"
         />
     </CrmLayout>
 </template>

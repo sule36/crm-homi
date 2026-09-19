@@ -121,7 +121,7 @@
             padding: 4px;
             text-align: center;
             font-weight: 900;
-            font-size: 9px;
+            font-size: 8.5px;
             background-color: #f8fafc;
         }
 
@@ -131,6 +131,36 @@
     </style>
 </head>
 <body>
+
+    @php
+        $settings = $project->settings ?? [];
+        $validUntil = $settings['pricelist_valid_until'] ?? '31 Oktober 2026';
+        $bankInfo = $settings['pricelist_bank_info'] ?? 'a.n PT. SERANGKAI RODEN DEVELOPMENT, BRI: 012001004640307';
+        
+        $customNotesRaw = $settings['pricelist_notes'] ?? null;
+        $notesArray = $customNotesRaw ? array_filter(explode("\n", $customNotesRaw)) : [
+            'Harga diatas sudah termasuk BPHTB, PPN, AJB, SHM, Smart Door Lock, Kanopi, Sanitari, dan Taman Depan',
+            'Harga diatas belum termasuk additional yang diajukan oleh Pembeli',
+            'Harga dan ketersediaan unit tidak mengikat sebelum pembayaran Booking Fee',
+            'Booking Fee dianggap hangus apabila terdapat pembatalan sepihak dari pembeli',
+            'Pembayaran Down Payment (DP) dapat dilunasi paling lambat 14 hari semenjak Booking Fee dibayarkan',
+            'Pembayaran yang diakui adalah yang memiliki BUKTI KUITANSI / TRANSFER resmi ke Developer, yaitu: ' . $bankInfo,
+            'Serah Terima Unit dilakukan maksimal 12 bulan setelah pembangunan dimulai',
+        ];
+
+        $customStepsRaw = $settings['pricelist_order_steps'] ?? null;
+        $orderStepsArray = $customStepsRaw ? array_filter(explode("\n", $customStepsRaw)) : [
+            'Melakukan Booking Fee terhadap unit yang dipilih',
+            'Melengkapi dokumen persyaratan yang diperlukan',
+            'Mengisi SPR (Surat Pemesanan Rumah) sebagai bukti pemesanan unit',
+            'Pembayaran DP sesuai dengan skema yang telah disepakati',
+            'Penandatanganan PPJB (Perjanjian Pengikatan Jual Beli)',
+            'Pelunasan Angsuran sesuai dengan skema yang disepakati',
+            'Serah Terima Unit',
+        ];
+
+        $partnerBanks = $settings['pricelist_partner_banks'] ?? ['BRI', 'BSI', 'Mandiri', 'Bank BTN'];
+    @endphp
 
     <!-- SECTION 1: SITE PLAN GRAPHIC MAP VIEW (If mode is 'siteplan' or 'combined') -->
     @if(in_array($mode, ['siteplan', 'combined']))
@@ -224,7 +254,6 @@
                         $cicilan18 = $sisaPlafon / 18;
                         $cicilan24 = $sisaPlafon / 24;
 
-                        // Check if lot is special corner/hook/sold/booked row to apply gold background matching Image 1
                         $isGoldRow = in_array(strtoupper($u->status), ['SOLD', 'BOOKED', 'RESERVED']) || in_array($u->block . $u->number, ['A1', 'A2', 'A10', 'B1', 'B11', 'C1', 'C10', 'D1', 'D10']);
                     @endphp
                     <tr class="{{ $isGoldRow ? 'row-gold' : '' }}">
@@ -259,8 +288,8 @@
             </tbody>
         </table>
 
-        <!-- FOOTER DETAILS (EXACT REPLICA OF IMAGE 1 FOOTER) -->
-        <div class="footer-note-header">*Berlaku hingga : {{ date('t F Y', strtotime('now')) }}</div>
+        <!-- FOOTER DETAILS (EDITABLE CUSTOMIZABLE CONTENT) -->
+        <div class="footer-note-header">*Berlaku hingga : {{ $validUntil }}</div>
 
         <table class="footer-table">
             <tr>
@@ -268,15 +297,9 @@
                 <td style="width: 42%;">
                     <div class="footer-section-title">Catatan:</div>
                     <ol class="footer-list">
-                        <li>Harga diatas sudah termasuk BPHTB, PPN, AJB, SHM, Smart Door Lock, Kanopi, Sanitari, dan Taman Depan</li>
-                        <li>Harga diatas belum termasuk additional yang diajukan oleh Pembeli</li>
-                        <li>Harga dan ketersediaan unit tidak mengikat sebelum pembayaran Booking Fee</li>
-                        <li>Booking Fee dianggap hangus apabila terdapat pembatalan sepihak dari pembeli</li>
-                        <li>Pembayaran Down Payment (DP) dapat dilunasi paling lambat 14 hari semenjak Booking Fee dibayarkan</li>
-                        <li>Pembayaran yang diakui adalah yang memiliki BUKTI KUITANSI / TRANSFER resmi ke Developer, yaitu:<br>
-                            <strong>a.n PT. SERANGKAI RODEN DEVELOPMENT, BRI: 012001004640307</strong>
-                        </li>
-                        <li>Serah Terima Unit dilakukan maksimal 12 bulan setelah pembangunan dimulai</li>
+                        @foreach($notesArray as $note)
+                            <li>{!! trim($note) !!}</li>
+                        @endforeach
                     </ol>
                 </td>
 
@@ -284,13 +307,9 @@
                 <td style="width: 35%;">
                     <div class="footer-section-title">Tahapan Pemesanan:</div>
                     <ol class="footer-list">
-                        <li>Melakukan Booking Fee terhadap unit yang dipilih</li>
-                        <li>Melengkapi dokumen persyaratan yang diperlukan</li>
-                        <li>Mengisi SPR (Surat Pemesanan Rumah) sebagai bukti pemesanan unit</li>
-                        <li>Pembayaran DP sesuai dengan skema yang telah disepakati</li>
-                        <li>Penandatanganan PPJB (Perjanjian Pengikatan Jual Beli)</li>
-                        <li>Pelunasan Angsuran sesuai dengan skema yang disepakati</li>
-                        <li>Serah Terima Unit</li>
+                        @foreach($orderStepsArray as $step)
+                            <li>{!! trim($step) !!}</li>
+                        @endforeach
                     </ol>
                 </td>
 
@@ -298,14 +317,13 @@
                 <td style="width: 23%;">
                     <div class="footer-section-title">Bank Kerjasama:</div>
                     <table style="width: 100%; border-collapse: separate; border-spacing: 3px;">
-                        <tr>
-                            <td class="bank-box" style="color: #00529c;">BRI</td>
-                            <td class="bank-box" style="color: #00a39e;">BSI</td>
-                        </tr>
-                        <tr>
-                            <td class="bank-box" style="color: #003366;">mandırı</td>
-                            <td class="bank-box" style="color: #002d62;">Bank BTN</td>
-                        </tr>
+                        @foreach(array_chunk($partnerBanks, 2) as $bankPair)
+                            <tr>
+                                @foreach($bankPair as $bName)
+                                    <td class="bank-box" style="color: #003366;">{{ $bName }}</td>
+                                @endforeach
+                            </tr>
+                        @endforeach
                     </table>
                     <div style="font-size: 6.5px; color: #475569; margin-top: 6px; text-align: center; font-style: italic;">
                         Price & availability subject to latest update on Developer CRM.
