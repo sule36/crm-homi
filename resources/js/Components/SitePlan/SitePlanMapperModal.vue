@@ -9,7 +9,15 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
-const imagePreview = ref(props.project?.siteplan_image ? `/storage/${props.project.siteplan_image}` : null);
+const defaultSiteplan = '/images/siteplans/alonica_siteplan.jpg';
+const getInitialImage = () => {
+    const img = props.project?.siteplan_image || props.project?.master_plan_image;
+    if (!img) return defaultSiteplan;
+    if (img.startsWith('http') || img.startsWith('/')) return img;
+    if (img.includes('alonica_siteplan.jpg')) return defaultSiteplan;
+    return `/storage/${img}`;
+};
+const imagePreview = ref(getInitialImage());
 const selectedFile = ref(null);
 
 const form = useForm({
@@ -116,7 +124,7 @@ function submit() {
                     <!-- IMAGE CANVAS PREVIEW -->
                     <div class="lg:col-span-3 bg-slate-900 rounded-2xl p-4 overflow-auto min-h-[450px] relative flex items-center justify-center">
                         <div v-if="imagePreview" class="relative inline-block cursor-crosshair" @click="handleImageClick">
-                            <img :src="imagePreview" class="rounded-xl max-w-full block" />
+                            <img :src="imagePreview" @error="imagePreview = defaultSiteplan" class="rounded-xl max-w-full block" />
 
                             <!-- PIN PREVIEWS -->
                             <div

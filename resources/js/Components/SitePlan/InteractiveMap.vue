@@ -49,19 +49,32 @@ const filteredUnits = computed(() => {
     return props.units.filter(u => u.block === activeFilterBlock.value);
 });
 
+const defaultSiteplanPath = '/images/siteplans/alonica_siteplan.jpg';
+
 const siteplanImg = computed(() => {
     if (props.project?.siteplan_image) return props.project.siteplan_image;
     if (props.project?.master_plan_image) return props.project.master_plan_image;
-    return 'projects/masterplans/alonica_siteplan.jpg';
+    return defaultSiteplanPath;
 });
 
 const imageSrc = computed(() => {
-    if (!siteplanImg.value) return '';
-    if (siteplanImg.value.startsWith('http') || siteplanImg.value.startsWith('/')) {
-        return siteplanImg.value;
+    const img = siteplanImg.value;
+    if (!img) return defaultSiteplanPath;
+    if (img.startsWith('http') || img.startsWith('/')) {
+        return img;
     }
-    return `/storage/${siteplanImg.value}`;
+    // If it points to alonica_siteplan, use the static public asset directly
+    if (img.includes('alonica_siteplan.jpg')) {
+        return defaultSiteplanPath;
+    }
+    return `/storage/${img}`;
 });
+
+function handleImageError(e) {
+    if (e.target && !e.target.src.endsWith(defaultSiteplanPath)) {
+        e.target.src = defaultSiteplanPath;
+    }
+}
 
 function formatPrice(p) {
     if (!p) return '-';
@@ -175,6 +188,7 @@ function getUnitAreaPosition(unit) {
                 <img
                     v-if="imageSrc"
                     :src="imageSrc"
+                    @error="handleImageError"
                     class="block max-w-none select-none pointer-events-none"
                     style="min-width: 900px; width: 100%;"
                     draggable="false"

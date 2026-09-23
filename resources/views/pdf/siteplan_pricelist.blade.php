@@ -185,6 +185,10 @@
             <div style="text-align: center; margin-bottom: 10px;">
                 <img src="{{ public_path('storage/' . $project->siteplan_image) }}" style="max-width: 100%; max-height: 480px; border-radius: 8px; border: 1.5px solid #0f172a;" />
             </div>
+        @elseif(file_exists(public_path('images/siteplans/alonica_siteplan.jpg')))
+            <div style="text-align: center; margin-bottom: 10px;">
+                <img src="{{ public_path('images/siteplans/alonica_siteplan.jpg') }}" style="max-width: 100%; max-height: 480px; border-radius: 8px; border: 1.5px solid #0f172a;" />
+            </div>
         @else
             <!-- SUMMARY STOK BAR -->
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
