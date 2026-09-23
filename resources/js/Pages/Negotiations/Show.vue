@@ -23,6 +23,7 @@ const editForm = useForm({
     payment_scheme: 'kpr',
     dp_amount: '',
     installment_months: '',
+    special_bonus_items: [],
     notes: '',
     developer_sig_name: '',
     developer_sig_title: '',
@@ -40,6 +41,7 @@ function openEditModal() {
     editForm.payment_scheme = nego.value.payment_scheme || 'kpr';
     editForm.dp_amount = nego.value.dp_amount || '';
     editForm.installment_months = nego.value.installment_months || '';
+    editForm.special_bonus_items = Array.isArray(nego.value.special_bonus_items) ? [...nego.value.special_bonus_items] : [];
     editForm.notes = nego.value.notes || '';
     editForm.developer_sig_name = nego.value.developer_sig_name || '';
     editForm.developer_sig_title = nego.value.developer_sig_title || '';
@@ -47,6 +49,19 @@ function openEditModal() {
     editForm.counter_price = nego.value.counter_price || '';
     editForm.counter_notes = nego.value.counter_notes || '';
     showEditModal.value = true;
+}
+
+function addBonusItem() {
+    if (!Array.isArray(editForm.special_bonus_items)) {
+        editForm.special_bonus_items = [];
+    }
+    editForm.special_bonus_items.push('');
+}
+
+function removeBonusItem(idx) {
+    if (Array.isArray(editForm.special_bonus_items)) {
+        editForm.special_bonus_items.splice(idx, 1);
+    }
 }
 
 const selectedEditUnit = computed(() => {
@@ -227,8 +242,20 @@ function shareWhatsApp() {
                             <div><span class="font-black text-slate-400 block text-[10px] uppercase">Berlaku Sampai</span><span class="font-bold" :class="new Date(nego.expired_at) < new Date() ? 'text-rose-600' : 'text-slate-800'">{{ formatDate(nego.expired_at) }}</span></div>
                         </div>
                     </div>
+                    <!-- Special Bonus Items -->
+                    <div v-if="nego.special_bonus_items && nego.special_bonus_items.length > 0" class="mt-5 p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-2">
+                        <p class="text-[10px] font-black text-purple-800 uppercase flex items-center gap-1.5">
+                            🎁 Item Bonus & Benefit Khusus yang Diajukan
+                        </p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <span v-for="(item, idx) in nego.special_bonus_items" :key="'show-b-' + idx" class="px-2.5 py-1 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-900 shadow-2xs">
+                                ✨ {{ item }}
+                            </span>
+                        </div>
+                    </div>
+
                     <!-- Custom Layout Options & Notes -->
-                    <div v-if="nego.custom_layout_options && nego.custom_layout_options.length > 0" class="mt-5 p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
+                    <div v-if="nego.custom_layout_options && nego.custom_layout_options.length > 0" class="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
                         <p class="text-[10px] font-black text-indigo-700 uppercase">🏗️ Modifikasi Custom Layout & Denah</p>
                         <div class="flex flex-wrap gap-1.5">
                             <span v-for="(opt, idx) in nego.custom_layout_options" :key="idx" class="px-2.5 py-1 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-slate-800">
@@ -461,6 +488,29 @@ function shareWhatsApp() {
                             <div v-if="editForm.status === 'counter_offer'">
                                 <label class="block text-[10px] font-black text-purple-700 uppercase mb-1">Counter Price Developer (Rp)</label>
                                 <input v-model="editForm.counter_price" type="number" min="0" class="w-full px-3.5 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-900 font-mono" />
+                            </div>
+                        </div>
+
+                        <!-- Special Bonus Items Edit -->
+                        <div class="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label class="block text-[10px] font-black text-purple-900 uppercase">
+                                    🎁 Special Bonus & Benefit Items
+                                </label>
+                                <button type="button" @click="addBonusItem" class="px-2.5 py-1 bg-purple-200 hover:bg-purple-300 text-purple-800 text-[10px] font-bold rounded-lg transition-all">
+                                    + Tambah Bonus
+                                </button>
+                            </div>
+                            <div v-if="!editForm.special_bonus_items || editForm.special_bonus_items.length === 0" class="text-[10px] text-purple-500 italic">
+                                Belum ada item bonus. Klik "+ Tambah Bonus" untuk menambah item.
+                            </div>
+                            <div v-else class="space-y-1.5">
+                                <div v-for="(b, idx) in editForm.special_bonus_items" :key="'edit-b-' + idx" class="flex items-center gap-2">
+                                    <input v-model="editForm.special_bonus_items[idx]" type="text" placeholder="Nama item bonus (contoh: AC 1PK, Kitchen Set, Free BPHTB)..." class="w-full px-3 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-semibold" />
+                                    <button type="button" @click="removeBonusItem(idx)" class="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg text-xs" title="Hapus">
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

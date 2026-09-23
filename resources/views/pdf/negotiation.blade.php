@@ -383,12 +383,39 @@
         </div>
     </div>
 
-    <!-- 3. CATATAN PENGAJUAN & CUSTOM LAYOUT -->
+    <!-- 3. PENGAJUAN BONUS, ELEKTRONIK & BENEFIT KHUSUS -->
     <div class="section-box">
-        <div class="section-header">3. Catatan Pengajuan & Custom Layout</div>
+        <div class="section-header">3. Pengajuan Item Bonus, Elektronik & Benefit Khusus</div>
         <div class="section-body">
-            <!-- 3.1 OPSI MODIFIKASI DENAH -->
-            <div class="sub-header">3.1 Opsi Modifikasi Denah / Custom Layout</div>
+            @if(!empty($negotiation->special_bonus_items) && is_array($negotiation->special_bonus_items) && count($negotiation->special_bonus_items) > 0)
+                <table class="checklist-table">
+                    <colgroup>
+                        <col style="width: 50%;">
+                        <col style="width: 50%;">
+                    </colgroup>
+                    @foreach(array_chunk($negotiation->special_bonus_items, 2) as $row)
+                        <tr>
+                            @foreach($row as $bonusItem)
+                                <td><span class="check-icon" style="color: #7e22ce;">🎁</span> <strong>{{ $bonusItem }}</strong></td>
+                            @endforeach
+                            @if(count($row) === 1)
+                                <td></td>
+                            @endif
+                        </tr>
+                    @endforeach
+                </table>
+            @else
+                <div class="no-notes">Tidak ada item bonus khusus yang diajukan.</div>
+            @endif
+        </div>
+    </div>
+
+    <!-- 4. CATATAN PENGAJUAN & CUSTOM LAYOUT -->
+    <div class="section-box">
+        <div class="section-header">4. Catatan Pengajuan & Custom Layout</div>
+        <div class="section-body">
+            <!-- 4.1 OPSI MODIFIKASI DENAH -->
+            <div class="sub-header">4.1 Opsi Modifikasi Denah / Custom Layout</div>
             @if(!empty($negotiation->custom_layout_options) && is_array($negotiation->custom_layout_options) && count($negotiation->custom_layout_options) > 0)
                 <table class="checklist-table">
                     <colgroup>
@@ -410,16 +437,16 @@
                 <div class="no-notes">Tidak ada pilihan penyesuaian denah standar yang dicentang.</div>
             @endif
 
-            <!-- 3.2 DETAIL CATATAN PENYESUAIAN DENAH -->
-            <div class="sub-header" style="margin-top: 6px;">3.2 Detail Catatan Penyesuaian Denah & Tata Letak</div>
+            <!-- 4.2 DETAIL CATATAN PENYESUAIAN DENAH -->
+            <div class="sub-header" style="margin-top: 6px;">4.2 Detail Catatan Penyesuaian Denah & Tata Letak</div>
             @if(!empty(trim($negotiation->custom_layout_notes ?? '')))
                 <div class="notes-box">{{ trim($negotiation->custom_layout_notes) }}</div>
             @else
                 <div class="no-notes">-</div>
             @endif
 
-            <!-- 3.3 PERMINTAAN KHUSUS & CATATAN LAINNYA -->
-            <div class="sub-header" style="margin-top: 6px;">3.3 Permintaan Khusus & Catatan Tambahan</div>
+            <!-- 4.3 PERMINTAAN KHUSUS & CATATAN LAINNYA -->
+            <div class="sub-header" style="margin-top: 6px;">4.3 Permintaan Khusus & Catatan Tambahan</div>
             @if(!empty(trim($negotiation->special_requests ?? '')))
                 <div style="font-size: 7.5pt; font-weight: bold; color: #475569;">Permintaan Khusus:</div>
                 <div class="notes-box">{{ trim($negotiation->special_requests) }}</div>
@@ -434,11 +461,11 @@
         </div>
     </div>
 
-    <!-- 4. COUNTER OFFER DEVELOPER (IF ANY) -->
+    <!-- 5. COUNTER OFFER DEVELOPER (IF ANY) -->
     @if($negotiation->status === 'counter_offer' || $negotiation->counter_price)
         <div class="section-box" style="border-color: #c084fc;">
             <div class="section-header" style="background-color: #faf5ff; color: #6b21a8; border-color: #e9d5ff;">
-                4. Hasil Review & Penawaran Balik (Counter Offer) Developer
+                5. Hasil Review & Penawaran Balik (Counter Offer) Developer
             </div>
             <div class="section-body">
                 <table class="data-table">

@@ -131,6 +131,7 @@ class NegotiationController extends Controller
             'client_email' => 'nullable|email|max:255',
             'developer_sig_name' => 'nullable|string|max:255',
             'developer_sig_title' => 'nullable|string|max:255',
+            'special_bonus_items' => 'nullable|array',
         ]);
 
         $unit = Unit::with('project')->findOrFail($request->unit_id);
@@ -149,6 +150,7 @@ class NegotiationController extends Controller
             'unit_listed_price' => $unit->final_price ?? $unit->price ?? 0,
             'developer_sig_name' => $request->developer_sig_name ?: $defaultSigName,
             'developer_sig_title' => $request->developer_sig_title ?: $defaultSigTitle,
+            'special_bonus_items' => $request->special_bonus_items ?? [],
             'status' => 'draft',
         ]);
 
@@ -209,6 +211,7 @@ class NegotiationController extends Controller
             'developer_sig_title' => 'nullable|string|max:255',
             'counter_price' => 'nullable|numeric|min:0',
             'counter_notes' => 'nullable|string|max:1000',
+            'special_bonus_items' => 'nullable|array',
         ]);
 
         $oldUnitId = $negotiation->unit_id;
@@ -229,6 +232,10 @@ class NegotiationController extends Controller
             'developer_sig_name' => $validated['developer_sig_name'] ?? $negotiation->developer_sig_name,
             'developer_sig_title' => $validated['developer_sig_title'] ?? $negotiation->developer_sig_title,
         ];
+
+        if (array_key_exists('special_bonus_items', $validated)) {
+            $updateData['special_bonus_items'] = $validated['special_bonus_items'];
+        }
 
         if (!empty($validated['status'])) {
             $updateData['status'] = $validated['status'];
@@ -345,6 +352,7 @@ class NegotiationController extends Controller
             'final_price' => $negotiation->status === 'approved' ? $negotiation->offered_price : $negotiation->counter_price,
             'payment_scheme' => $negotiation->payment_scheme ?? 'kpr',
             'dp_amount' => $negotiation->dp_amount,
+            'special_bonus_items' => $negotiation->special_bonus_items,
         ];
 
         return redirect()->route('bookings.create', $params);
@@ -415,6 +423,7 @@ class NegotiationController extends Controller
             'dp_amount' => 'nullable|numeric|min:0',
             'installment_months' => 'nullable|integer|min:1|max:360',
             'special_requests' => 'nullable|string|max:2000',
+            'special_bonus_items' => 'nullable|array',
             'custom_layout_options' => 'nullable|array',
             'custom_layout_notes' => 'nullable|string|max:2000',
             'client_signature' => 'nullable|string',

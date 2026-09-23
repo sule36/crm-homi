@@ -83,6 +83,7 @@ class BookingController extends Controller
             'sig3_name' => 'nullable|string|max:255',
             'sig4_title' => 'nullable|string|max:100',
             'sig4_name' => 'nullable|string|max:255',
+            'special_bonus_items' => 'nullable|array',
             'notes' => 'nullable|string',
         ]);
 
@@ -125,6 +126,7 @@ class BookingController extends Controller
                 'secondary_relationship' => $validated['secondary_relationship'] ?? null,
                 'secondary_address' => $validated['secondary_address'] ?? null,
                 'secondary_email' => $validated['secondary_email'] ?? null,
+                'special_bonus_items' => $validated['special_bonus_items'] ?? null,
                 'status' => 'pending',
                 'notes' => $validated['notes'],
                 'commission_amount' => $commissionAmount,

@@ -31,7 +31,7 @@ class Negotiation extends Model
         'client_name', 'client_phone', 'client_email',
         // Negotiation
         'unit_listed_price', 'offered_price', 'payment_scheme',
-        'dp_amount', 'installment_months', 'special_requests',
+        'dp_amount', 'installment_months', 'special_requests', 'special_bonus_items',
         'custom_layout_options', 'custom_layout_notes', 'notes', 'client_signature',
         'developer_sig_name', 'developer_sig_title',
         // Status
@@ -50,6 +50,7 @@ class Negotiation extends Model
             'counter_price' => 'integer',
             'installment_months' => 'integer',
             'custom_layout_options' => 'array',
+            'special_bonus_items' => 'array',
             'reviewed_at' => 'datetime',
             'client_response_at' => 'datetime',
             'expired_at' => 'datetime',

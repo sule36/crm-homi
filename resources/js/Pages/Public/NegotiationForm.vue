@@ -26,6 +26,7 @@ const form = useForm({
     dp_amount: nego.value.dp_amount || '',
     installment_months: nego.value.installment_months || (nego.value.payment_scheme === 'kpr' ? 120 : 12),
     special_requests: nego.value.special_requests || '',
+    special_bonus_items: Array.isArray(nego.value.special_bonus_items) ? [...nego.value.special_bonus_items] : [],
     custom_layout_options: nego.value.custom_layout_options || [],
     custom_layout_notes: nego.value.custom_layout_notes || '',
     client_signature: nego.value.client_signature || '',
@@ -57,6 +58,49 @@ function toggleLayoutOption(label) {
 
 function isLayoutOptionSelected(label) {
     return Array.isArray(form.custom_layout_options) && form.custom_layout_options.includes(label);
+}
+
+// Preset Bonus Suggestions
+const presetBonusSuggestions = [
+    'Kitchen Set Complete',
+    'AC 1 PK (Kamar Utama)',
+    'Kanopi Carport Alderon',
+    'Smart Door Lock Digital',
+    'Water Heater',
+    'TV Smart 43 Inch',
+    'Free BPHTB',
+    'Free AJB & BBN',
+    'Free Biaya Notaris',
+    'Extra Cashback Rp 10 Juta',
+];
+
+function toggleBonusPreset(bonusName) {
+    if (!Array.isArray(form.special_bonus_items)) {
+        form.special_bonus_items = [];
+    }
+    const idx = form.special_bonus_items.indexOf(bonusName);
+    if (idx > -1) {
+        form.special_bonus_items.splice(idx, 1);
+    } else {
+        form.special_bonus_items.push(bonusName);
+    }
+}
+
+function isBonusSelected(bonusName) {
+    return Array.isArray(form.special_bonus_items) && form.special_bonus_items.includes(bonusName);
+}
+
+function addCustomBonusItem() {
+    if (!Array.isArray(form.special_bonus_items)) {
+        form.special_bonus_items = [];
+    }
+    form.special_bonus_items.push('');
+}
+
+function removeBonusItem(index) {
+    if (Array.isArray(form.special_bonus_items)) {
+        form.special_bonus_items.splice(index, 1);
+    }
 }
 
 // Digital Signature Canvas Logic
@@ -412,6 +456,16 @@ function formatCurrency(val) {
                         </div>
                     </div>
 
+                    <!-- SPECIAL BONUS ITEMS SUMMARY IN SUBMITTED VIEW -->
+                    <div v-if="nego.special_bonus_items && nego.special_bonus_items.length > 0" class="p-4 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
+                        <p class="text-[10px] font-black uppercase text-purple-800">🎁 Item Bonus & Benefit Khusus yang Diajukan:</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <span v-for="(bItem, idx) in nego.special_bonus_items" :key="'b-' + idx" class="px-2.5 py-1 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-900 shadow-2xs">
+                                ✨ {{ bItem }}
+                            </span>
+                        </div>
+                    </div>
+
                     <!-- CUSTOM LAYOUT SUMMARY IN SUBMITTED VIEW -->
                     <div v-if="nego.custom_layout_options && nego.custom_layout_options.length > 0" class="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
                         <p class="text-[10px] font-black uppercase text-blue-700">🏗️ Modifikasi Custom Layout yang Diajukan:</p>
@@ -578,17 +632,84 @@ function formatCurrency(val) {
                         </div>
                     </div>
 
-                    <!-- SECTION 3: CATATAN PENGAJUAN & CUSTOM LAYOUT -->
+                    <!-- SECTION 3: PENGAJUAN BONUS, ELEKTRONIK & BENEFIT KHUSUS -->
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
+                            <span class="w-6 h-6 rounded-lg bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center font-black text-xs">3</span>
+                            <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Pengajuan Bonus, Elektronik & Benefit Khusus</h4>
+                        </div>
+
+                        <!-- PRESET QUICK-SELECT TAGS -->
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold text-slate-700">Pilihan Bonus Cepat (Klik untuk memilih/membatalkan):</label>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    v-for="(b, idx) in presetBonusSuggestions"
+                                    :key="'preset-' + idx"
+                                    @click="toggleBonusPreset(b)"
+                                    :class="['px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 select-none', isBonusSelected(b) ? 'bg-purple-600 border-purple-600 text-white shadow-sm ring-2 ring-purple-500/20' : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-100']"
+                                >
+                                    <span>{{ isBonusSelected(b) ? '✓' : '+' }}</span>
+                                    <span>{{ b }}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- CUSTOM BONUS ITEM LIST INPUT -->
+                        <div class="space-y-2 pt-2 border-t border-slate-100">
+                            <div class="flex items-center justify-between">
+                                <label class="block text-xs font-bold text-slate-700">Daftar Item Bonus yang Diajukan:</label>
+                                <button
+                                    type="button"
+                                    @click="addCustomBonusItem"
+                                    class="px-3 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1"
+                                >
+                                    + Tambah Item Bonus Baru
+                                </button>
+                            </div>
+
+                            <div v-if="!form.special_bonus_items || form.special_bonus_items.length === 0" class="p-3.5 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-xs text-slate-400">
+                                Belum ada item bonus yang dipilih/ditambahkan. Klik pilihan di atas atau tombol "+ Tambah Item Bonus Baru" untuk mengajukan bonus secara bebas.
+                            </div>
+
+                            <div v-else class="space-y-2">
+                                <div
+                                    v-for="(item, idx) in form.special_bonus_items"
+                                    :key="'bonus-item-' + idx"
+                                    class="flex items-center gap-2"
+                                >
+                                    <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center shrink-0">{{ idx + 1 }}</span>
+                                    <input
+                                        v-model="form.special_bonus_items[idx]"
+                                        type="text"
+                                        placeholder="Ketik item bonus yang diinginkan (contoh: Free Kanopi, AC 2 Unit, Voucher Belanja, etc.)..."
+                                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
+                                    />
+                                    <button
+                                        type="button"
+                                        @click="removeBonusItem(idx)"
+                                        class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all shrink-0"
+                                        title="Hapus bonus ini"
+                                    >
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 4: CATATAN PENGAJUAN & CUSTOM LAYOUT -->
                     <div class="space-y-6">
                         <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
-                            <span class="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-black text-xs">3</span>
+                            <span class="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-black text-xs">4</span>
                             <h4 class="text-xs font-black uppercase tracking-wider text-slate-900">Catatan Pengajuan & Custom Layout</h4>
                         </div>
 
-                        <!-- 3.1 OPSI MODIFIKASI DENAH -->
+                        <!-- 4.1 OPSI MODIFIKASI DENAH -->
                         <div class="space-y-3">
                             <h5 class="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-mono text-[10px]">3.1</span>
+                                <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-mono text-[10px]">4.1</span>
                                 Opsi Modifikasi Denah / Custom Layout
                             </h5>
                             <p class="text-xs text-slate-500">Pilih opsi modifikasi denah yang Anda harapkan (centang pada opsi di bawah):</p>

@@ -99,6 +99,7 @@ const editForm = useForm({
     payment_scheme: 'kpr',
     dp_amount: '',
     installment_months: '',
+    special_bonus_items: [],
     notes: '',
     status: 'draft',
 });
@@ -113,9 +114,23 @@ function openEdit(nego) {
     editForm.payment_scheme = nego.payment_scheme || 'kpr';
     editForm.dp_amount = nego.dp_amount || '';
     editForm.installment_months = nego.installment_months || '';
+    editForm.special_bonus_items = Array.isArray(nego.special_bonus_items) ? [...nego.special_bonus_items] : [];
     editForm.notes = nego.notes || '';
     editForm.status = nego.status || 'draft';
     showEditModal.value = true;
+}
+
+function addEditBonusItem() {
+    if (!Array.isArray(editForm.special_bonus_items)) {
+        editForm.special_bonus_items = [];
+    }
+    editForm.special_bonus_items.push('');
+}
+
+function removeEditBonusItem(idx) {
+    if (Array.isArray(editForm.special_bonus_items)) {
+        editForm.special_bonus_items.splice(idx, 1);
+    }
 }
 
 function submitEdit() {
@@ -496,6 +511,29 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                             <div>
                                 <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nominal DP (Rp)</label>
                                 <input v-model="editForm.dp_amount" type="number" min="0" placeholder="0" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono" />
+                            </div>
+                        </div>
+
+                        <!-- Special Bonus Items Edit -->
+                        <div class="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label class="block text-[10px] font-black text-purple-900 uppercase">
+                                    🎁 Special Bonus & Benefit Items
+                                </label>
+                                <button type="button" @click="addEditBonusItem" class="px-2.5 py-1 bg-purple-200 hover:bg-purple-300 text-purple-800 text-[10px] font-bold rounded-lg transition-all">
+                                    + Tambah Bonus
+                                </button>
+                            </div>
+                            <div v-if="!editForm.special_bonus_items || editForm.special_bonus_items.length === 0" class="text-[10px] text-purple-500 italic">
+                                Belum ada item bonus. Klik "+ Tambah Bonus" untuk menambah item.
+                            </div>
+                            <div v-else class="space-y-1.5">
+                                <div v-for="(b, idx) in editForm.special_bonus_items" :key="'edit-b-' + idx" class="flex items-center gap-2">
+                                    <input v-model="editForm.special_bonus_items[idx]" type="text" placeholder="Nama item bonus (contoh: AC 1PK, Kitchen Set, Free BPHTB)..." class="w-full px-3 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-semibold" />
+                                    <button type="button" @click="removeEditBonusItem(idx)" class="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg text-xs" title="Hapus">
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
