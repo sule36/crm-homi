@@ -87,24 +87,25 @@ function handleZoomOut() { if (zoom.value > 0.5) zoom.value -= 0.15; }
 function handleResetZoom() { zoom.value = 1; }
 
 function getUnitDotPosition(unit) {
-    // Place the dot at the top-right corner of the unit kavling area
     const coords = unit.siteplan_coordinates;
     if (!coords) return null;
+    const dotX = coords.dot_x !== undefined ? coords.dot_x : (coords.x + (coords.w || 6.8) * 0.5);
+    const dotY = coords.dot_y !== undefined ? coords.dot_y : (coords.y + (coords.h || 3.2) * 0.5);
     return {
-        left: `${coords.x + (coords.w || 5) * 0.35}%`,
-        top: `${coords.y - (coords.h || 4) * 0.1}%`,
+        left: `${dotX}%`,
+        top: `${dotY}%`,
+        transform: 'translate(-50%, -50%)',
     };
 }
 
 function getUnitAreaPosition(unit) {
-    // Create a clickable transparent area over the unit's kavling position
     const coords = unit.siteplan_coordinates;
     if (!coords) return null;
     return {
         left: `${coords.x}%`,
         top: `${coords.y}%`,
-        width: `${coords.w || 5}%`,
-        height: `${coords.h || 4}%`,
+        width: `${coords.w || 6.8}%`,
+        height: `${coords.h || 3.2}%`,
     };
 }
 </script>
@@ -250,7 +251,7 @@ function getUnitAreaPosition(unit) {
                         ...getUnitDotPosition(u),
                     }"
                     :class="[
-                        'w-[14px] h-[14px] rounded-full border-2 cursor-pointer z-20 transition-all duration-200 hover:scale-150',
+                        'w-[15px] h-[15px] rounded-full border-2 cursor-pointer z-20 transition-all duration-200 hover:scale-150',
                         statusDots[u.status]?.dot,
                         statusDots[u.status]?.dotBorder,
                         statusDots[u.status]?.ring,
