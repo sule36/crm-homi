@@ -14,6 +14,7 @@ const zoom = ref(1);
 const panX = ref(0);
 const panY = ref(0);
 const activeFilterBlock = ref('ALL');
+const mapMode = ref('graphic'); // 'graphic' | 'grid'
 
 const statusBadges = {
     available: { label: 'Available', color: 'bg-emerald-500 text-white', ring: 'ring-emerald-500/30', border: 'border-emerald-500', light: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
@@ -31,6 +32,24 @@ const blockNames = computed(() => {
 const filteredBlockUnits = computed(() => {
     if (activeFilterBlock.value === 'ALL') return props.unitsByBlock;
     return { [activeFilterBlock.value]: props.unitsByBlock[activeFilterBlock.value] || [] };
+});
+
+const siteplanImg = computed(() => {
+    if (props.project?.siteplan_image) return props.project.siteplan_image;
+    if (props.project?.master_plan_image) return props.project.master_plan_image;
+    // Automatic fallback for Alonica Hills or any default siteplan image
+    if (props.project?.name?.toLowerCase().includes('alonica') || true) {
+        return 'projects/masterplans/alonica_siteplan.jpg';
+    }
+    return null;
+});
+
+const imageSrc = computed(() => {
+    if (!siteplanImg.value) return '';
+    if (siteplanImg.value.startsWith('http') || siteplanImg.value.startsWith('/')) {
+        return siteplanImg.value;
+    }
+    return `/storage/${siteplanImg.value}`;
 });
 
 function formatPrice(p) {
@@ -52,8 +71,30 @@ function handleResetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0; }
                 <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
                 <div>
                     <h3 class="text-sm font-black uppercase tracking-wider">Interactive Site Plan</h3>
-                    <p class="text-[11px] text-slate-400">Klik pada lot unit untuk melihat detail & status real-time</p>
+                    <p class="text-[11px] text-slate-400">Klik pada lot unit di gambar/grid untuk detail & status real-time</p>
                 </div>
+            </div>
+
+            <!-- DISPLAY MODE SWITCHER: GRAPHIC VS GRID -->
+            <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700/60">
+                <button
+                    @click="mapMode = 'graphic'"
+                    :class="[
+                        'px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5',
+                        mapMode === 'graphic' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    ]"
+                >
+                    <span>🗺️ Peta Gambar</span>
+                </button>
+                <button
+                    @click="mapMode = 'grid'"
+                    :class="[
+                        'px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5',
+                        mapMode === 'grid' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                    ]"
+                >
+                    <span>🔲 Grid Blok</span>
+                </button>
             </div>
 
             <!-- BLOCK FILTER TABS -->
@@ -71,7 +112,7 @@ function handleResetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0; }
                 </button>
             </div>
 
-            <!-- ZOOM CONTROLS -->
+            <!-- ZOOM & TOOL CONTROLS -->
             <div class="flex items-center gap-2">
                 <button @click="handleZoomOut" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors" title="Zoom Out">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
@@ -83,17 +124,18 @@ function handleResetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0; }
                 <button @click="handleResetZoom" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[11px] font-bold text-slate-300 transition-colors">
                     Reset
                 </button>
-                <button v-if="isInternal" @click="$emit('open-mapper')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md">
-                    ⚙️ Upload/Edit Map
+                <button v-if="isInternal" @click="$emit('open-mapper')" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5">
+                    <span>⚙️ Upload / Edit Layout</span>
                 </button>
             </div>
         </div>
 
         <!-- SITE PLAN VIEW CONTAINER -->
-        <div class="p-6 bg-slate-50 min-h-[520px] overflow-auto relative select-none">
-            <!-- IMAGE SITE PLAN OVERLAY (If image uploaded) -->
-            <div v-if="project?.siteplan_image" class="relative transition-transform duration-200 origin-top-left inline-block" :style="{ transform: `scale(${zoom})` }">
-                <img :src="`/storage/${project.siteplan_image}`" class="rounded-2xl shadow-xl max-w-full" />
+        <div class="p-6 bg-slate-950 min-h-[550px] overflow-auto relative select-none flex items-center justify-center">
+            <!-- 🗺️ GRAPHIC SITE PLAN IMAGE MODE -->
+            <div v-if="mapMode === 'graphic' && imageSrc" class="relative transition-transform duration-200 origin-top-left inline-block my-auto" :style="{ transform: `scale(${zoom})` }">
+                <img :src="imageSrc" class="rounded-2xl shadow-2xl max-w-none w-full min-w-[850px] block border border-slate-800" />
+                
                 <!-- PINNED UNIT MARKERS -->
                 <div
                     v-for="u in units"
@@ -101,35 +143,40 @@ function handleResetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0; }
                     @click="$emit('select-unit', u)"
                     :style="{
                         position: 'absolute',
-                        left: `${u.siteplan_coordinates?.x || 10}%`,
-                        top: `${u.siteplan_coordinates?.y || 10}%`,
-                        width: `${u.siteplan_coordinates?.w || 40}px`,
-                        height: `${u.siteplan_coordinates?.h || 40}px`,
+                        left: `${u.siteplan_coordinates?.x || 50}%`,
+                        top: `${u.siteplan_coordinates?.y || 50}%`,
+                        width: `${u.siteplan_coordinates?.w || 36}px`,
+                        height: `${u.siteplan_coordinates?.h || 36}px`,
                     }"
                     :class="[
-                        'group cursor-pointer rounded-xl border-2 flex items-center justify-center font-black text-xs transition-all shadow-lg hover:scale-110 z-10',
+                        'group cursor-pointer -ml-4.5 -mt-4.5 rounded-xl border-2 flex items-center justify-center font-black text-xs transition-all shadow-2xl hover:scale-125 z-20 hover:z-50 ring-2 ring-black/40',
                         statusBadges[u.status]?.color || 'bg-slate-600 text-white',
                         statusBadges[u.status]?.border || 'border-white'
                     ]"
                 >
                     <span>{{ u.block }}{{ u.number }}</span>
+
                     <!-- TOOLTIP ON HOVER -->
-                    <div class="absolute bottom-full mb-2 hidden group-hover:block z-50 w-48 bg-slate-900 text-white rounded-2xl p-3 text-left shadow-2xl pointer-events-none ring-1 ring-white/10">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="font-black text-sm">{{ u.label }}</span>
-                            <span :class="['px-2 py-0.5 rounded text-[9px] font-bold uppercase', statusBadges[u.status]?.color]">
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-52 bg-slate-900 text-white rounded-2xl p-3.5 text-left shadow-2xl pointer-events-none ring-1 ring-white/20 border border-slate-700">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="font-black text-sm text-blue-400">Unit {{ u.label }}</span>
+                            <span :class="['px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider', statusBadges[u.status]?.color]">
                                 {{ u.status }}
                             </span>
                         </div>
-                        <p class="text-[11px] text-slate-300">LT {{ u.unit_type?.land_area }}m² | LB {{ u.unit_type?.building_area }}m²</p>
-                        <p class="text-xs font-black text-emerald-400 mt-1">{{ formatPrice(u.final_price) }}</p>
-                        <p v-if="u.promo" class="text-[10px] text-amber-300 font-bold mt-0.5 truncate">🎁 {{ u.promo }}</p>
+                        <p class="text-[11px] text-slate-300 font-medium">{{ u.unit_type?.name }}</p>
+                        <p class="text-[10px] text-slate-400">LT {{ u.unit_type?.land_area || 0 }}m² | LB {{ u.unit_type?.building_area || 0 }}m²</p>
+                        <p class="text-xs font-black text-emerald-400 mt-1.5">{{ formatPrice(u.final_price) }}</p>
+                        <p v-if="u.promo" class="text-[10px] text-amber-300 font-bold mt-1 truncate">🎁 {{ u.promo }}</p>
+                        <div class="mt-2 pt-1.5 border-t border-slate-800 text-[10px] text-blue-400 font-bold flex items-center gap-1">
+                            <span>👉 Klik untuk detail lengkap</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- VISUAL LOT GRID SITE PLAN (Clean responsive layout) -->
-            <div v-else class="space-y-8 transition-transform duration-200 origin-top-left" :style="{ transform: `scale(${zoom})` }">
+            <!-- 🔲 VISUAL LOT GRID SITE PLAN (Fallback & Clean Grid Mode) -->
+            <div v-else class="w-full space-y-8 transition-transform duration-200 origin-top-left bg-slate-50 p-6 rounded-2xl" :style="{ transform: `scale(${zoom})` }">
                 <div v-for="(bUnits, bName) in filteredBlockUnits" :key="bName" class="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
                     <div class="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
                         <div class="flex items-center gap-3">
