@@ -284,10 +284,82 @@ class ReservationController extends Controller
         $reservation->load(['project', 'unit.unitType', 'lead', 'negotiation', 'creator', 'agentCoordinator', 'refunder', 'booking']);
         $settings = $this->getSettings();
 
+        $units = Unit::where('status', '!=', 'sold')
+            ->when($reservation->project_id, fn ($q) => $q->where('project_id', $reservation->project_id))
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
+            ->with(['project:id,name', 'unitType:id,name'])
+            ->orderBy('block')
+            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->get();
+
         return Inertia::render('Reservations/Show', [
             'reservation' => $reservation,
             'settings' => $settings,
+            'units' => $units,
         ]);
+    }
+
+    /**
+     * Change reserved unit (free old unit, lock new unit)
+     */
+    public function changeUnit(Request $request, Reservation $reservation)
+    {
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        if ($reservation->status !== 'active') {
+            return back()->with('error', 'Hanya reservasi berstatus aktif yang dapat diubah unitnya.');
+        }
+
+        if ($reservation->unit_id == $validated['unit_id']) {
+            return back()->with('info', 'Unit yang dipilih sama dengan unit reservasi saat ini.');
+        }
+
+        $newUnit = Unit::with('project')->findOrFail($validated['unit_id']);
+        if ($newUnit->status !== 'available') {
+            return back()->with('error', "Unit {$newUnit->code} saat ini tidak berstatus Available (Status: {$newUnit->status}).");
+        }
+
+        $oldUnit = Unit::find($reservation->unit_id);
+
+        // 1. Release old unit
+        if ($oldUnit) {
+            $oldUnit->update([
+                'status' => 'available',
+                'held_by' => null,
+                'held_until' => null,
+            ]);
+        }
+
+        // 2. Lock new unit
+        $newUnit->update([
+            'status' => 'reserved',
+            'held_by' => $reservation->created_by ?? auth()->id(),
+            'held_until' => $reservation->expires_at ?? now()->addDays(7),
+        ]);
+
+        // 3. Update reservation
+        $reservation->update([
+            'unit_id' => $newUnit->id,
+            'project_id' => $newUnit->project_id,
+        ]);
+
+        // 4. Record Lead Activity
+        if ($reservation->lead_id) {
+            $reasonText = !empty($validated['reason']) ? " Alasan: {$validated['reason']}" : "";
+            LeadActivity::create([
+                'lead_id' => $reservation->lead_id,
+                'user_id' => auth()->id(),
+                'type' => 'note',
+                'description' => "🔄 Konsumen berpindah unit reservasi dari " . ($oldUnit ? $oldUnit->code : "Unit #{$reservation->unit_id}") . " ke {$newUnit->code}.{$reasonText}",
+            ]);
+        }
+
+        AuditLog::record('reservation_unit_changed', $reservation, ['old_unit_id' => $oldUnit?->id], ['new_unit_id' => $newUnit->id]);
+
+        return back()->with('success', "Unit reservasi berhasil diubah ke {$newUnit->code}!");
     }
 
     /**
@@ -296,6 +368,7 @@ class ReservationController extends Controller
     public function update(Request $request, Reservation $reservation)
     {
         $validated = $request->validate([
+            'unit_id' => 'nullable|exists:units,id',
             'client_name' => 'required|string|max:255',
             'client_phone' => 'required|string|max:30',
             'client_email' => 'nullable|email|max:255',
@@ -317,6 +390,32 @@ class ReservationController extends Controller
 
         if (array_key_exists('agent_coordinator_id', $validated) && empty($validated['agent_coordinator_id'])) {
             $validated['agent_coordinator_id'] = null;
+        }
+
+        // If unit_id is being changed in update
+        if (!empty($validated['unit_id']) && $validated['unit_id'] != $reservation->unit_id) {
+            $newUnit = Unit::with('project')->findOrFail($validated['unit_id']);
+            if ($newUnit->status === 'available') {
+                $oldUnit = Unit::find($reservation->unit_id);
+                if ($oldUnit) {
+                    $oldUnit->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+                }
+                $newUnit->update([
+                    'status' => 'reserved',
+                    'held_by' => $reservation->created_by ?? auth()->id(),
+                    'held_until' => $reservation->expires_at ?? now()->addDays(7),
+                ]);
+                $validated['project_id'] = $newUnit->project_id;
+
+                if ($reservation->lead_id) {
+                    LeadActivity::create([
+                        'lead_id' => $reservation->lead_id,
+                        'user_id' => auth()->id(),
+                        'type' => 'note',
+                        'description' => "🔄 Unit Reservasi diubah dari " . ($oldUnit ? $oldUnit->code : "Unit #{$reservation->unit_id}") . " ke {$newUnit->code}.",
+                    ]);
+                }
+            }
         }
 
         // Safe filter against actual database schema to prevent crashes if migrations aren't executed yet

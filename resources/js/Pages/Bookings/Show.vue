@@ -9,6 +9,10 @@ const props = defineProps({
     bank_accounts_all: {
         type: Array,
         default: () => []
+    },
+    units: {
+        type: Array,
+        default: () => []
     }
 });
 
@@ -17,7 +21,28 @@ const selectedSchedule = ref(null);
 const showSpkPreview = ref(false);
 const showSprTemplateModal = ref(false);
 const showReceiptsModal = ref(false);
+const showChangeBookingUnitModal = ref(false);
 const activeSprTab = ref('bank');
+
+const changeBookingUnitForm = useForm({
+    unit_id: props.booking.unit_id || '',
+    reason: '',
+});
+
+function openChangeBookingUnitModal() {
+    changeBookingUnitForm.unit_id = props.booking.unit_id || '';
+    changeBookingUnitForm.reason = '';
+    showChangeBookingUnitModal.value = true;
+}
+
+function submitChangeBookingUnit() {
+    changeBookingUnitForm.post(`/bookings/${props.booking.id}/change-unit`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showChangeBookingUnitModal.value = false;
+        }
+    });
+}
 
 function getScheduleTransaction(schedule) {
     if (!props.booking?.transactions) return null;
@@ -480,6 +505,9 @@ const docTypeLabels = {
             </div>
             
             <div v-if="booking.status === 'pending'" class="flex gap-2">
+                <button @click="openChangeBookingUnitModal" class="px-4 py-2.5 bg-indigo-50 text-indigo-700 text-sm font-bold rounded-xl border border-indigo-200 hover:bg-indigo-100 transition-all flex items-center gap-1.5 cursor-pointer">
+                    <span>🔄</span> Ganti Unit
+                </button>
                 <button @click="approve" class="px-6 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5 transition-all">
                     Approve
                 </button>
@@ -488,6 +516,9 @@ const docTypeLabels = {
                 </button>
             </div>
             <div v-else-if="booking.status === 'approved'" class="flex flex-wrap gap-2">
+                <button @click="openChangeBookingUnitModal" class="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-600/20 hover:-translate-y-0.5 transition-all flex items-center gap-2 cursor-pointer">
+                    <span>🔄</span> Ganti Unit
+                </button>
                 <button v-if="booking.transactions?.length > 0" @click="showReceiptsModal = true" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     <span>📄</span>
                     <span>Daftar Kwitansi PDF ({{ booking.transactions.length }})</span>
@@ -562,7 +593,12 @@ const docTypeLabels = {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <!-- Unit Info -->
                         <div class="space-y-4">
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data Unit</p>
+                            <div class="flex items-center justify-between">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data Unit</p>
+                                <button v-if="booking.status !== 'cancelled' && booking.status !== 'rejected'" @click="openChangeBookingUnitModal" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer">
+                                    <span>🔄</span> Ganti Unit
+                                </button>
+                            </div>
                             <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
                                 <h3 class="text-sm font-black text-slate-900">{{ booking.unit?.project?.name }}</h3>
                                 <p class="text-xs text-slate-500 mt-1">Blok {{ booking.unit?.block }}{{ booking.unit?.number }} • Tipe {{ booking.unit?.unit_type?.name }}</p>
@@ -1498,6 +1534,66 @@ const docTypeLabels = {
                 <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                     <button @click="showReceiptsModal = false" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-all">Tutup</button>
                 </div>
+            </div>
+        </div>
+    </teleport>
+
+    <!-- CHANGE BOOKING UNIT MODAL -->
+    <teleport to="body">
+        <div v-if="showChangeBookingUnitModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in duration-150">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                        <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>🔄</span> Pindah / Ganti Unit Booking
+                        </h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Pindahkan pemesanan (SPK/SPR) konsumen ke nomor unit lain.</p>
+                    </div>
+                    <button @click="showChangeBookingUnitModal = false" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
+                </div>
+
+                <!-- Current Unit Box -->
+                <div class="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unit Saat Ini</p>
+                    <div class="flex items-center justify-between mt-1">
+                        <span class="text-sm font-black text-slate-800 dark:text-white">{{ booking.unit?.code || `Blok ${booking.unit?.block} No. ${booking.unit?.number}` }}</span>
+                        <span class="text-xs font-bold font-mono text-emerald-600">Rp {{ Number(booking.final_price || 0).toLocaleString('id-ID') }}</span>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-0.5">{{ booking.unit?.project?.name }} • Tipe {{ booking.unit?.unit_type?.name || 'Standard' }}</p>
+                </div>
+
+                <form @submit.prevent="submitChangeBookingUnit" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            Pilih Unit Baru Tujuan <span class="text-rose-500">*</span>
+                        </label>
+                        <select v-model="changeBookingUnitForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500/20">
+                            <option value="" disabled>-- Pilih Unit Pengganti (Available) --</option>
+                            <option v-for="u in units" :key="u.id" :value="u.id" :disabled="u.status !== 'available' && u.id !== booking.unit_id">
+                                {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
+                            </option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Alasan Perpindahan Unit (Opsional)</label>
+                        <textarea v-model="changeBookingUnitForm.reason" rows="2" placeholder="Alasan customer meminta ubah unit..." class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 resize-none"></textarea>
+                    </div>
+
+                    <div class="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
+                        <p class="font-bold flex items-center gap-1"><span>⚠️</span> Ketentuan Ganti Unit Booking:</p>
+                        <p>1. Unit lama akan otomatis dilepaskan kembali menjadi status <strong>Available</strong>.</p>
+                        <p>2. Unit baru akan dikunci menjadi status booking (<strong>{{ booking.status === 'approved' ? 'Booked' : 'Hold' }}</strong>).</p>
+                        <p>3. Riwayat perpindahan akan dicatat pada Lead Activity.</p>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" @click="showChangeBookingUnitModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold">Batal</button>
+                        <button type="submit" :disabled="changeBookingUnitForm.processing || changeBookingUnitForm.unit_id === booking.unit_id" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-40">
+                            🔄 Konfirmasi Pindah Unit
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </teleport>

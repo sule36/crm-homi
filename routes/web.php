@@ -73,6 +73,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/bookings/{booking}/regenerate-schedule', [\App\Http\Controllers\BookingController::class, 'regenerateSchedule'])->name('bookings.regenerateSchedule');
     Route::post('/bookings/{booking}/schedules', [\App\Http\Controllers\BookingController::class, 'addScheduleRow'])->name('bookings.schedules.store');
     Route::post('/bookings/{booking}/spr-template', [\App\Http\Controllers\BookingController::class, 'updateSprTemplate'])->name('bookings.update-spr-template');
+    Route::post('/bookings/{booking}/change-unit', [\App\Http\Controllers\BookingController::class, 'changeUnit'])->name('bookings.change-unit');
     Route::put('/payment-schedules/{paymentSchedule}', [\App\Http\Controllers\BookingController::class, 'updateScheduleRow'])->name('bookings.schedules.update');
     Route::delete('/payment-schedules/{paymentSchedule}', [\App\Http\Controllers\BookingController::class, 'deleteScheduleRow'])->name('bookings.schedules.destroy');
     Route::post('/payment-schedules/{paymentSchedule}/send-email', [\App\Http\Controllers\BookingController::class, 'sendScheduleEmail'])->name('bookings.schedules.sendEmail');
@@ -161,6 +162,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/negotiations', [\App\Http\Controllers\NegotiationController::class, 'index'])->name('negotiations.index');
     Route::post('/negotiations', [\App\Http\Controllers\NegotiationController::class, 'store'])->name('negotiations.store');
     Route::get('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'show'])->name('negotiations.show');
+    Route::put('/negotiations/{negotiation}', [\App\Http\Controllers\NegotiationController::class, 'update'])->name('negotiations.update');
     Route::get('/negotiations/{negotiation}/pdf', [\App\Http\Controllers\NegotiationController::class, 'streamPdf'])->name('negotiations.pdf');
     Route::post('/negotiations/{negotiation}/review', [\App\Http\Controllers\NegotiationController::class, 'review'])->name('negotiations.review');
     Route::post('/negotiations/{negotiation}/convert', [\App\Http\Controllers\NegotiationController::class, 'convertToBooking'])->name('negotiations.convert');
@@ -172,6 +174,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/reservations', [\App\Http\Controllers\ReservationController::class, 'store'])->name('reservations.store');
     Route::get('/reservations/{reservation}', [\App\Http\Controllers\ReservationController::class, 'show'])->name('reservations.show');
     Route::put('/reservations/{reservation}', [\App\Http\Controllers\ReservationController::class, 'update'])->name('reservations.update');
+    Route::post('/reservations/{reservation}/change-unit', [\App\Http\Controllers\ReservationController::class, 'changeUnit'])->name('reservations.change-unit');
     Route::post('/reservations/{reservation}/refund', [\App\Http\Controllers\ReservationController::class, 'processRefund'])->name('reservations.refund');
     Route::get('/reservations/{reservation}/convert', [\App\Http\Controllers\ReservationController::class, 'convertToBooking'])->name('reservations.convert');
     Route::get('/reservations/{reservation}/receipt', [\App\Http\Controllers\ReservationController::class, 'streamReceiptPdf'])->name('reservations.receipt');

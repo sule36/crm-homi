@@ -6,11 +6,36 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 const props = defineProps({
     reservation: Object,
     settings: Object,
+    units: {
+        type: Array,
+        default: () => [],
+    }
 });
 
 const showRefundModal = ref(false);
 const showEditModal = ref(false);
+const showChangeUnitModal = ref(false);
 const activeTab = ref('signatures');
+
+const changeUnitForm = useForm({
+    unit_id: props.reservation.unit_id || '',
+    reason: '',
+});
+
+const openChangeUnitModal = () => {
+    changeUnitForm.unit_id = props.reservation.unit_id || '';
+    changeUnitForm.reason = '';
+    showChangeUnitModal.value = true;
+};
+
+const submitChangeUnit = () => {
+    changeUnitForm.post(`/reservations/${props.reservation.id}/change-unit`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showChangeUnitModal.value = false;
+        },
+    });
+};
 
 const refundForm = useForm({
     refund_bank_name: '',
@@ -108,6 +133,9 @@ const statusConfig = {
 
                     <!-- ACTION BUTTONS -->
                     <div class="flex items-center gap-2 flex-wrap">
+                        <button v-if="reservation.status === 'active'" @click="openChangeUnitModal" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20 flex items-center gap-1.5 cursor-pointer">
+                            <span>🔄</span> Pindah / Ganti Unit
+                        </button>
                         <button @click="showEditModal = true" class="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
                             <span>✏️</span> Edit PT & Penandatangan
                         </button>
@@ -472,5 +500,64 @@ const statusConfig = {
                 </form>
             </div>
         </div>
+        <!-- CHANGE UNIT MODAL -->
+        <teleport to="body">
+            <div v-if="showChangeUnitModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in duration-150">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>🔄</span> Pindah / Ganti Unit Reservasi
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Pindahkan reservasi konsumen ke kavling / nomor unit lain.</p>
+                        </div>
+                        <button @click="showChangeUnitModal = false" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
+                    </div>
+
+                    <!-- Current Unit Box -->
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unit Saat Ini</p>
+                        <div class="flex items-center justify-between mt-1">
+                            <span class="text-sm font-black text-slate-800">{{ reservation.unit?.code || `${reservation.unit?.block} ${reservation.unit?.number}` }}</span>
+                            <span class="text-xs font-bold font-mono text-emerald-700">Rp {{ Number(reservation.unit?.final_price || reservation.unit?.price || 0).toLocaleString('id-ID') }}</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-0.5">{{ reservation.project?.name }} • Tipe {{ reservation.unit?.unit_type?.name || 'Standard' }}</p>
+                    </div>
+
+                    <form @submit.prevent="submitChangeUnit" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">
+                                Pilih Unit Baru Tujuan <span class="text-rose-500">*</span>
+                            </label>
+                            <select v-model="changeUnitForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20">
+                                <option value="" disabled>-- Pilih Unit Pengganti (Available) --</option>
+                                <option v-for="u in units" :key="u.id" :value="u.id" :disabled="u.status !== 'available' && u.id !== reservation.unit_id">
+                                    {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Alasan Perpindahan Unit (Opsional)</label>
+                            <textarea v-model="changeUnitForm.reason" rows="2" placeholder="Contoh: Konsumen lebih memilih posisi hadap timur..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 resize-none"></textarea>
+                        </div>
+
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 space-y-1">
+                            <p class="font-bold flex items-center gap-1"><span>⚠️</span> Dampak Perubahan Unit:</p>
+                            <p>1. Unit lama akan otomatis dilepaskan kembali menjadi status <strong>Available</strong>.</p>
+                            <p>2. Unit baru akan otomatis dikunci dengan status <strong>Reserved</strong>.</p>
+                            <p>3. Riwayat perpindahan akan tercatat di log aktivitas lead.</p>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showChangeUnitModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">Batal</button>
+                            <button type="submit" :disabled="changeUnitForm.processing || changeUnitForm.unit_id === reservation.unit_id" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-40">
+                                🔄 Konfirmasi Pindah Unit
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
     </CrmLayout>
 </template>

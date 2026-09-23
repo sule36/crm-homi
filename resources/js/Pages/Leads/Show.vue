@@ -109,6 +109,74 @@ function generateWaMessage(type) {
     }
 }
 
+// Edit Negotiation in Lead View
+const showEditNegoModal = ref(false);
+const selectedNego = ref(null);
+const editNegoForm = useForm({
+    unit_id: '',
+    client_name: '',
+    client_phone: '',
+    client_email: '',
+    offered_price: '',
+    payment_scheme: 'kpr',
+    dp_amount: '',
+    installment_months: '',
+    notes: '',
+    status: 'draft',
+});
+
+function openEditNegoModal(nego) {
+    selectedNego.value = nego;
+    editNegoForm.unit_id = nego.unit_id;
+    editNegoForm.client_name = nego.client_name || props.lead.name || '';
+    editNegoForm.client_phone = nego.client_phone || props.lead.phone || '';
+    editNegoForm.client_email = nego.client_email || props.lead.email || '';
+    editNegoForm.offered_price = nego.offered_price || '';
+    editNegoForm.payment_scheme = nego.payment_scheme || 'kpr';
+    editNegoForm.dp_amount = nego.dp_amount || '';
+    editNegoForm.installment_months = nego.installment_months || '';
+    editNegoForm.notes = nego.notes || '';
+    editNegoForm.status = nego.status || 'draft';
+    showEditNegoModal.value = true;
+}
+
+function submitEditNego() {
+    if (!selectedNego.value) return;
+    editNegoForm.put(`/negotiations/${selectedNego.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showEditNegoModal.value = false;
+            selectedNego.value = null;
+        }
+    });
+}
+
+// Change Reservation Unit in Lead View
+const showChangeResUnitModal = ref(false);
+const selectedRes = ref(null);
+const changeResUnitForm = useForm({
+    unit_id: '',
+    reason: '',
+});
+
+function openChangeResUnitModal(res) {
+    selectedRes.value = res;
+    changeResUnitForm.unit_id = res.unit_id || '';
+    changeResUnitForm.reason = '';
+    showChangeResUnitModal.value = true;
+}
+
+function submitChangeResUnit() {
+    if (!selectedRes.value) return;
+    changeResUnitForm.post(`/reservations/${selectedRes.value.id}/change-unit`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showChangeResUnitModal.value = false;
+            selectedRes.value = null;
+        }
+    });
+}
+
 // Quick update & Profile Edit
 const showEditLeadModal = ref(false);
 const editForm = useForm({
@@ -127,10 +195,24 @@ const editForm = useForm({
         ? props.lead.assigned_to.id 
         : (props.lead.assigned_to_user?.id || props.lead.assigned_to || null),
     notes: props.lead.notes || '',
+    preferred_unit_id: props.lead.preferences?.preferred_unit_id || '',
+    preferences: props.lead.preferences || {},
+});
+
+const preferredUnit = computed(() => {
+    const pId = props.lead.preferences?.preferred_unit_id;
+    if (!pId) return null;
+    return props.units.find(u => u.id == pId);
 });
 
 function updateLead() {
-    editForm.put(`/leads/${props.lead.id}`, {
+    editForm.transform((data) => ({
+        ...data,
+        preferences: {
+            ...(data.preferences || {}),
+            preferred_unit_id: data.preferred_unit_id || null,
+        }
+    })).put(`/leads/${props.lead.id}`, {
         preserveScroll: true,
         onSuccess: () => {
             showEditLeadModal.value = false;
@@ -306,7 +388,7 @@ function scoreColor(s) {
                     <div v-if="lead.negotiations?.length" class="space-y-3">
                         <div v-for="nego in lead.negotiations" :key="nego.id" class="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-2 shadow-xs">
                             <div class="flex items-center justify-between">
-                                <span class="font-black text-slate-800">Unit: {{ nego.unit?.unit_number || 'Semua Unit' }}</span>
+                                <span class="font-black text-slate-800">Unit: {{ nego.unit?.code || `${nego.unit?.block} ${nego.unit?.number}` || 'Semua Unit' }}</span>
                                 <span :class="['px-2 py-0.5 rounded-full font-bold uppercase text-[9px]', negoStatusBadge(nego.status)]">
                                     {{ nego.status }}
                                 </span>
@@ -321,6 +403,9 @@ function scoreColor(s) {
                             <div class="flex items-center justify-between gap-1 pt-2 border-t border-slate-100">
                                 <Link :href="`/negotiations/${nego.id}`" class="text-[10px] font-bold text-blue-600 hover:underline">Detail →</Link>
                                 <div class="flex items-center gap-1">
+                                    <button @click="openEditNegoModal(nego)" title="Edit Data Pengajuan & Ganti Unit" class="text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded-lg border border-blue-200">
+                                        ✏️ Edit
+                                    </button>
                                     <button @click="copyNegoLink(nego.token)" class="text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-1 rounded-lg border border-emerald-200">
                                         📋 Salin Link
                                     </button>
@@ -363,9 +448,14 @@ function scoreColor(s) {
                             </div>
                             <div class="flex items-center justify-between gap-1 pt-2 border-t border-slate-100">
                                 <Link :href="`/reservations/${res.id}`" class="text-[10px] font-bold text-blue-600 hover:underline">Detail Reservasi →</Link>
-                                <a :href="`/reservations/${res.id}/receipt`" target="_blank" class="text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded-lg">
-                                    📄 Kwitansi
-                                </a>
+                                <div class="flex items-center gap-1">
+                                    <button v-if="res.status === 'active'" @click="openChangeResUnitModal(res)" title="Pindah Unit Reservasi" class="text-[10px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded-lg border border-indigo-200 cursor-pointer">
+                                        🔄 Ganti Unit
+                                    </button>
+                                    <a :href="`/reservations/${res.id}/receipt`" target="_blank" class="text-[10px] font-bold bg-slate-900 text-white px-2 py-1 rounded-lg">
+                                        📄 Kwitansi
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -392,6 +482,7 @@ function scoreColor(s) {
                         <div v-if="lead.identity_number" class="flex justify-between"><span class="text-slate-500">NIK (KTP)</span><span class="font-bold text-slate-900">{{ lead.identity_number }}</span></div>
                         <div v-if="lead.job" class="flex justify-between"><span class="text-slate-500">Pekerjaan</span><span class="font-bold text-slate-900">{{ lead.job }}</span></div>
                         <div class="flex justify-between"><span class="text-slate-500">Proyek</span><span class="font-bold text-slate-900">{{ lead.project?.name || '-' }}</span></div>
+                        <div v-if="preferredUnit" class="flex justify-between items-center"><span class="text-slate-500">Unit Minat</span><span class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg text-xs">{{ preferredUnit.block }} {{ preferredUnit.number }} ({{ preferredUnit.unit_type?.name || 'Standard' }})</span></div>
                         <div class="flex justify-between"><span class="text-slate-500">Sumber</span><span class="font-bold capitalize text-slate-900">{{ lead.source?.replace('_', ' ') }}</span></div>
                         <div class="flex justify-between"><span class="text-slate-500">Broker</span><span class="font-bold text-slate-900">{{ lead.broker_company?.name || '-' }}</span></div>
                         <div class="flex justify-between"><span class="text-slate-500">Terakhir Kontak</span><span class="font-bold text-slate-900">{{ lead.last_contacted_at ? timeAgo(lead.last_contacted_at) : '-' }}</span></div>
@@ -711,10 +802,161 @@ function scoreColor(s) {
                             </div>
                         </div>
 
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Unit Minat / Pilihan Konsumen</label>
+                            <select v-model="editForm.preferred_unit_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                                <option value="">-- Belum Memilih Unit --</option>
+                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                    {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
+                                </option>
+                            </select>
+                        </div>
+
                         <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
                             <button type="button" @click="showEditLeadModal = false" class="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
                             <button type="submit" :disabled="editForm.processing" class="px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50">
                                 💾 Simpan Perubahan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- EDIT NEGO MODAL -->
+        <teleport to="body">
+            <div v-if="showEditNegoModal && selectedNego" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showEditNegoModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>✏️</span> Edit Pengajuan Negosiasi
+                            </h2>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Ubah unit pilihan, nominal penawaran, skema, atau status.</p>
+                        </div>
+                        <button @click="showEditNegoModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitEditNego" class="space-y-4">
+                        <!-- Select Unit -->
+                        <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
+                            <label class="block text-[10px] font-black text-blue-900 uppercase">
+                                🏠 Pilihan Unit Properti <span class="text-rose-500">*</span>
+                            </label>
+                            <select v-model="editNegoForm.unit_id" required class="w-full px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20">
+                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                    {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Nama Client <span class="text-rose-500">*</span></label>
+                                <input v-model="editNegoForm.client_name" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">No. WhatsApp <span class="text-rose-500">*</span></label>
+                                <input v-model="editNegoForm.client_phone" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Harga Penawaran (Rp)</label>
+                                <input v-model="editNegoForm.offered_price" type="number" min="0" placeholder="750000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono focus:ring-2 focus:ring-blue-500/20" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Skema Pembayaran</label>
+                                <select v-model="editNegoForm.payment_scheme" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                                    <option value="kpr">KPR Bank</option>
+                                    <option value="cash_keras">Cash Keras</option>
+                                    <option value="cash_bertahap">Cash Bertahap</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Nominal DP (Rp)</label>
+                                <input v-model="editNegoForm.dp_amount" type="number" min="0" placeholder="0" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Status Pengajuan</label>
+                                <select v-model="editNegoForm.status" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800">
+                                    <option value="draft">📝 Draft</option>
+                                    <option value="pending">⏳ Menunggu Review</option>
+                                    <option value="counter_offer">🔄 Counter Offer</option>
+                                    <option value="approved">✅ Disetujui</option>
+                                    <option value="rejected">❌ Ditolak</option>
+                                    <option value="expired">⏰ Kedaluwarsa</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Catatan</label>
+                            <textarea v-model="editNegoForm.notes" rows="2" placeholder="Catatan..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium resize-none"></textarea>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
+                            <button type="button" @click="showEditNegoModal = false" class="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
+                            <button type="submit" :disabled="editNegoForm.processing" class="px-6 py-2.5 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50">
+                                💾 Simpan Perubahan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- CHANGE RESERVATION UNIT MODAL -->
+        <teleport to="body">
+            <div v-if="showChangeResUnitModal && selectedRes" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showChangeResUnitModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>🔄</span> Pindah / Ganti Unit Reservasi
+                            </h2>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Reservasi #{{ selectedRes.reservation_number }} ({{ lead.name }})</p>
+                        </div>
+                        <button @click="showChangeResUnitModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                    </div>
+
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs">
+                        <span class="text-slate-400 font-bold block text-[10px] uppercase">Unit Reservasi Saat Ini</span>
+                        <span class="font-black text-slate-800 text-sm">{{ selectedRes.unit?.code || `${selectedRes.unit?.block} ${selectedRes.unit?.number}` }}</span>
+                    </div>
+
+                    <form @submit.prevent="submitChangeResUnit" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">
+                                Pilih Unit Baru (Tersedia) <span class="text-rose-500">*</span>
+                            </label>
+                            <select v-model="changeResUnitForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20">
+                                <option value="" disabled>-- Pilih Unit Pengganti --</option>
+                                <option v-for="u in units" :key="u.id" :value="u.id" :disabled="u.status !== 'available' && u.id !== selectedRes.unit_id">
+                                    {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Alasan Pindah Unit (Opsional)</label>
+                            <textarea v-model="changeResUnitForm.reason" rows="2" placeholder="Alasan customer meminta ganti unit..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 resize-none"></textarea>
+                        </div>
+
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800">
+                            💡 Unit lama akan dikembalikan ke status Available, dan unit baru akan dikunci Reserved.
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                            <button type="button" @click="showChangeResUnitModal = false" class="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
+                            <button type="submit" :disabled="changeResUnitForm.processing || changeResUnitForm.unit_id === selectedRes.unit_id" class="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50">
+                                🔄 Konfirmasi Pindah Unit
                             </button>
                         </div>
                     </form>

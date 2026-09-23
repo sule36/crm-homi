@@ -87,6 +87,48 @@ function deleteNego(id) {
     router.delete(`/negotiations/${id}`, { preserveScroll: true });
 }
 
+// Edit Negotiation Modal
+const showEditModal = ref(false);
+const editingNego = ref(null);
+const editForm = useForm({
+    unit_id: '',
+    client_name: '',
+    client_phone: '',
+    client_email: '',
+    offered_price: '',
+    payment_scheme: 'kpr',
+    dp_amount: '',
+    installment_months: '',
+    notes: '',
+    status: 'draft',
+});
+
+function openEdit(nego) {
+    editingNego.value = nego;
+    editForm.unit_id = nego.unit_id;
+    editForm.client_name = nego.client_name || '';
+    editForm.client_phone = nego.client_phone || '';
+    editForm.client_email = nego.client_email || '';
+    editForm.offered_price = nego.offered_price || '';
+    editForm.payment_scheme = nego.payment_scheme || 'kpr';
+    editForm.dp_amount = nego.dp_amount || '';
+    editForm.installment_months = nego.installment_months || '';
+    editForm.notes = nego.notes || '';
+    editForm.status = nego.status || 'draft';
+    showEditModal.value = true;
+}
+
+function submitEdit() {
+    if (!editingNego.value) return;
+    editForm.put(`/negotiations/${editingNego.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showEditModal.value = false;
+            editingNego.value = null;
+        }
+    });
+}
+
 // Helpers
 function formatCurrency(val) {
     if (!val) return 'Rp 0';
@@ -250,7 +292,10 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                                     <Link :href="`/negotiations/${nego.id}`" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold transition-all">
                                         Detail
                                     </Link>
-                                    <button @click="deleteNego(nego.id)" title="Hapus Form Negosiasi ini" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-bold border border-rose-200 transition-all">
+                                    <button @click="openEdit(nego)" title="Edit Pengajuan Negosiasi / Ganti Unit" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-[10px] font-bold border border-blue-200 transition-all flex items-center gap-1 cursor-pointer">
+                                        <span>✏️</span> Edit
+                                    </button>
+                                    <button @click="deleteNego(nego.id)" title="Hapus Form Negosiasi ini" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-bold border border-rose-200 transition-all cursor-pointer">
                                         🗑️ Hapus
                                     </button>
                                 </div>
@@ -372,6 +417,100 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                         </button>
                         <button @click="showLinkModal = false" class="px-6 py-3 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all">Tutup</button>
                     </div>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- EDIT MODAL -->
+        <teleport to="body">
+            <div v-if="showEditModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in duration-150 overflow-y-auto max-h-[90vh]">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>✏️</span> Edit Pengajuan Negosiasi
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Ubah unit pilihan atau detail pengajuan negosiasi.</p>
+                        </div>
+                        <button @click="showEditModal = false" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitEdit" class="space-y-4">
+                        <!-- Select Unit -->
+                        <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
+                            <label class="block text-[10px] font-black text-blue-900 uppercase">
+                                🏠 Pilihan Unit Properti <span class="text-rose-500">*</span>
+                            </label>
+                            <select v-model="editForm.unit_id" required class="w-full px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20">
+                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                    {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Client Info -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Client <span class="text-rose-500">*</span></label>
+                                <input v-model="editForm.client_name" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">No. WhatsApp / HP <span class="text-rose-500">*</span></label>
+                                <input v-model="editForm.client_phone" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Email Client</label>
+                            <input v-model="editForm.client_email" type="email" placeholder="client@email.com" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-blue-500" />
+                        </div>
+
+                        <!-- Pricing & Schemes -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Harga Penawaran (Rp)</label>
+                                <input v-model="editForm.offered_price" type="number" min="0" placeholder="750000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono focus:ring-1 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Skema Pembayaran</label>
+                                <select v-model="editForm.payment_scheme" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                                    <option value="kpr">KPR Bank</option>
+                                    <option value="cash_keras">Cash Keras</option>
+                                    <option value="cash_bertahap">Cash Bertahap</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Status Pengajuan</label>
+                                <select v-model="editForm.status" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                                    <option value="draft">📝 Draft</option>
+                                    <option value="pending">⏳ Menunggu Review</option>
+                                    <option value="counter_offer">🔄 Counter Offer</option>
+                                    <option value="approved">✅ Disetujui</option>
+                                    <option value="rejected">❌ Ditolak</option>
+                                    <option value="expired">⏰ Kedaluwarsa</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nominal DP (Rp)</label>
+                                <input v-model="editForm.dp_amount" type="number" min="0" placeholder="0" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Catatan</label>
+                            <textarea v-model="editForm.notes" rows="2" placeholder="Catatan pengajuan..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium resize-none"></textarea>
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showEditModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold">Batal</button>
+                            <button type="submit" :disabled="editForm.processing" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 transition-all disabled:opacity-40">
+                                💾 Simpan Perubahan
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </teleport>

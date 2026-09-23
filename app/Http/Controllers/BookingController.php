@@ -227,10 +227,83 @@ class BookingController extends Controller
             $bankAccountsAll = [];
         }
 
+        $units = \App\Models\Unit::where('status', '!=', 'sold')
+            ->when($booking->project_id, fn ($q) => $q->where('project_id', $booking->project_id))
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
+            ->with(['project:id,name', 'unitType:id,name'])
+            ->orderBy('block')
+            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->get();
+
         return Inertia::render('Bookings/Show', [
             'booking' => $booking,
             'bank_accounts_all' => $bankAccountsAll,
+            'units' => $units,
         ]);
+    }
+
+    /**
+     * Change unit for a booking
+     */
+    public function changeUnit(Request $request, Booking $booking)
+    {
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        if (in_array($booking->status, ['cancelled', 'rejected'])) {
+            return back()->with('error', 'Booking yang dibatalkan atau ditolak tidak dapat diubah unitnya.');
+        }
+
+        if ($booking->unit_id == $validated['unit_id']) {
+            return back()->with('info', 'Unit yang dipilih sama dengan unit booking saat ini.');
+        }
+
+        $newUnit = \App\Models\Unit::with('project')->findOrFail($validated['unit_id']);
+        if ($newUnit->status !== 'available') {
+            return back()->with('error', "Unit {$newUnit->code} saat ini tidak berstatus Available (Status: {$newUnit->status}).");
+        }
+
+        $oldUnit = \App\Models\Unit::find($booking->unit_id);
+
+        // 1. Release old unit
+        if ($oldUnit) {
+            $oldUnit->update([
+                'status' => 'available',
+                'held_by' => null,
+                'held_until' => null,
+            ]);
+        }
+
+        // 2. Lock new unit
+        $newUnitStatus = $booking->status === 'approved' ? 'booked' : 'hold';
+        $newUnit->update([
+            'status' => $newUnitStatus,
+            'held_by' => $booking->booked_by ?? auth()->id(),
+            'held_until' => now()->addDays(7),
+        ]);
+
+        // 3. Update booking
+        $booking->update([
+            'unit_id' => $newUnit->id,
+            'project_id' => $newUnit->project_id,
+        ]);
+
+        // 4. Record Lead Activity
+        if ($booking->lead_id) {
+            $reasonText = !empty($validated['reason']) ? " Alasan: {$validated['reason']}" : "";
+            \App\Models\LeadActivity::create([
+                'lead_id' => $booking->lead_id,
+                'user_id' => auth()->id(),
+                'type' => 'note',
+                'description' => "🔄 Unit Booking / SPK (#{$booking->spk_number}) dipindahkan dari " . ($oldUnit ? $oldUnit->code : "Unit #{$booking->unit_id}") . " ke {$newUnit->code}.{$reasonText}",
+            ]);
+        }
+
+        \App\Models\AuditLog::record('booking_unit_changed', $booking, ['old_unit_id' => $oldUnit?->id], ['new_unit_id' => $newUnit->id]);
+
+        return back()->with('success', "Unit booking berhasil dipindahkan ke {$newUnit->code}!");
     }
 
     public function updateSprTemplate(Request $request, Booking $booking)

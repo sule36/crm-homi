@@ -175,9 +175,85 @@ class NegotiationController extends Controller
     {
         $negotiation->load(['lead', 'unit.unitType', 'unit.project', 'project', 'creator', 'reviewer', 'booking']);
 
+        $units = Unit::where('status', '!=', 'sold')
+            ->when($negotiation->project_id, fn ($q) => $q->where('project_id', $negotiation->project_id))
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
+            ->with(['project:id,name', 'unitType:id,name'])
+            ->orderBy('block')
+            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->get();
+
         return Inertia::render('Negotiations/Show', [
             'negotiation' => $negotiation,
+            'units' => $units,
         ]);
+    }
+
+    /**
+     * CRM Internal: Update negotiation details (client info, unit, price, terms)
+     */
+    public function update(Request $request, Negotiation $negotiation)
+    {
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+            'client_name' => 'required|string|max:255',
+            'client_phone' => 'required|string|max:30',
+            'client_email' => 'nullable|email|max:255',
+            'offered_price' => 'nullable|numeric|min:0',
+            'payment_scheme' => 'nullable|string|in:cash_keras,cash_bertahap,kpr',
+            'dp_amount' => 'nullable|numeric|min:0',
+            'installment_months' => 'nullable|integer|min:0|max:360',
+            'notes' => 'nullable|string|max:2000',
+            'status' => 'nullable|string|in:draft,pending,counter_offer,approved,rejected,expired',
+            'developer_sig_name' => 'nullable|string|max:255',
+            'developer_sig_title' => 'nullable|string|max:255',
+            'counter_price' => 'nullable|numeric|min:0',
+            'counter_notes' => 'nullable|string|max:1000',
+        ]);
+
+        $oldUnitId = $negotiation->unit_id;
+        $newUnit = Unit::with('project')->findOrFail($validated['unit_id']);
+
+        $updateData = [
+            'client_name' => $validated['client_name'],
+            'client_phone' => $validated['client_phone'],
+            'client_email' => $validated['client_email'] ?? null,
+            'unit_id' => $newUnit->id,
+            'project_id' => $newUnit->project_id,
+            'unit_listed_price' => $newUnit->final_price ?? $newUnit->price ?? $negotiation->unit_listed_price,
+            'offered_price' => $validated['offered_price'] ?? $negotiation->offered_price,
+            'payment_scheme' => $validated['payment_scheme'] ?? $negotiation->payment_scheme,
+            'dp_amount' => $validated['dp_amount'] ?? $negotiation->dp_amount,
+            'installment_months' => $validated['installment_months'] ?? $negotiation->installment_months,
+            'notes' => $validated['notes'] ?? $negotiation->notes,
+            'developer_sig_name' => $validated['developer_sig_name'] ?? $negotiation->developer_sig_name,
+            'developer_sig_title' => $validated['developer_sig_title'] ?? $negotiation->developer_sig_title,
+        ];
+
+        if (!empty($validated['status'])) {
+            $updateData['status'] = $validated['status'];
+        }
+        if (array_key_exists('counter_price', $validated)) {
+            $updateData['counter_price'] = $validated['counter_price'];
+        }
+        if (array_key_exists('counter_notes', $validated)) {
+            $updateData['counter_notes'] = $validated['counter_notes'];
+        }
+
+        $negotiation->update($updateData);
+
+        // If unit changed and linked to lead, log activity
+        if ($oldUnitId != $newUnit->id && $negotiation->lead_id) {
+            $oldUnit = Unit::find($oldUnitId);
+            LeadActivity::create([
+                'lead_id' => $negotiation->lead_id,
+                'user_id' => auth()->id(),
+                'type' => 'note',
+                'description' => "🔄 Unit pada Pengajuan Negosiasi diubah dari " . ($oldUnit ? $oldUnit->code : "Unit #{$oldUnitId}") . " ke {$newUnit->code}.",
+            ]);
+        }
+
+        return back()->with('success', 'Pengajuan negosiasi berhasil diperbarui!');
     }
 
     /**
