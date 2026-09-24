@@ -60,19 +60,34 @@ function isLayoutOptionSelected(label) {
     return Array.isArray(form.custom_layout_options) && form.custom_layout_options.includes(label);
 }
 
-// Preset Bonus Suggestions
-const presetBonusSuggestions = [
-    'Kitchen Set Complete',
-    'AC 1 PK (Kamar Utama)',
-    'Kanopi Carport Alderon',
-    'Smart Door Lock Digital',
-    'Water Heater',
-    'TV Smart 43 Inch',
-    'Free BPHTB',
-    'Free AJB & BBN',
-    'Free Biaya Notaris',
-    'Extra Cashback Rp 10 Juta',
-];
+// Preset Bonus Suggestions (configured dynamically by Admin in Settings)
+const presetBonusSuggestions = computed(() => {
+    const so = props.settings?.spr_special_offer;
+    const items = [];
+    if (so && typeof so === 'object') {
+        if (Array.isArray(so.bonus_furniture) && so.bonus_furniture.length > 0) {
+            items.push(...so.bonus_furniture);
+        }
+        if (Array.isArray(so.grand_launching_package) && so.grand_launching_package.length > 0) {
+            items.push(...so.grand_launching_package);
+        }
+    }
+    if (items.length > 0) {
+        return items.filter(Boolean);
+    }
+    return [
+        'Kitchen Set Complete',
+        'AC 1 PK (Kamar Utama)',
+        'Kanopi Carport Alderon',
+        'Smart Door Lock Digital',
+        'Water Heater',
+        'TV Smart 43 Inch',
+        'Free BPHTB',
+        'Free AJB & BBN',
+        'Free Biaya Notaris',
+        'Extra Cashback Rp 10 Juta',
+    ];
+});
 
 function toggleBonusPreset(bonusName) {
     if (!Array.isArray(form.special_bonus_items)) {

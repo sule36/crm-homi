@@ -394,6 +394,7 @@ class NegotiationController extends Controller
             'settings' => [
                 'company_name' => $settings['company_name'] ?? 'Homi Developer',
                 'company_logo' => $settings['company_logo'] ?? null,
+                'spr_special_offer' => $settings['spr_special_offer'] ?? null,
             ],
         ]);
     }
