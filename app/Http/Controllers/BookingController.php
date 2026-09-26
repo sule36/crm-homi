@@ -41,6 +41,35 @@ class BookingController extends Controller
         $unitId = $request->unit_id ?? $reservation?->unit_id ?? $negotiation?->unit_id;
         $leadId = $request->lead_id ?? $reservation?->lead_id ?? $negotiation?->lead_id;
 
+        // Auto-detect matching negotiation if not explicitly provided
+        if (!$negotiation && $leadId && $unitId) {
+            $negotiation = Negotiation::with(['unit.project', 'unit.unitType', 'lead'])
+                ->where('lead_id', $leadId)
+                ->where('unit_id', $unitId)
+                ->whereIn('status', ['approved', 'counter_offer', 'pending'])
+                ->latest()
+                ->first();
+        }
+        if (!$negotiation && $leadId) {
+            $negotiation = Negotiation::with(['unit.project', 'unit.unitType', 'lead'])
+                ->where('lead_id', $leadId)
+                ->whereIn('status', ['approved', 'counter_offer', 'pending'])
+                ->latest()
+                ->first();
+        }
+
+        // Available negotiations for this lead or unit to let developer switch/apply deal
+        $availableNegotiations = ($leadId || $unitId)
+            ? Negotiation::with(['unit.project', 'unit.unitType', 'lead'])
+                ->where(function($q) use ($leadId, $unitId) {
+                    if ($leadId) $q->where('lead_id', $leadId);
+                    if ($unitId) $q->orWhere('unit_id', $unitId);
+                })
+                ->latest()
+                ->get()
+            : [];
+
+        $reservedAmount = $request->reserved_amount ?? $reservation?->amount ?? null;
         $defaultFreePpn = \App\Models\Setting::get('spr_default_free_ppn', true);
         $defaultFreeLegal = \App\Models\Setting::get('spr_default_free_legal', true);
 
@@ -49,6 +78,8 @@ class BookingController extends Controller
             'lead' => $leadId ? Lead::find($leadId) : null,
             'reservation' => $reservation,
             'negotiation' => $negotiation,
+            'availableNegotiations' => $availableNegotiations,
+            'reservedAmount' => $reservedAmount ? (float)$reservedAmount : null,
             'defaultFreePpn' => (bool)$defaultFreePpn,
             'defaultFreeLegal' => (bool)$defaultFreeLegal,
             'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderBy('block')->orderByRaw('CAST(number AS UNSIGNED) ASC')->get(),
@@ -116,7 +147,7 @@ class BookingController extends Controller
                 'project_id' => $unit->project_id,
                 'booked_by' => $validated['booked_by'],
                 'booking_fee' => $validated['booking_fee'],
-                'unit_price' => $unit->unitType->current_price ?? $validated['base_price'],
+                'unit_price' => ($unit->final_price > 0 ? $unit->final_price : ($unit->unitType?->current_price > 0 ? $unit->unitType->current_price : $validated['base_price'])),
                 'base_price' => $validated['base_price'],
                 'ppn_amount' => $validated['ppn_amount'] ?? 0,
                 'bphtb_amount' => $validated['bphtb_amount'] ?? 0,
