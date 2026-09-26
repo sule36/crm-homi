@@ -78,7 +78,7 @@ class Booking extends Model
     public function project() { return $this->belongsTo(Project::class)->withTrashed(); }
     public function bookedBy() { return $this->belongsTo(User::class, 'booked_by')->withTrashed(); }
     public function approvedBy() { return $this->belongsTo(User::class, 'approved_by')->withTrashed(); }
-    public function paymentSchedules() { return $this->hasMany(PaymentSchedule::class); }
+    public function paymentSchedules() { return $this->hasMany(PaymentSchedule::class)->orderBy('installment_number', 'asc')->orderBy('due_date', 'asc'); }
     public function transactions() { return $this->hasMany(Transaction::class); }
     public function documents() { return $this->hasMany(BookingDocument::class); }
     public function bankAccount() { return $this->belongsTo(BankAccount::class); }

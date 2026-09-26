@@ -539,81 +539,81 @@
                 };
 
                 $schedDates = is_array($booking->spr_schedule_dates) ? $booking->spr_schedule_dates : [];
-                $schedules = $booking->paymentSchedules ?? collect([]);
+                $rawSchedules = $booking->paymentSchedules ?? collect([]);
+                $schedules = $rawSchedules->sortBy([
+                    ['installment_number', 'asc'],
+                    ['due_date', 'asc'],
+                ]);
 
-                // 1. UTJ / Booking Fee Date
-                $utjSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'utj') || str_contains(strtolower($s->label), 'booking'));
-                $utjDateVal = !empty($schedDates['utj_date']) 
-                    ? $fmtDate($schedDates['utj_date']) 
-                    : ($utjSched ? $fmtDate($utjSched->due_date) : $fmtDate($booking->booking_date ?? $booking->created_at));
+                // When actual payment schedules exist and can fit comfortably on the document (<= 18 rows)
+                if ($schedules->isNotEmpty() && $schedules->count() <= 18) {
+                    $hasUtj = $schedules->contains(function($s) {
+                        $lbl = strtolower($s->label ?? '');
+                        return $s->installment_number === 0 || str_contains($lbl, 'utj') || str_contains($lbl, 'booking');
+                    });
 
-                $summaryRows[] = [
-                    'type' => 'utj',
-                    'label' => 'Booking Fee (UTJ)',
-                    'amount' => $bookingFee,
-                    'date' => $utjDateVal,
-                ];
+                    // Prepend UTJ if not in payment_schedules table but booking fee exists
+                    if (!$hasUtj && $bookingFee > 0) {
+                        $utjDateVal = !empty($schedDates['utj_date']) 
+                            ? $fmtDate($schedDates['utj_date']) 
+                            : $fmtDate($booking->booking_date ?? $booking->created_at);
 
-                if ($booking->payment_scheme === 'kpr') {
-                    $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : ($totalKesepakatan * 0.10);
-                    $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 1;
-                    $dpPerMonth = round($dpTotal / $dpTenor);
+                        $summaryRows[] = [
+                            'type' => 'utj',
+                            'label' => 'Booking Fee (UTJ)',
+                            'amount' => $bookingFee,
+                            'date' => $utjDateVal,
+                        ];
+                    }
 
-                    $dpSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
-                    $defaultDpDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +1 month')) : now()->addMonth()->format('Y-m-d');
-                    $dpDateVal = !empty($schedDates['dp_date'])
-                        ? $fmtDate($schedDates['dp_date'])
-                        : ($dpSched ? $fmtDate($dpSched->due_date) : $fmtDate($defaultDpDate));
-                    
-                    $dpLabel = $dpTenor > 1 ? "Cicilan Uang Muka / DP ({$dpTenor} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")" : "DP 1";
-                    $summaryRows[] = [
-                        'type' => 'dp',
-                        'label' => $dpLabel,
-                        'amount' => $dpTotal,
-                        'date' => $dpTenor === 1 ? $dpDateVal : "{$dpDateVal} (DP1)",
-                    ];
+                    foreach ($schedules as $sched) {
+                        $lbl = strtolower($sched->label ?? '');
+                        $type = 'installment';
+                        if ($sched->installment_number === 0 || str_contains($lbl, 'utj') || str_contains($lbl, 'booking')) {
+                            $type = 'utj';
+                        } elseif (str_contains($lbl, 'dp') || str_contains($lbl, 'uang muka')) {
+                            $type = 'dp';
+                        }
 
-                    $kprPlafon = max(0, $totalKesepakatan - $bookingFee - $dpTotal);
-                    $kprSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'akad') || str_contains(strtolower($s->label), 'kpr'));
-                    $kprDateVal = !empty($schedDates['installment_date'])
-                        ? $fmtDate($schedDates['installment_date'])
-                        : ($kprSched ? $fmtDate($kprSched->due_date) : 'Saat Akad Kredit');
+                        $dateVal = $fmtDate($sched->due_date);
+                        if ($type === 'utj' && !empty($schedDates['utj_date'])) {
+                            $dateVal = $fmtDate($schedDates['utj_date']);
+                        } elseif ($type === 'dp' && !empty($schedDates['dp_date']) && $sched->installment_number === 1) {
+                            $dateVal = $fmtDate($schedDates['dp_date']);
+                        }
 
-                    $summaryRows[] = [
-                        'type' => 'installment',
-                        'label' => 'Pelunasan Akad KPR (Pencairan Bank)',
-                        'amount' => $kprPlafon,
-                        'date' => $kprDateVal,
-                    ];
-                } elseif ($booking->payment_scheme === 'cash') {
-                    $cashSisa = max(0, $totalKesepakatan - $bookingFee);
-                    $cashSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'pelunasan') || str_contains(strtolower($s->label), 'cash'));
-                    $defaultCashDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +14 days')) : now()->addDays(14)->format('Y-m-d');
-                    
-                    $cashDateVal = !empty($schedDates['installment_date'])
-                        ? $fmtDate($schedDates['installment_date'])
-                        : ($cashSched ? $fmtDate($cashSched->due_date) : $fmtDate($defaultCashDate));
-
-                    $summaryRows[] = [
-                        'type' => 'installment',
-                        'label' => 'Pelunasan Cash Keras',
-                        'amount' => $cashSisa,
-                        'date' => $cashDateVal,
-                    ];
+                        $summaryRows[] = [
+                            'type' => $type,
+                            'label' => $sched->label,
+                            'amount' => (float)$sched->amount,
+                            'date' => $dateVal,
+                        ];
+                    }
                 } else {
-                    // Cash Installment / In-House
-                    $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : 0;
-                    $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : ($dpTotal > 0 ? 1 : 0);
+                    // Fallback to legacy synthesized summary rows (when schedules not yet generated, or tenor > 18)
+                    $utjSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'utj') || str_contains(strtolower($s->label), 'booking'));
+                    $utjDateVal = !empty($schedDates['utj_date']) 
+                        ? $fmtDate($schedDates['utj_date']) 
+                        : ($utjSched ? $fmtDate($utjSched->due_date) : $fmtDate($booking->booking_date ?? $booking->created_at));
 
-                    if ($dpTotal > 0) {
+                    $summaryRows[] = [
+                        'type' => 'utj',
+                        'label' => 'Booking Fee (UTJ)',
+                        'amount' => $bookingFee,
+                        'date' => $utjDateVal,
+                    ];
+
+                    if ($booking->payment_scheme === 'kpr') {
+                        $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : ($totalKesepakatan * 0.10);
+                        $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 1;
                         $dpPerMonth = round($dpTotal / $dpTenor);
+
                         $dpSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
                         $defaultDpDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +1 month')) : now()->addMonth()->format('Y-m-d');
-                        
                         $dpDateVal = !empty($schedDates['dp_date'])
                             ? $fmtDate($schedDates['dp_date'])
                             : ($dpSched ? $fmtDate($dpSched->due_date) : $fmtDate($defaultDpDate));
-
+                        
                         $dpLabel = $dpTenor > 1 ? "Cicilan Uang Muka / DP ({$dpTenor} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")" : "DP 1";
                         $summaryRows[] = [
                             'type' => 'dp',
@@ -621,26 +621,76 @@
                             'amount' => $dpTotal,
                             'date' => $dpTenor === 1 ? $dpDateVal : "{$dpDateVal} (DP1)",
                         ];
+
+                        $kprPlafon = max(0, $totalKesepakatan - $bookingFee - $dpTotal);
+                        $kprSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'akad') || str_contains(strtolower($s->label), 'kpr'));
+                        $kprDateVal = !empty($schedDates['installment_date'])
+                            ? $fmtDate($schedDates['installment_date'])
+                            : ($kprSched ? $fmtDate($kprSched->due_date) : 'Saat Akad Kredit');
+
+                        $summaryRows[] = [
+                            'type' => 'installment',
+                            'label' => 'Pelunasan Akad KPR (Pencairan Bank)',
+                            'amount' => $kprPlafon,
+                            'date' => $kprDateVal,
+                        ];
+                    } elseif ($booking->payment_scheme === 'cash') {
+                        $cashSisa = max(0, $totalKesepakatan - $bookingFee);
+                        $cashSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'pelunasan') || str_contains(strtolower($s->label), 'cash'));
+                        $defaultCashDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +14 days')) : now()->addDays(14)->format('Y-m-d');
+                        
+                        $cashDateVal = !empty($schedDates['installment_date'])
+                            ? $fmtDate($schedDates['installment_date'])
+                            : ($cashSched ? $fmtDate($cashSched->due_date) : $fmtDate($defaultCashDate));
+
+                        $summaryRows[] = [
+                            'type' => 'installment',
+                            'label' => 'Pelunasan Cash Keras',
+                            'amount' => $cashSisa,
+                            'date' => $cashDateVal,
+                        ];
+                    } else {
+                        // Cash Installment / In-House
+                        $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : 0;
+                        $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : ($dpTotal > 0 ? 1 : 0);
+
+                        if ($dpTotal > 0) {
+                            $dpPerMonth = round($dpTotal / $dpTenor);
+                            $dpSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
+                            $defaultDpDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +1 month')) : now()->addMonth()->format('Y-m-d');
+                            
+                            $dpDateVal = !empty($schedDates['dp_date'])
+                                ? $fmtDate($schedDates['dp_date'])
+                                : ($dpSched ? $fmtDate($dpSched->due_date) : $fmtDate($defaultDpDate));
+
+                            $dpLabel = $dpTenor > 1 ? "Cicilan Uang Muka / DP ({$dpTenor} Bulan @ Rp " . number_format($dpPerMonth, 0, ',', '.') . ")" : "DP 1";
+                            $summaryRows[] = [
+                                'type' => 'dp',
+                                'label' => $dpLabel,
+                                'amount' => $dpTotal,
+                                'date' => $dpTenor === 1 ? $dpDateVal : "{$dpDateVal} (DP1)",
+                            ];
+                        }
+
+                        $cashTenorMonths = $booking->installment_months > 0 ? (int)$booking->installment_months : 60;
+                        $cashPlafon = max(0, $totalKesepakatan - $bookingFee - $dpTotal);
+                        $cashPerMonth = $cashTenorMonths > 0 ? round($cashPlafon / $cashTenorMonths) : $cashPlafon;
+
+                        $firstCashMonth = $dpTenor > 0 ? ($dpTenor + 1) : 1;
+                        $instSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'cicilan') || str_contains(strtolower($s->label), 'angsuran'));
+                        $defaultFirstCashDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . " +{$firstCashMonth} month")) : now()->addMonths($firstCashMonth)->format('Y-m-d');
+                        
+                        $instDateVal = !empty($schedDates['installment_date'])
+                            ? $fmtDate($schedDates['installment_date'])
+                            : ($instSched ? $fmtDate($instSched->due_date) : $fmtDate($defaultFirstCashDate));
+
+                        $summaryRows[] = [
+                            'type' => 'installment',
+                            'label' => "Cicilan Cash Bertahap ({$cashTenorMonths} Bulan @ Rp " . number_format($cashPerMonth, 0, ',', '.') . ")",
+                            'amount' => $cashPlafon,
+                            'date' => "Bulanan ({$instDateVal})",
+                        ];
                     }
-
-                    $cashTenorMonths = $booking->installment_months > 0 ? (int)$booking->installment_months : 60;
-                    $cashPlafon = max(0, $totalKesepakatan - $bookingFee - $dpTotal);
-                    $cashPerMonth = $cashTenorMonths > 0 ? round($cashPlafon / $cashTenorMonths) : $cashPlafon;
-
-                    $firstCashMonth = $dpTenor > 0 ? ($dpTenor + 1) : 1;
-                    $instSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'cicilan') || str_contains(strtolower($s->label), 'angsuran'));
-                    $defaultFirstCashDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . " +{$firstCashMonth} month")) : now()->addMonths($firstCashMonth)->format('Y-m-d');
-                    
-                    $instDateVal = !empty($schedDates['installment_date'])
-                        ? $fmtDate($schedDates['installment_date'])
-                        : ($instSched ? $fmtDate($instSched->due_date) : $fmtDate($defaultFirstCashDate));
-
-                    $summaryRows[] = [
-                        'type' => 'installment',
-                        'label' => "Cicilan Cash Bertahap ({$cashTenorMonths} Bulan @ Rp " . number_format($cashPerMonth, 0, ',', '.') . ")",
-                        'amount' => $cashPlafon,
-                        'date' => "Bulanan ({$instDateVal})",
-                    ];
                 }
             @endphp
 
