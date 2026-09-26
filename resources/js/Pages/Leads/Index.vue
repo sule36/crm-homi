@@ -211,8 +211,10 @@ function scoreColor(score) {
         <!-- HEADER -->
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">Pipeline Leads</h1>
-                <p class="text-sm text-slate-500 mt-1">Kelola prospek dan lacak konversi penjualan</p>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <span class="text-blue-600">⚡</span> Lead & Transaction Workspace
+                </h1>
+                <p class="text-sm text-slate-500 mt-1">Satu ruang kerja transaksi client terintegrasi: Follow Up → Negosiasi → Reservasi → Booking → SPR → Closing</p>
             </div>
             <div class="flex items-center gap-3">
                 <!-- View Toggle -->
@@ -306,11 +308,11 @@ function scoreColor(score) {
                                 <span :class="scoreColor(lead.score)" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black">{{ lead.score }}</span>
                             </td>
                             <td class="px-4 py-3 text-right">
-                                <div class="flex items-center justify-end gap-1">
-                                    <Link :href="`/leads/${lead.id}`" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <Link :href="`/leads/${lead.id}`" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all">
+                                        <span>⚡ Workspace</span>
                                     </Link>
-                                    <button @click="deleteLead(lead.id)" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-colors">
+                                    <button @click="deleteLead(lead.id)" title="Hapus Lead" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-colors">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>
                                 </div>

@@ -83,7 +83,7 @@ const navigationGroups = [
     {
         title: 'Marketing & Sales',
         items: [
-            { name: 'Leads', href: '/leads', icon: '👥', active: route().current('leads.index') },
+            { name: 'Lead & Transaction Workspace', href: '/leads', icon: '⚡', active: route().current('leads.*') },
             { name: 'Omnichannel Chat', href: '/whatsapp/inbox', icon: '💬', active: route().current('whatsapp.inbox') },
             { name: 'Pipeline', href: '/pipeline', icon: '📋', active: route().current('leads.pipeline') },
             { name: 'Campaign', href: '/campaigns', icon: '📢', active: route().current('campaigns.*') },
