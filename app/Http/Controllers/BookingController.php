@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Unit;
 use App\Models\Lead;
+use App\Models\Reservation;
+use App\Models\Negotiation;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -33,7 +35,9 @@ class BookingController extends Controller
     public function create(Request $request)
     {
         $reservation = $request->reservation_id ? Reservation::with(['unit', 'lead'])->find($request->reservation_id) : null;
-        $negotiation = $request->negotiation_id ? \App\Models\Negotiation::with(['unit.project', 'unit.unitType', 'lead'])->find($request->negotiation_id) : null;
+        $negotiation = $request->negotiation_id 
+            ? Negotiation::with(['unit.project', 'unit.unitType', 'lead'])->find($request->negotiation_id) 
+            : ($reservation?->negotiation_id ? Negotiation::with(['unit.project', 'unit.unitType', 'lead'])->find($reservation->negotiation_id) : null);
         $unitId = $request->unit_id ?? $reservation?->unit_id ?? $negotiation?->unit_id;
         $leadId = $request->lead_id ?? $reservation?->lead_id ?? $negotiation?->lead_id;
 
