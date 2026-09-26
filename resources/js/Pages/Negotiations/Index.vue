@@ -2,6 +2,7 @@
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
+import NegotiationTemplateModal from '@/Components/Negotiations/NegotiationTemplateModal.vue';
 
 const props = defineProps({
     negotiations: Object,
@@ -31,43 +32,21 @@ function applyFilters() {
     }, { preserveState: true, replace: true });
 }
 
-// Create Negotiation Modal
-const showCreateModal = ref(false);
-const createForm = useForm({
-    unit_id: '',
-    lead_id: '',
-    client_name: '',
-    client_phone: '',
-    client_email: '',
-});
+// Negotiation Template Modal (Official 2-Page Format)
+const showTemplateModal = ref(false);
+const editingNego = ref(null);
 
-function onLeadSelect(leadId) {
-    if (!leadId) return;
-    const selected = props.leads.find(l => l.id === Number(leadId));
-    if (selected) {
-        createForm.client_name = selected.name || '';
-        createForm.client_phone = selected.phone || '';
-        createForm.client_email = selected.email || '';
-    }
+function openCreate() {
+    editingNego.value = null;
+    showTemplateModal.value = true;
 }
 
-const selectedUnitDetail = computed(() => {
-    if (!createForm.unit_id) return null;
-    return props.units.find(u => u.id === Number(createForm.unit_id));
-});
-
-function submitCreate() {
-    createForm.post('/negotiations', {
-        preserveScroll: true,
-        onSuccess: () => {
-            showCreateModal.value = false;
-            createForm.reset();
-            showLinkModal.value = true;
-        },
-    });
+function openEdit(nego) {
+    editingNego.value = nego;
+    showTemplateModal.value = true;
 }
 
-// Link Share Modal
+// Link Share Modal (for legacy or direct links if needed)
 const showLinkModal = ref(false);
 const negoLink = computed(() => flash.value?.negotiation_link || '');
 
@@ -76,72 +55,13 @@ function copyLink() {
 }
 
 function shareWhatsApp() {
-    const msg = `Halo Bapak/Ibu *${createForm.client_name || 'Client'}*,\n\nTerima kasih atas kunjungan Anda. Silakan isi Form Pengajuan Negosiasi melalui link berikut:\n\n🔗 ${negoLink.value}\n\nPengajuan Anda akan kami review dalam 1x24 jam.\n\nSalam, *Homi Developer*`;
-    const phone = (createForm.client_phone || '').replace(/[^0-9]/g, '');
-    const waPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
-    window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+    const msg = `Halo Bapak/Ibu,\n\nTerima kasih atas kunjungan Anda. Silakan buka Form Negosiasi melalui link berikut:\n\n🔗 ${negoLink.value}\n\nSalam, *Homi Developer*`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function deleteNego(id) {
     if (!confirm('Apakah Anda yakin ingin menghapus form negosiasi ini?')) return;
     router.delete(`/negotiations/${id}`, { preserveScroll: true });
-}
-
-// Edit Negotiation Modal
-const showEditModal = ref(false);
-const editingNego = ref(null);
-const editForm = useForm({
-    unit_id: '',
-    client_name: '',
-    client_phone: '',
-    client_email: '',
-    offered_price: '',
-    payment_scheme: 'kpr',
-    dp_amount: '',
-    installment_months: '',
-    special_bonus_items: [],
-    notes: '',
-    status: 'draft',
-});
-
-function openEdit(nego) {
-    editingNego.value = nego;
-    editForm.unit_id = nego.unit_id;
-    editForm.client_name = nego.client_name || '';
-    editForm.client_phone = nego.client_phone || '';
-    editForm.client_email = nego.client_email || '';
-    editForm.offered_price = nego.offered_price || '';
-    editForm.payment_scheme = nego.payment_scheme || 'kpr';
-    editForm.dp_amount = nego.dp_amount || '';
-    editForm.installment_months = nego.installment_months || '';
-    editForm.special_bonus_items = Array.isArray(nego.special_bonus_items) ? [...nego.special_bonus_items] : [];
-    editForm.notes = nego.notes || '';
-    editForm.status = nego.status || 'draft';
-    showEditModal.value = true;
-}
-
-function addEditBonusItem() {
-    if (!Array.isArray(editForm.special_bonus_items)) {
-        editForm.special_bonus_items = [];
-    }
-    editForm.special_bonus_items.push('');
-}
-
-function removeEditBonusItem(idx) {
-    if (Array.isArray(editForm.special_bonus_items)) {
-        editForm.special_bonus_items.splice(idx, 1);
-    }
-}
-
-function submitEdit() {
-    if (!editingNego.value) return;
-    editForm.put(`/negotiations/${editingNego.value.id}`, {
-        preserveScroll: true,
-        onSuccess: () => {
-            showEditModal.value = false;
-            editingNego.value = null;
-        }
-    });
 }
 
 // Helpers
@@ -185,8 +105,8 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                 <h1 class="text-2xl font-black text-slate-900 tracking-tight">📋 Pengajuan Negosiasi</h1>
                 <p class="text-sm text-slate-500 mt-1">Inbox review & approval negosiasi harga dari calon pembeli.</p>
             </div>
-            <button @click="showCreateModal = true" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2">
-                <span>📋</span> <span>Buat Form Negosiasi (Manual)</span>
+            <button @click="openCreate" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2">
+                <span>📋</span> <span>Buat Form Negosiasi (Template Resmi)</span>
             </button>
         </div>
 
@@ -336,221 +256,14 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
             </div>
         </div>
 
-        <!-- CREATE MODAL -->
-        <teleport to="body">
-            <div v-if="showCreateModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-                <div class="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in duration-150">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                        <div>
-                            <h3 class="text-base font-black tracking-tight text-slate-900">📋 Buat Form Negosiasi</h3>
-                            <p class="text-[10px] text-slate-400 mt-0.5">Generate link form pengajuan untuk dikirim ke client via WhatsApp.</p>
-                        </div>
-                        <button @click="showCreateModal = false" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
-                    </div>
-
-                    <form @submit.prevent="submitCreate" class="space-y-4">
-                        <!-- Select Lead (Optional) -->
-                        <div v-if="leads?.length">
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Pilih Lead Terdaftar (Opsional)</label>
-                            <select v-model="createForm.lead_id" @change="onLeadSelect(createForm.lead_id)" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-blue-500">
-                                <option value="">-- Pilih Lead (Otomatis Isi Data Client) --</option>
-                                <option v-for="l in leads" :key="l.id" :value="l.id">
-                                    👤 {{ l.name }} ({{ l.phone }})
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Client *</label>
-                                <input v-model="createForm.client_name" type="text" required placeholder="Nama lengkap calon pembeli" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                                <p v-if="createForm.errors.client_name" class="text-[10px] text-rose-500 mt-1">{{ createForm.errors.client_name }}</p>
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">No HP Client *</label>
-                                <input v-model="createForm.client_phone" type="text" required placeholder="08xxxxxxxxxx" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Email (Opsional)</label>
-                            <input v-model="createForm.client_email" type="email" placeholder="email@example.com" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Pilih Unit Rumah (Available) *</label>
-                            <select v-model="createForm.unit_id" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-blue-500">
-                                <option value="">-- Pilih Unit Rumah Yang Tersedia --</option>
-                                <option v-for="u in units" :key="u.id" :value="u.id">
-                                    Unit {{ u.unit_number }} {{ u.block ? `(Blok ${u.block})` : '' }} - {{ u.unit_type?.name || 'Standard' }} | Rp {{ Number(u.final_price || u.price).toLocaleString('id-ID') }} [{{ u.project?.name || 'Proyek' }}]
-                                </option>
-                            </select>
-                            <p v-if="createForm.errors.unit_id" class="text-[10px] text-rose-500 mt-1">{{ createForm.errors.unit_id }}</p>
-                        </div>
-
-                        <!-- Selected Unit Detail Card -->
-                        <div v-if="selectedUnitDetail" class="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs space-y-1">
-                            <div class="flex justify-between items-center font-bold text-blue-950">
-                                <span>Unit {{ selectedUnitDetail.unit_number }} ({{ selectedUnitDetail.project?.name }})</span>
-                                <span class="text-emerald-700 font-mono">Listing: Rp {{ Number(selectedUnitDetail.final_price || selectedUnitDetail.price).toLocaleString('id-ID') }}</span>
-                            </div>
-                            <p class="text-[10px] text-blue-700">Tipe: {{ selectedUnitDetail.unit_type?.name || 'Standard' }} • Status: Available</p>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                            <button type="button" @click="showCreateModal = false" class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold">Batal</button>
-                            <button type="submit" :disabled="createForm.processing" class="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow-lg transition-all disabled:opacity-40">
-                                📋 Buat Link Negosiasi
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </teleport>
-
-        <!-- LINK SHARE MODAL -->
-        <teleport to="body">
-            <div v-if="showLinkModal && negoLink" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-                <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 space-y-5 animate-in zoom-in duration-150">
-                    <div class="text-center">
-                        <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">✅</div>
-                        <h3 class="text-base font-black text-slate-900">Form Negosiasi Siap!</h3>
-                        <p class="text-xs text-slate-400 mt-1">Bagikan link berikut ke client melalui WhatsApp.</p>
-                    </div>
-
-                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                        <p class="text-[10px] font-black text-slate-500 uppercase mb-2">Link Form Negosiasi</p>
-                        <div class="flex items-center gap-2">
-                            <input :value="negoLink" readonly class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-blue-600" />
-                            <button @click="copyLink" class="px-3 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold hover:bg-slate-800 transition-all shrink-0">📋 Salin</button>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-2">
-                        <button @click="shareWhatsApp" class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
-                            💬 Kirim via WhatsApp
-                        </button>
-                        <button @click="showLinkModal = false" class="px-6 py-3 bg-slate-100 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all">Tutup</button>
-                    </div>
-                </div>
-            </div>
-        </teleport>
-
-        <!-- EDIT MODAL -->
-        <teleport to="body">
-            <div v-if="showEditModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-                <div class="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in duration-150 overflow-y-auto max-h-[90vh]">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                        <div>
-                            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-                                <span>✏️</span> Edit Pengajuan Negosiasi
-                            </h3>
-                            <p class="text-[11px] text-slate-400 mt-0.5">Ubah unit pilihan atau detail pengajuan negosiasi.</p>
-                        </div>
-                        <button @click="showEditModal = false" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
-                    </div>
-
-                    <form @submit.prevent="submitEdit" class="space-y-4">
-                        <!-- Select Unit -->
-                        <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
-                            <label class="block text-[10px] font-black text-blue-900 uppercase">
-                                🏠 Pilihan Unit Properti <span class="text-rose-500">*</span>
-                            </label>
-                            <select v-model="editForm.unit_id" required class="w-full px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20">
-                                <option v-for="u in units" :key="u.id" :value="u.id">
-                                    {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- Client Info -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Client <span class="text-rose-500">*</span></label>
-                                <input v-model="editForm.client_name" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">No. WhatsApp / HP <span class="text-rose-500">*</span></label>
-                                <input v-model="editForm.client_phone" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Email Client</label>
-                            <input v-model="editForm.client_email" type="email" placeholder="client@email.com" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-blue-500" />
-                        </div>
-
-                        <!-- Pricing & Schemes -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Harga Penawaran (Rp)</label>
-                                <input v-model="editForm.offered_price" type="number" min="0" placeholder="750000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Skema Pembayaran</label>
-                                <select v-model="editForm.payment_scheme" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                                    <option value="kpr">KPR Bank</option>
-                                    <option value="cash_keras">Cash Keras</option>
-                                    <option value="cash_bertahap">Cash Bertahap</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Status Pengajuan</label>
-                                <select v-model="editForm.status" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                                    <option value="draft">📝 Draft</option>
-                                    <option value="pending">⏳ Menunggu Review</option>
-                                    <option value="counter_offer">🔄 Counter Offer</option>
-                                    <option value="approved">✅ Disetujui</option>
-                                    <option value="rejected">❌ Ditolak</option>
-                                    <option value="expired">⏰ Kedaluwarsa</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nominal DP (Rp)</label>
-                                <input v-model="editForm.dp_amount" type="number" min="0" placeholder="0" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono" />
-                            </div>
-                        </div>
-
-                        <!-- Special Bonus Items Edit -->
-                        <div class="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
-                            <div class="flex items-center justify-between">
-                                <label class="block text-[10px] font-black text-purple-900 uppercase">
-                                    🎁 Special Bonus & Benefit Items
-                                </label>
-                                <button type="button" @click="addEditBonusItem" class="px-2.5 py-1 bg-purple-200 hover:bg-purple-300 text-purple-800 text-[10px] font-bold rounded-lg transition-all">
-                                    + Tambah Bonus
-                                </button>
-                            </div>
-                            <div v-if="!editForm.special_bonus_items || editForm.special_bonus_items.length === 0" class="text-[10px] text-purple-500 italic">
-                                Belum ada item bonus. Klik "+ Tambah Bonus" untuk menambah item.
-                            </div>
-                            <div v-else class="space-y-1.5">
-                                <div v-for="(b, idx) in editForm.special_bonus_items" :key="'edit-b-' + idx" class="flex items-center gap-2">
-                                    <input v-model="editForm.special_bonus_items[idx]" type="text" placeholder="Nama item bonus (contoh: AC 1PK, Kitchen Set, Free BPHTB)..." class="w-full px-3 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-semibold" />
-                                    <button type="button" @click="removeEditBonusItem(idx)" class="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg text-xs" title="Hapus">
-                                        🗑️
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Catatan</label>
-                            <textarea v-model="editForm.notes" rows="2" placeholder="Catatan pengajuan..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium resize-none"></textarea>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                            <button type="button" @click="showEditModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold">Batal</button>
-                            <button type="submit" :disabled="editForm.processing" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 transition-all disabled:opacity-40">
-                                💾 Simpan Perubahan
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </teleport>
+        <!-- NEGOTIATION TEMPLATE MODAL -->
+        <NegotiationTemplateModal 
+            :is-open="showTemplateModal" 
+            :negotiation="editingNego" 
+            :units="units" 
+            :leads="leads" 
+            @close="showTemplateModal = false" 
+            @saved="router.reload({ preserveScroll: true })" 
+        />
     </CrmLayout>
 </template>

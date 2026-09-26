@@ -2,6 +2,7 @@
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+import NegotiationTemplateModal from '@/Components/Negotiations/NegotiationTemplateModal.vue';
 
 const props = defineProps({ lead: Object, agents: Array, units: { type: Array, default: () => [] } });
 
@@ -640,58 +641,13 @@ function scoreColor(s) {
             </div>
         </teleport>
 
-        <!-- NEGOTIATION MODAL -->
-        <teleport to="body">
-            <div v-if="showNegoModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showNegoModal = false"></div>
-                <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
-                            <span>🤝</span> Kirim Form Negosiasi
-                        </h2>
-                        <button @click="showNegoModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
-                    </div>
-                    <p class="text-xs text-slate-500 mb-5 leading-relaxed">
-                        Generate link form pengajuan harga & fasilitas khusus untuk dikirimkan ke calon pembeli via WhatsApp.
-                    </p>
-                    
-                    <form @submit.prevent="submitNegoForm" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Unit Rumah <span class="text-rose-500">*</span></label>
-                            <select v-model="negoForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500">
-                                <option value="">-- Pilih Unit Proyek --</option>
-                                <option v-for="u in units" :key="u.id" :value="u.id">
-                                    Unit {{ u.unit_number }} - {{ u.unit_type?.name || 'Standard' }} (Listing: Rp {{ Number(u.final_price || u.price).toLocaleString('id-ID') }})
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Nama Client <span class="text-rose-500">*</span></label>
-                                <input v-model="negoForm.client_name" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500/20" />
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">No. WhatsApp <span class="text-rose-500">*</span></label>
-                                <input v-model="negoForm.client_phone" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500/20" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Email Client (Opsional)</label>
-                            <input v-model="negoForm.client_email" type="email" placeholder="client@email.com" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500/20" />
-                        </div>
-
-                        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
-                            <button type="button" @click="showNegoModal = false" class="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
-                            <button type="submit" :disabled="negoForm.processing" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-black rounded-xl hover:scale-105 shadow-lg shadow-amber-500/25 transition-all disabled:opacity-50">
-                                🚀 Generate Link & Buka Form
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </teleport>
+        <!-- NEGOTIATION TEMPLATE MODAL -->
+        <NegotiationTemplateModal 
+            :is-open="showNegoModal" 
+            :lead="lead" 
+            :units="units" 
+            @close="showNegoModal = false" 
+        />
 
         <!-- SHARE NEGO LINK MODAL -->
         <teleport to="body">

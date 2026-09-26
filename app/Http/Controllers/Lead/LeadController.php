@@ -143,8 +143,8 @@ class LeadController extends Controller
 
         $units = \App\Models\Unit::when($lead->project_id, fn ($q) => $q->where('project_id', $lead->project_id))
             ->where('status', '!=', 'sold')
-            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
-            ->with(['project:id,name', 'unitType:id,name'])
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status', 'building_area', 'surface_area')
+            ->with(['project:id,name,address', 'unitType:id,name,land_area,building_area'])
             ->orderBy('block')
             ->orderByRaw('CAST(number AS UNSIGNED) ASC')
             ->get();

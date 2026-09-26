@@ -1,564 +1,380 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
     <meta charset="utf-8">
-    <title>Proposal Negosiasi - {{ $negotiation->client_name }} - Unit {{ $negotiation->unit->code ?? '-' }}</title>
-    @if(request()->has('html') || request()->query('view') === 'html')
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    @endif
+    <title>Form Request Customer - {{ $negotiation->client_name }} - {{ $negotiation->unit->code ?? 'Unit' }}</title>
     <style>
         @page {
-            margin: 0.5cm 0.7cm;
+            margin: 10mm 15mm 10mm 15mm;
+            size: A4 portrait;
         }
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 8pt;
-            color: #1e293b;
-            line-height: 1.25;
+            font-size: 9pt;
+            color: #000000;
+            line-height: 1.3;
             margin: 0;
             padding: 0;
             background-color: #ffffff;
         }
 
-        /* HEADER & KOP SURAT */
-        .header-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 6px;
-            margin-bottom: 10px;
+        .header-logo-container {
+            margin-bottom: 6px;
         }
-        .header-table td {
-            vertical-align: middle;
-        }
-        .company-logo {
-            max-height: 42px;
-            max-width: 160px;
+        .header-logo {
+            height: 52px;
             object-fit: contain;
         }
-        .company-title {
-            font-size: 12pt;
-            font-weight: 800;
-            color: #0f172a;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .company-subtitle {
-            font-size: 7pt;
-            color: #475569;
-            margin-top: 1px;
-        }
 
-        /* WATERMARK STAMP */
-        .watermark-badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 7.5pt;
+        .title-box {
+            background-color: #b8cce4;
+            border: 1.5px solid #5b7999;
+            padding: 3px 6px;
+            text-align: center;
             font-weight: bold;
-            text-transform: uppercase;
+            font-size: 10pt;
             letter-spacing: 0.5px;
-            text-align: center;
-        }
-        .status-approved { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
-        .status-pending { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
-        .status-counter { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
-        .status-rejected { background-color: #ffe4e6; color: #9f1239; border: 1px solid #fecdd3; }
-        .status-draft { background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-
-        /* DOCUMENT TITLE & REF */
-        .doc-header {
-            text-align: center;
+            text-transform: uppercase;
+            color: #000000;
             margin-bottom: 10px;
         }
-        .doc-title {
-            font-size: 11pt;
-            font-weight: 800;
-            color: #0f172a;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
-        }
-        .doc-ref {
-            font-size: 8pt;
-            color: #475569;
-        }
-        .doc-ref strong {
-            color: #0f172a;
-            font-weight: 800;
+
+        .divider-line {
+            border-bottom: 1.5px solid #000000;
+            margin: 8px 0;
         }
 
-        /* SECTION BOX */
-        .section-box {
-            border: 1px solid #cbd5e1;
-            border-radius: 5px;
-            margin-bottom: 8px;
-            overflow: hidden;
-        }
-        .section-header {
-            background-color: #f1f5f9;
-            border-bottom: 1px solid #cbd5e1;
-            padding: 4px 8px;
-            font-size: 8pt;
-            font-weight: 800;
-            color: #0f172a;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-        .section-body {
-            padding: 6px 8px;
-        }
-
-        .sub-header {
-            font-size: 7.5pt;
-            font-weight: 800;
-            color: #0f172a;
-            margin-top: 4px;
-            margin-bottom: 3px;
-        }
-
-        /* TWO COLUMN DATA TABLES */
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed;
+            font-size: 8.5pt;
         }
         .data-table td {
-            padding: 3px 4px;
+            padding: 2.2px 0;
             vertical-align: top;
-            font-size: 8pt;
-            word-wrap: break-word;
-            overflow: hidden;
-        }
-        .data-label {
-            color: #475569;
-            font-weight: 600;
-        }
-        .data-value {
-            color: #0f172a;
-            font-weight: 700;
         }
 
-        /* PRICE HIGHLIGHT TABLE */
-        .price-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-        }
-        .price-table th {
-            background-color: #f8fafc;
-            padding: 4px 6px;
-            font-size: 7pt;
-            font-weight: 800;
-            color: #475569;
-            text-transform: uppercase;
-            text-align: left;
-            border-bottom: 1px solid #cbd5e1;
-            word-wrap: break-word;
-        }
-        .price-table td {
-            padding: 5px 6px;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 8pt;
-            vertical-align: middle;
-            word-wrap: break-word;
-        }
-
-        /* CUSTOM LAYOUT CHECKLIST GRID */
-        .checklist-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-        }
-        .checklist-table td {
-            padding: 2px 4px;
-            vertical-align: middle;
-            font-size: 7.5pt;
-            word-wrap: break-word;
-        }
-        .check-icon {
-            display: inline-block;
-            width: 11px;
-            height: 11px;
-            border-radius: 2px;
-            background-color: #10b981;
-            color: #ffffff;
+        .bold-title {
             font-weight: bold;
-            font-size: 7.5pt;
-            text-align: center;
-            line-height: 11px;
-            margin-right: 4px;
+            font-size: 9pt;
+            text-transform: uppercase;
+            margin-bottom: 4px;
         }
 
-        /* NOTES TEXT AREA */
-        .notes-box {
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 3px;
-            padding: 4px 6px;
-            font-size: 7.5pt;
-            color: #334155;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            margin-top: 2px;
-            line-height: 1.2;
+        ol.note-list {
+            margin: 0;
+            padding-left: 18px;
+            font-size: 8pt;
+            line-height: 1.3;
+        }
+        ol.note-list li {
+            margin-bottom: 3.5px;
+            text-align: justify;
         }
 
-        .no-notes {
-            font-size: 7.5pt;
-            color: #94a3b8;
-            font-style: italic;
-            margin-top: 1px;
-        }
-
-        /* SIGNATURE SECTION */
-        .signature-table {
+        .sig-table {
             width: 100%;
-            margin-top: 10px;
             border-collapse: collapse;
-            table-layout: fixed;
-        }
-        .signature-table td {
+            margin-top: 15px;
             text-align: center;
+            font-size: 9pt;
+        }
+        .sig-table td {
             vertical-align: top;
-            font-size: 7.5pt;
-            word-wrap: break-word;
+            width: 33.33%;
         }
         .sig-box {
-            height: 42px;
+            height: 75px;
+            line-height: 75px;
             margin: 4px 0;
-            display: block;
         }
-        .sig-image {
-            max-height: 40px;
-            max-width: 160px;
-            object-fit: contain;
+        .sig-img {
+            max-height: 75px;
+            max-width: 130px;
+            vertical-align: middle;
         }
-        .sig-name {
-            font-weight: 800;
-            color: #0f172a;
-            text-decoration: underline;
-        }
-
-        /* FOOTER */
-        .footer-note {
-            margin-top: 10px;
-            padding-top: 5px;
-            border-top: 1px dashed #cbd5e1;
-            font-size: 6.5pt;
-            color: #94a3b8;
-            text-align: center;
+        .page-break {
+            page-break-before: always;
         }
     </style>
 </head>
 <body>
+    @php
+        $form = $negotiation->getFormDetails();
+        $logoPath = public_path('images/alonica_logo.png');
+        if (!empty($negotiation->project->logo) && file_exists(public_path('storage/' . $negotiation->project->logo))) {
+            $logoPath = public_path('storage/' . $negotiation->project->logo);
+        }
+        $logoBase64 = file_exists($logoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) : null;
 
-    <!-- KOP SURAT / HEADER -->
-    <table class="header-table">
-        <colgroup>
-            <col style="width: 60%;">
-            <col style="width: 40%;">
-        </colgroup>
+        $sigMaulizarPath = public_path('images/sig_maulizar.png');
+        $sigMaulizarBase64 = file_exists($sigMaulizarPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($sigMaulizarPath)) : null;
+
+        $sigBramantyoPath = public_path('images/sig_bramantyo.png');
+        $sigBramantyoBase64 = file_exists($sigBramantyoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($sigBramantyoPath)) : null;
+    @endphp
+
+    <!-- ========================================== -->
+    <!-- HALAMAN 1: FORM REQUEST CUSTOMER -->
+    <!-- ========================================== -->
+    <div class="header-logo-container">
+        @if($logoBase64)
+            <img src="{{ $logoBase64 }}" class="header-logo" alt="Logo" />
+        @endif
+    </div>
+
+    <div class="title-box">
+        FORM REQUEST CUSTOMER
+    </div>
+
+    <!-- METADATA SURAT -->
+    <table class="data-table" style="margin-bottom: 4px;">
         <tr>
-            <td>
-                @if(!empty($settings['company_logo']))
-                    <img src="{{ public_path('storage/' . $settings['company_logo']) }}" class="company-logo" />
-                @else
-                    <div class="company-title">{{ $settings['company_name'] ?? 'HOMI DEVELOPER' }}</div>
-                @endif
-                <div class="company-subtitle">
-                    {{ $settings['company_address'] ?? 'Official Real Estate & Property Developer' }}
-                    @if(!empty($settings['company_phone'])) · Telp: {{ $settings['company_phone'] }} @endif
-                </div>
-            </td>
-            <td style="text-align: right;">
-                @php
-                    $statusClass = match($negotiation->status) {
-                        'approved' => 'status-approved',
-                        'pending' => 'status-pending',
-                        'counter_offer' => 'status-counter',
-                        'rejected' => 'status-rejected',
-                        default => 'status-draft',
-                    };
-                    $statusText = match($negotiation->status) {
-                        'approved' => '✅ DISETUJUI DEVELOPER',
-                        'pending' => '⏳ MENUNGGU REVIEW',
-                        'counter_offer' => '🔄 COUNTER OFFER',
-                        'rejected' => '❌ DITOLAK',
-                        'draft' => '📝 DRAFT PENGAJUAN',
-                        default => strtoupper($negotiation->status),
-                    };
-                @endphp
-                <span class="watermark-badge {{ $statusClass }}">{{ $statusText }}</span>
-            </td>
+            <td style="width: 80px;">Kepada</td>
+            <td style="width: 15px;">:</td>
+            <td><strong>{{ $form['kepada'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Dari</td>
+            <td>:</td>
+            <td><strong>{{ $form['dari'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>CC</td>
+            <td>:</td>
+            <td><strong>{{ $form['cc'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Tanggal</td>
+            <td>:</td>
+            <td><strong>{{ $form['tanggal'] }}</strong></td>
         </tr>
     </table>
 
-    <!-- JUDUL DOKUMEN -->
-    <div class="doc-header">
-        <div class="doc-title">SURAT PENGAJUAN & HASIL NEGOSIASI RESMI</div>
-        <div class="doc-ref">No. Pengajuan: <strong>{{ $negotiation->getFormattedNumber() }}</strong> · Tanggal: {{ optional($negotiation->created_at)->format('d/m/Y H:i') ?? date('d/m/Y') }}</div>
+    <div class="divider-line"></div>
+
+    <!-- DETAIL PROYEK & UNIT -->
+    <table class="data-table">
+        <tr>
+            <td style="width: 110px;">Project</td>
+            <td style="width: 15px;">:</td>
+            <td colspan="2"><strong>{{ $form['project_name'] }}</strong></td>
+        </tr>
+        <tr>
+            <td style="vertical-align: top;">Alamat</td>
+            <td style="vertical-align: top;">:</td>
+            <td colspan="2" style="line-height: 1.25;">{{ $form['project_address'] }}</td>
+        </tr>
+        <tr>
+            <td>Kavling</td>
+            <td>:</td>
+            <td colspan="2"><strong>{{ $form['kavling'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Type</td>
+            <td>:</td>
+            <td colspan="2">{{ $form['type'] }}</td>
+        </tr>
+        <tr>
+            <td>Luas Tanah</td>
+            <td>:</td>
+            <td colspan="2">{{ $form['luas_tanah'] }}</td>
+        </tr>
+        <tr>
+            <td>Luas Bangunan</td>
+            <td>:</td>
+            <td colspan="2">{{ $form['luas_bangunan'] }}</td>
+        </tr>
+        <tr>
+            <td>Price list</td>
+            <td>:</td>
+            <td colspan="2"><strong>{{ $form['price_list'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Reservasi</td>
+            <td>:</td>
+            <td style="width: 200px;">{{ $form['reservasi'] }}</td>
+            <td>Tanggal : {{ $form['reservasi_date'] }}</td>
+        </tr>
+        <tr>
+            <td>Diskon</td>
+            <td>:</td>
+            <td colspan="2">{{ $form['diskon'] }}</td>
+        </tr>
+        <tr>
+            <td>Free Legalitas</td>
+            <td>:</td>
+            <td colspan="2">{{ $form['free_legalitas'] }}</td>
+        </tr>
+        <tr>
+            <td>Bonus</td>
+            <td>:</td>
+            <td colspan="2">{{ $form['bonus'] }}</td>
+        </tr>
+    </table>
+
+    <div class="divider-line"></div>
+
+    <!-- PENGAJUAN CUSTOMER -->
+    <div class="bold-title">PENGAJUAN</div>
+    <table class="data-table">
+        <tr>
+            <td style="width: 110px;">Cara bayar</td>
+            <td style="width: 15px;">:</td>
+            <td colspan="2"><strong>{{ $form['pengajuan']['cara_bayar'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Pengajuan Price</td>
+            <td>:</td>
+            <td colspan="2"><strong>{{ $form['pengajuan']['price'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Reservasi</td>
+            <td>:</td>
+            <td style="width: 200px;">{{ $form['pengajuan']['reservasi'] }}</td>
+            <td>Tanggal : {{ $form['pengajuan']['reservasi_date'] }}</td>
+        </tr>
+        <tr>
+            <td>Booking Fee</td>
+            <td>:</td>
+            <td>{{ $form['pengajuan']['booking_fee'] }} {{ $form['pengajuan']['booking_fee_total'] }}</td>
+            <td>Tanggal : {{ $form['pengajuan']['booking_fee_date'] }}</td>
+        </tr>
+        <tr>
+            <td>DP1 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; %</td>
+            <td>:</td>
+            <td>{{ $form['pengajuan']['dp1_amount'] }}</td>
+            <td>Tanggal : {{ $form['pengajuan']['dp1_date'] }}</td>
+        </tr>
+        <tr>
+            <td>DP2</td>
+            <td>:</td>
+            <td>{{ $form['pengajuan']['dp2_amount'] }}</td>
+            <td>Tanggal : {{ $form['pengajuan']['dp2_date'] }}</td>
+        </tr>
+        <tr>
+            <td>Pelunasan</td>
+            <td>:</td>
+            <td>{{ $form['pengajuan']['pelunasan_amount'] }}</td>
+            <td>Tanggal : {{ $form['pengajuan']['pelunasan_date'] }}</td>
+        </tr>
+    </table>
+
+    <div class="divider-line"></div>
+
+    <!-- NOTE PENGAJUAN -->
+    <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 3px;">Note :</div>
+    <ol class="note-list">
+        @foreach($form['pengajuan']['notes'] as $n)
+            @if(!empty(trim($n)))
+                <li>{{ $n }}</li>
+            @endif
+        @endforeach
+    </ol>
+
+
+    <!-- ========================================== -->
+    <!-- HALAMAN 2: JAWABAN (DEVELOPER COUNTER/APPROVAL) -->
+    <!-- ========================================== -->
+    <div class="page-break"></div>
+
+    <div class="header-logo-container">
+        @if($logoBase64)
+            <img src="{{ $logoBase64 }}" class="header-logo" alt="Logo" />
+        @endif
     </div>
 
-    <!-- 1. DATA PEMOHON & UNIT PROPERTI -->
-    <div class="section-box">
-        <div class="section-header">1. Identitas Pemohon & Detail Unit Diminati</div>
-        <div class="section-body">
-            <table class="data-table">
-                <colgroup>
-                    <col style="width: 20%;">
-                    <col style="width: 30%;">
-                    <col style="width: 20%;">
-                    <col style="width: 30%;">
-                </colgroup>
-                <tr>
-                    <td class="data-label">Nama Pemohon</td>
-                    <td class="data-value">: {{ $negotiation->client_name }}</td>
-                    <td class="data-label">Nama Proyek</td>
-                    <td class="data-value">: {{ $negotiation->project->name ?? '-' }}</td>
-                </tr>
-                <tr>
-                    <td class="data-label">No. WhatsApp / HP</td>
-                    <td class="data-value">: {{ $negotiation->client_phone }}</td>
-                    <td class="data-label">Kode Unit</td>
-                    <td class="data-value">: Unit {{ $negotiation->unit->code ?? $negotiation->unit->number ?? '-' }}</td>
-                </tr>
-                <tr>
-                    <td class="data-label">Email</td>
-                    <td class="data-value">: {{ $negotiation->client_email ?? '-' }}</td>
-                    <td class="data-label">Tipe & Spesifikasi</td>
-                    <td class="data-value">: Tipe {{ $negotiation->unit->unitType->name ?? '-' }} (LB: {{ $negotiation->unit->building_area ?? $negotiation->unit->unitType->building_area ?? '-' }} m² / LT: {{ $negotiation->unit->surface_area ?? $negotiation->unit->unitType->surface_area ?? '-' }} m²)</td>
-                </tr>
-            </table>
-        </div>
-    </div>
+    <div class="divider-line" style="margin-top: 4px; margin-bottom: 12px;"></div>
 
-    <!-- 2. RINCIAN PENGAJUAN HARGA & SKEMA PEMBAYARAN -->
-    <div class="section-box">
-        <div class="section-header">2. Pengajuan Harga & Skema Pembayaran</div>
-        <div class="section-body">
-            <table class="price-table">
-                <colgroup>
-                    <col style="width: 25%;">
-                    <col style="width: 25%;">
-                    <col style="width: 25%;">
-                    <col style="width: 25%;">
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th>Harga Listing Resmi</th>
-                        <th>Harga Penawaran Diajukan</th>
-                        <th>Potongan Selisih (Diskon)</th>
-                        <th>Skema Pembayaran</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="font-weight: bold;">Rp {{ number_format($negotiation->unit_listed_price, 0, ',', '.') }}</td>
-                        <td style="font-weight: bold; color: #047857;">
-                            @if($negotiation->offered_price)
-                                Rp {{ number_format($negotiation->offered_price, 0, ',', '.') }}
-                            @else
-                                <span style="color: #94a3b8; font-style: italic;">Belum Diisi</span>
-                            @endif
-                        </td>
-                        <td style="font-weight: bold; color: #dc2626;">
-                            @if($negotiation->offered_price && $negotiation->unit_listed_price > $negotiation->offered_price)
-                                @php
-                                    $diff = $negotiation->unit_listed_price - $negotiation->offered_price;
-                                    $pct = number_format(($diff / $negotiation->unit_listed_price) * 100, 1);
-                                @endphp
-                                -Rp {{ number_format($diff, 0, ',', '.') }} ({{ $pct }}%)
-                            @else
-                                -
-                            @endif
-                        </td>
-                        <td style="font-weight: bold;">
-                            {{ match($negotiation->payment_scheme) { 'cash_keras' => 'Cash Keras (Pelunasan 30 Hari)', 'cash_bertahap' => 'Cash Bertahap Direct Developer', 'kpr' => 'KPR Bank Partner', default => $negotiation->payment_scheme ?? '-' } }}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <div class="bold-title" style="margin-bottom: 8px;">JAWABAN</div>
+    <table class="data-table">
+        <tr>
+            <td style="width: 110px;">Cara bayar</td>
+            <td style="width: 15px;">:</td>
+            <td colspan="2"><strong>{{ $form['jawaban']['cara_bayar'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Pengajuan Price</td>
+            <td>:</td>
+            <td colspan="2"><strong>{{ $form['jawaban']['price'] }}</strong></td>
+        </tr>
+        <tr>
+            <td>Reservasi</td>
+            <td>:</td>
+            <td style="width: 200px;">{{ $form['jawaban']['reservasi'] }}</td>
+            <td>Tanggal : {{ $form['jawaban']['reservasi_date'] }}</td>
+        </tr>
+        <tr>
+            <td>Booking Fee</td>
+            <td>:</td>
+            <td>{{ $form['jawaban']['booking_fee'] }} {{ $form['jawaban']['booking_fee_total'] }}</td>
+            <td>Tanggal : {{ $form['jawaban']['booking_fee_date'] }}</td>
+        </tr>
+        <tr>
+            <td>DP1 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; %</td>
+            <td>:</td>
+            <td>{{ $form['jawaban']['dp1_amount'] }}</td>
+            <td>Tanggal : {{ $form['jawaban']['dp1_date'] }}</td>
+        </tr>
+        <tr>
+            <td>DP2</td>
+            <td>:</td>
+            <td>{{ $form['jawaban']['dp2_amount'] }}</td>
+            <td>Tanggal : {{ $form['jawaban']['dp2_date'] }}</td>
+        </tr>
+        <tr>
+            <td>Pelunasan</td>
+            <td>:</td>
+            <td>{{ $form['jawaban']['pelunasan_amount'] }}</td>
+            <td>Tanggal : {{ $form['jawaban']['pelunasan_date'] }}</td>
+        </tr>
+    </table>
 
-    <!-- 3. PENGAJUAN BONUS, ELEKTRONIK & BENEFIT KHUSUS -->
-    <div class="section-box">
-        <div class="section-header">3. Pengajuan Item Bonus, Elektronik & Benefit Khusus</div>
-        <div class="section-body">
-            @if(!empty($negotiation->special_bonus_items) && is_array($negotiation->special_bonus_items) && count($negotiation->special_bonus_items) > 0)
-                <table class="checklist-table">
-                    <colgroup>
-                        <col style="width: 50%;">
-                        <col style="width: 50%;">
-                    </colgroup>
-                    @foreach(array_chunk($negotiation->special_bonus_items, 2) as $row)
-                        <tr>
-                            @foreach($row as $bonusItem)
-                                <td><span class="check-icon" style="color: #7e22ce;">🎁</span> <strong>{{ $bonusItem }}</strong></td>
-                            @endforeach
-                            @if(count($row) === 1)
-                                <td></td>
-                            @endif
-                        </tr>
-                    @endforeach
-                </table>
-            @else
-                <div class="no-notes">Tidak ada item bonus khusus yang diajukan.</div>
+    <div class="divider-line" style="margin-top: 10px; margin-bottom: 10px;"></div>
+
+    <!-- NOTE JAWABAN -->
+    <div style="font-weight: bold; font-size: 8.5pt; margin-bottom: 4px;">Note :</div>
+    <ol class="note-list" style="line-height: 1.35;">
+        @foreach($form['jawaban']['notes'] as $jn)
+            @if(!empty(trim($jn)))
+                <li style="margin-bottom: 5px;">{{ $jn }}</li>
             @endif
-        </div>
-    </div>
+        @endforeach
+    </ol>
 
-    <!-- 4. CATATAN PENGAJUAN & CUSTOM LAYOUT -->
-    <div class="section-box">
-        <div class="section-header">4. Catatan Pengajuan & Custom Layout</div>
-        <div class="section-body">
-            <!-- 4.1 OPSI MODIFIKASI DENAH -->
-            <div class="sub-header">4.1 Opsi Modifikasi Denah / Custom Layout</div>
-            @if(!empty($negotiation->custom_layout_options) && is_array($negotiation->custom_layout_options) && count($negotiation->custom_layout_options) > 0)
-                <table class="checklist-table">
-                    <colgroup>
-                        <col style="width: 50%;">
-                        <col style="width: 50%;">
-                    </colgroup>
-                    @foreach(array_chunk($negotiation->custom_layout_options, 2) as $row)
-                        <tr>
-                            @foreach($row as $opt)
-                                <td><span class="check-icon">✓</span> <strong>{{ $opt }}</strong></td>
-                            @endforeach
-                            @if(count($row) === 1)
-                                <td></td>
-                            @endif
-                        </tr>
-                    @endforeach
-                </table>
-            @else
-                <div class="no-notes">Tidak ada pilihan penyesuaian denah standar yang dicentang.</div>
-            @endif
-
-            <!-- 4.2 DETAIL CATATAN PENYESUAIAN DENAH -->
-            <div class="sub-header" style="margin-top: 6px;">4.2 Detail Catatan Penyesuaian Denah & Tata Letak</div>
-            @if(!empty(trim($negotiation->custom_layout_notes ?? '')))
-                <div class="notes-box">{{ trim($negotiation->custom_layout_notes) }}</div>
-            @else
-                <div class="no-notes">-</div>
-            @endif
-
-            <!-- 4.3 PERMINTAAN KHUSUS & CATATAN LAINNYA -->
-            <div class="sub-header" style="margin-top: 6px;">4.3 Permintaan Khusus & Catatan Tambahan</div>
-            @if(!empty(trim($negotiation->special_requests ?? '')))
-                <div style="font-size: 7.5pt; font-weight: bold; color: #475569;">Permintaan Khusus:</div>
-                <div class="notes-box">{{ trim($negotiation->special_requests) }}</div>
-            @endif
-            @if(!empty(trim($negotiation->notes ?? '')))
-                <div style="font-size: 7.5pt; font-weight: bold; color: #475569; margin-top: 3px;">Catatan Developer:</div>
-                <div class="notes-box">{{ trim($negotiation->notes) }}</div>
-            @endif
-            @if(empty(trim($negotiation->special_requests ?? '')) && empty(trim($negotiation->notes ?? '')))
-                <div class="no-notes">-</div>
-            @endif
-        </div>
-    </div>
-
-    <!-- 5. COUNTER OFFER DEVELOPER (IF ANY) -->
-    @if($negotiation->status === 'counter_offer' || $negotiation->counter_price)
-        <div class="section-box" style="border-color: #c084fc;">
-            <div class="section-header" style="background-color: #faf5ff; color: #6b21a8; border-color: #e9d5ff;">
-                5. Hasil Review & Penawaran Balik (Counter Offer) Developer
-            </div>
-            <div class="section-body">
-                <table class="data-table">
-                    <colgroup>
-                        <col style="width: 25%;">
-                        <col style="width: 75%;">
-                    </colgroup>
-                    <tr>
-                        <td class="data-label" style="color: #6b21a8;">Nominal Counter Offer</td>
-                        <td class="data-value" style="font-size: 9.5pt; color: #6b21a8;">: Rp {{ number_format($negotiation->counter_price, 0, ',', '.') }}</td>
-                    </tr>
-                    @if(!empty(trim($negotiation->counter_notes ?? '')))
-                        <tr>
-                            <td class="data-label">Catatan Reviewer</td>
-                            <td class="data-value">: <em>"{{ trim($negotiation->counter_notes) }}"</em></td>
-                        </tr>
-                    @endif
-                    @if($negotiation->client_response)
-                        <tr>
-                            <td class="data-label">Tanggapan Pemohon</td>
-                            <td class="data-value">:
-                                <strong>
-                                    {{ match($negotiation->client_response) { 'accepted' => '✅ Diterima Pemohon', 'rejected' => '❌ Ditolak Pemohon', 'revised' => '🔄 Mengajukan Revisi', default => $negotiation->client_response } }}
-                                </strong>
-                                @if($negotiation->client_response_at) ({{ $negotiation->client_response_at->format('d/m/Y H:i') }}) @endif
-                            </td>
-                        </tr>
-                    @endif
-                </table>
-            </div>
-        </div>
-    @endif
-
-    <!-- LEMBAR OTENTIKASI & TANDA TANGAN -->
-    <table class="signature-table">
-        <colgroup>
-            <col style="width: 50%;">
-            <col style="width: 50%;">
-        </colgroup>
+    <!-- LEMBAR TANDA TANGAN -->
+    <div style="margin-top: 18px; font-size: 8.5pt;">{{ $form['jawaban']['sig_city_date'] }}</div>
+    <table class="sig-table">
         <tr>
             <td>
-                <div>Pemohon / Calon Pembeli,</div>
+                <div>Yang Mengajukan,</div>
                 <div class="sig-box">
                     @if(!empty($negotiation->client_signature))
-                        <img src="{{ $negotiation->client_signature }}" class="sig-image" />
-                    @else
-                        <div style="height: 35px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto;"></div>
+                        <img src="{{ $negotiation->client_signature }}" class="sig-img" />
                     @endif
                 </div>
-                <div class="sig-name">{{ $negotiation->client_name }}</div>
-                <div style="font-size: 7pt; color: #64748b;">(Tanda Tangan Digital Pemohon)</div>
+                <div>( {{ $form['jawaban']['sig_pengaju_name'] }} )</div>
             </td>
             <td>
-                @php
-                    $sigs = $settings['spr_signatures'] ?? [];
-                    
-                    // Prioritaskan Slot TTD 2 (Direktur / Developer Management) untuk Pihak Developer
-                    $devSigTitle = !empty($negotiation->developer_sig_title)
-                        ? $negotiation->developer_sig_title
-                        : (!empty($sigs['sig2_title'])
-                            ? $sigs['sig2_title']
-                            : (!empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'Developer Representative'));
-
-                    $devSigName = !empty($negotiation->developer_sig_name)
-                        ? $negotiation->developer_sig_name
-                        : (!empty($sigs['sig2_name'])
-                            ? $sigs['sig2_name']
-                            : (!empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($settings['company_name'] ?? 'Developer Management')));
-
-                    $devSigImage = !empty($sigs['sig2_image']) ? $sigs['sig2_image'] : ($sigs['sig1_image'] ?? null);
-                    $sigCity = $sigs['city'] ?? 'Jakarta';
-                @endphp
-                <div style="font-weight: 600;">{{ $sigCity }}, {{ optional($negotiation->created_at)->format('d F Y') }}</div>
-                <div style="font-weight: 600;">{{ $devSigTitle }},</div>
+                <div>Mengetahui,</div>
                 <div class="sig-box">
-                    @if(!empty($devSigImage) && file_exists(public_path('storage/' . $devSigImage)))
-                        <img src="{{ public_path('storage/' . $devSigImage) }}" class="sig-image" />
-                    @else
-                        <div style="height: 35px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; display: flex; items-center; justify-content: center;">
-                            <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 35px;">[ Verified by System ]</span>
-                        </div>
+                    @if($sigMaulizarBase64)
+                        <img src="{{ $sigMaulizarBase64 }}" class="sig-img" />
                     @endif
                 </div>
-                <div class="sig-name">{{ $devSigName }}</div>
-                <div style="font-size: 7pt; color: #64748b;">{{ $settings['company_name'] ?? 'Homi Developer' }}</div>
+                <div>( {{ $form['jawaban']['sig_mengetahui_name'] }} )</div>
+            </td>
+            <td>
+                <div>Menyetujui,</div>
+                <div class="sig-box">
+                    @if($sigBramantyoBase64)
+                        <img src="{{ $sigBramantyoBase64 }}" class="sig-img" />
+                    @endif
+                </div>
+                <div>( {{ $form['jawaban']['sig_menyetujui_name'] }} )</div>
             </td>
         </tr>
     </table>
-
-    <div class="footer-note">
-        Dokumen ini diterbitkan secara elektronik oleh Sistem CRM Developer pada {{ date('d F Y, H:i') }} WIB.
-        Segala bentuk kesepakatan akhir negosiasi dan perubahan denah custom akan disahkan melalui penandatanganan Surat Pemesanan Rumah (SPR).
-    </div>
 
 </body>
 </html>

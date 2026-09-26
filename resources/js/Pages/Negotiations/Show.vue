@@ -2,6 +2,7 @@
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+import NegotiationTemplateModal from '@/Components/Negotiations/NegotiationTemplateModal.vue';
 
 const props = defineProps({
     negotiation: Object,
@@ -397,150 +398,13 @@ function shareWhatsApp() {
             </div>
         </teleport>
 
-        <!-- EDIT MODAL -->
-        <teleport to="body">
-            <div v-if="showEditModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-                <div class="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 space-y-4 animate-in zoom-in duration-150 overflow-y-auto max-h-[90vh]">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                        <div>
-                            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-                                <span>✏️</span> Edit Pengajuan Negosiasi
-                            </h3>
-                            <p class="text-[11px] text-slate-400 mt-0.5">Ubah unit pilihan, nilai penawaran, data konsumen, atau status.</p>
-                        </div>
-                        <button @click="showEditModal = false" class="text-slate-400 hover:text-slate-700 text-lg">✕</button>
-                    </div>
-
-                    <form @submit.prevent="submitEdit" class="space-y-4">
-                        <!-- Unit Selection (Ganti Unit) -->
-                        <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
-                            <label class="block text-[10px] font-black text-blue-900 uppercase">
-                                🏠 Pilihan Unit Properti <span class="text-rose-500">*</span>
-                            </label>
-                            <select v-model="editForm.unit_id" required class="w-full px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20">
-                                <option v-for="u in units" :key="u.id" :value="u.id">
-                                    {{ u.block }} {{ u.number }} - {{ u.unit_type?.name || 'Tipe Standar' }} (Rp {{ Number(u.final_price || u.price || 0).toLocaleString('id-ID') }}) [{{ u.status }}]
-                                </option>
-                            </select>
-                            <div v-if="selectedEditUnit" class="text-[11px] text-blue-700 font-semibold flex items-center justify-between">
-                                <span>Harga Listing Unit Baru:</span>
-                                <strong class="font-mono text-blue-950">Rp {{ Number(selectedEditUnit.final_price || selectedEditUnit.price || 0).toLocaleString('id-ID') }}</strong>
-                            </div>
-                        </div>
-
-                        <!-- Client Info -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Client <span class="text-rose-500">*</span></label>
-                                <input v-model="editForm.client_name" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">No. WhatsApp / HP <span class="text-rose-500">*</span></label>
-                                <input v-model="editForm.client_phone" type="text" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Email Client (Opsional)</label>
-                            <input v-model="editForm.client_email" type="email" placeholder="client@email.com" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-blue-500" />
-                        </div>
-
-                        <!-- Pricing & Schemes -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Harga Penawaran Client (Rp)</label>
-                                <input v-model="editForm.offered_price" type="number" min="0" placeholder="Contoh: 750000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Skema Pembayaran</label>
-                                <select v-model="editForm.payment_scheme" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                                    <option value="kpr">KPR Bank</option>
-                                    <option value="cash_keras">Cash Keras</option>
-                                    <option value="cash_bertahap">Cash Bertahap</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nominal DP (Rp)</label>
-                                <input v-model="editForm.dp_amount" type="number" min="0" placeholder="0" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Tenor Cicilan (Bulan)</label>
-                                <input v-model="editForm.installment_months" type="number" min="0" max="360" placeholder="12" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-1 focus:ring-blue-500" />
-                            </div>
-                        </div>
-
-                        <!-- Status & Counter Offer -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Status Pengajuan</label>
-                                <select v-model="editForm.status" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                                    <option value="draft">📝 Draft (Belum Diisi Client)</option>
-                                    <option value="pending">⏳ Menunggu Review</option>
-                                    <option value="counter_offer">🔄 Counter Offer</option>
-                                    <option value="approved">✅ Disetujui</option>
-                                    <option value="rejected">❌ Ditolak</option>
-                                    <option value="expired">⏰ Kedaluwarsa</option>
-                                </select>
-                            </div>
-                            <div v-if="editForm.status === 'counter_offer'">
-                                <label class="block text-[10px] font-black text-purple-700 uppercase mb-1">Counter Price Developer (Rp)</label>
-                                <input v-model="editForm.counter_price" type="number" min="0" class="w-full px-3.5 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-900 font-mono" />
-                            </div>
-                        </div>
-
-                        <!-- Special Bonus Items Edit -->
-                        <div class="p-3.5 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
-                            <div class="flex items-center justify-between">
-                                <label class="block text-[10px] font-black text-purple-900 uppercase">
-                                    🎁 Special Bonus & Benefit Items
-                                </label>
-                                <button type="button" @click="addBonusItem" class="px-2.5 py-1 bg-purple-200 hover:bg-purple-300 text-purple-800 text-[10px] font-bold rounded-lg transition-all">
-                                    + Tambah Bonus
-                                </button>
-                            </div>
-                            <div v-if="!editForm.special_bonus_items || editForm.special_bonus_items.length === 0" class="text-[10px] text-purple-500 italic">
-                                Belum ada item bonus. Klik "+ Tambah Bonus" untuk menambah item.
-                            </div>
-                            <div v-else class="space-y-1.5">
-                                <div v-for="(b, idx) in editForm.special_bonus_items" :key="'edit-b-' + idx" class="flex items-center gap-2">
-                                    <input v-model="editForm.special_bonus_items[idx]" type="text" placeholder="Nama item bonus (contoh: AC 1PK, Kitchen Set, Free BPHTB)..." class="w-full px-3 py-1.5 bg-white border border-purple-200 rounded-xl text-xs font-semibold" />
-                                    <button type="button" @click="removeBonusItem(idx)" class="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg text-xs" title="Hapus">
-                                        🗑️
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Signatures -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nama Penandatangan Developer</label>
-                                <input v-model="editForm.developer_sig_name" type="text" placeholder="Direktur / Representative" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium" />
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Jabatan Penandatangan</label>
-                                <input v-model="editForm.developer_sig_title" type="text" placeholder="Direktur" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium" />
-                            </div>
-                        </div>
-
-                        <!-- Notes -->
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Catatan / Permintaan Khusus</label>
-                            <textarea v-model="editForm.notes" rows="2" placeholder="Catatan negosiasi..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium resize-none"></textarea>
-                        </div>
-
-                        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                            <button type="button" @click="showEditModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-colors">Batal</button>
-                            <button type="submit" :disabled="editForm.processing" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 transition-all disabled:opacity-40">
-                                💾 Simpan Perubahan
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </teleport>
+        <!-- NEGOTIATION TEMPLATE MODAL -->
+        <NegotiationTemplateModal 
+            :is-open="showEditModal" 
+            :negotiation="nego" 
+            :units="units" 
+            @close="showEditModal = false" 
+            @saved="router.reload({ preserveScroll: true })" 
+        />
     </CrmLayout>
 </template>

@@ -97,8 +97,8 @@ class NegotiationController extends Controller
         ];
 
         $units = Unit::where('status', '!=', 'sold')
-            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
-            ->with(['project:id,name', 'unitType:id,name'])
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status', 'building_area', 'surface_area')
+            ->with(['project:id,name,address', 'unitType:id,name,land_area,building_area'])
             ->orderBy('block')
             ->orderByRaw('CAST(number AS UNSIGNED) ASC')
             ->get();
@@ -132,12 +132,36 @@ class NegotiationController extends Controller
             'developer_sig_name' => 'nullable|string|max:255',
             'developer_sig_title' => 'nullable|string|max:255',
             'special_bonus_items' => 'nullable|array',
+            'form_data' => 'nullable|array',
+            'offered_price' => 'nullable|numeric|min:0',
+            'payment_scheme' => 'nullable|string',
+            'dp_amount' => 'nullable|numeric|min:0',
+            'installment_months' => 'nullable|integer',
+            'notes' => 'nullable|string',
         ]);
 
-        $unit = Unit::with('project')->findOrFail($request->unit_id);
+        $unit = Unit::with(['project', 'unitType'])->findOrFail($request->unit_id);
         $settings = $this->getSettings();
         $defaultSigName = $settings['spr_signatures']['sig2_name'] ?? $settings['spr_signatures']['sig1_name'] ?? 'Direktur';
         $defaultSigTitle = $settings['spr_signatures']['sig2_title'] ?? $settings['spr_signatures']['sig1_title'] ?? 'Developer Representative';
+
+        $offeredPrice = $request->offered_price;
+        if (empty($offeredPrice) && !empty($request->input('form_data.pengajuan.price'))) {
+            $cleaned = preg_replace('/[^0-9]/', '', $request->input('form_data.pengajuan.price'));
+            if ($cleaned) $offeredPrice = (int)$cleaned;
+        }
+
+        $paymentScheme = $request->payment_scheme;
+        if (empty($paymentScheme) && !empty($request->input('form_data.pengajuan.cara_bayar'))) {
+            $cb = strtolower($request->input('form_data.pengajuan.cara_bayar'));
+            $paymentScheme = str_contains($cb, 'keras') ? 'cash_keras' : (str_contains($cb, 'kpr') ? 'kpr' : 'cash_bertahap');
+        }
+
+        $dpAmount = $request->dp_amount;
+        if (empty($dpAmount) && !empty($request->input('form_data.pengajuan.dp1_amount'))) {
+            $cleanedDp = preg_replace('/[^0-9]/', '', $request->input('form_data.pengajuan.dp1_amount'));
+            if ($cleanedDp) $dpAmount = (int)$cleanedDp;
+        }
 
         $negotiation = Negotiation::create([
             'unit_id' => $unit->id,
@@ -148,6 +172,12 @@ class NegotiationController extends Controller
             'client_phone' => $request->client_phone,
             'client_email' => $request->client_email,
             'unit_listed_price' => $unit->final_price ?? $unit->price ?? 0,
+            'offered_price' => $offeredPrice ?: null,
+            'payment_scheme' => $paymentScheme ?: 'cash_bertahap',
+            'dp_amount' => $dpAmount ?: null,
+            'installment_months' => $request->installment_months ?: null,
+            'notes' => $request->notes ?: null,
+            'form_data' => $request->form_data ?: null,
             'developer_sig_name' => $request->developer_sig_name ?: $defaultSigName,
             'developer_sig_title' => $request->developer_sig_title ?: $defaultSigTitle,
             'special_bonus_items' => $request->special_bonus_items ?? [],
@@ -165,9 +195,10 @@ class NegotiationController extends Controller
         }
 
         return back()
+            ->with('negotiation_id', $negotiation->id)
             ->with('negotiation_link', $negotiation->getPublicUrl())
             ->with('negotiation_token', $negotiation->token)
-            ->with('success', 'Form negosiasi berhasil dibuat!');
+            ->with('success', 'Form negosiasi berhasil dibuat & disesuaikan!');
     }
 
     /**
@@ -176,11 +207,12 @@ class NegotiationController extends Controller
     public function show(Negotiation $negotiation)
     {
         $negotiation->load(['lead', 'unit.unitType', 'unit.project', 'project', 'creator', 'reviewer', 'booking']);
+        $negotiation->form_details = $negotiation->getFormDetails();
 
         $units = Unit::where('status', '!=', 'sold')
             ->when($negotiation->project_id, fn ($q) => $q->where('project_id', $negotiation->project_id))
-            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
-            ->with(['project:id,name', 'unitType:id,name'])
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status', 'building_area', 'surface_area')
+            ->with(['project:id,name,address', 'unitType:id,name,land_area,building_area'])
             ->orderBy('block')
             ->orderByRaw('CAST(number AS UNSIGNED) ASC')
             ->get();
@@ -212,6 +244,7 @@ class NegotiationController extends Controller
             'counter_price' => 'nullable|numeric|min:0',
             'counter_notes' => 'nullable|string|max:1000',
             'special_bonus_items' => 'nullable|array',
+            'form_data' => 'nullable|array',
         ]);
 
         $oldUnitId = $negotiation->unit_id;
@@ -232,6 +265,19 @@ class NegotiationController extends Controller
             'developer_sig_name' => $validated['developer_sig_name'] ?? $negotiation->developer_sig_name,
             'developer_sig_title' => $validated['developer_sig_title'] ?? $negotiation->developer_sig_title,
         ];
+
+        if (array_key_exists('form_data', $validated)) {
+            $updateData['form_data'] = $validated['form_data'];
+            // Sync offered price from form_data if provided
+            if (!empty($validated['form_data']['pengajuan']['price'])) {
+                $cleaned = preg_replace('/[^0-9]/', '', $validated['form_data']['pengajuan']['price']);
+                if ($cleaned) $updateData['offered_price'] = (int)$cleaned;
+            }
+            if (!empty($validated['form_data']['jawaban']['price'])) {
+                $cleanedJwb = preg_replace('/[^0-9]/', '', $validated['form_data']['jawaban']['price']);
+                if ($cleanedJwb) $updateData['counter_price'] = (int)$cleanedJwb;
+            }
+        }
 
         if (array_key_exists('special_bonus_items', $validated)) {
             $updateData['special_bonus_items'] = $validated['special_bonus_items'];
@@ -382,6 +428,8 @@ class NegotiationController extends Controller
         if ($negotiation->isExpired() && $negotiation->status === 'draft') {
             $negotiation->update(['status' => 'expired']);
         }
+
+        $negotiation->form_details = $negotiation->getFormDetails();
 
         $settings = [];
         $settingsRaw = \App\Models\Setting::all();
