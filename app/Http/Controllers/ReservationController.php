@@ -108,8 +108,23 @@ class ReservationController extends Controller
             'total_refunded' => (clone $statsBase)->where('status', 'refunded')->sum('refund_amount'),
         ];
 
+        $unreservedLeadsQuery = Lead::where('status', 'reservation')
+            ->whereDoesntHave('reservations', fn ($q) => $q->whereIn('status', ['active', 'converted']))
+            ->with(['project', 'assignedTo']);
+
+        if (!$isAdmin) {
+            if ($isMasterLead) {
+                $unreservedLeadsQuery->whereIn('assigned_to', $teamUserIds);
+            } else {
+                $unreservedLeadsQuery->where('assigned_to', $user->id);
+            }
+        }
+
+        $unreservedLeads = $unreservedLeadsQuery->latest()->take(10)->get();
+
         return Inertia::render('Reservations/Index', [
             'reservations' => $reservations,
+            'unreservedLeads' => $unreservedLeads,
             'stats' => $stats,
             'filters' => $request->only(['status', 'project_id', 'search']),
             'projects' => Project::select('id', 'name')->get(),

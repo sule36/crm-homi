@@ -5,6 +5,10 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 const props = defineProps({
     reservations: Object,
+    unreservedLeads: {
+        type: Array,
+        default: () => []
+    },
     stats: Object,
     filters: Object,
     projects: Array,
@@ -100,6 +104,38 @@ const deleteReservation = (id) => {
                 <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest">🛡️ Policy</div>
                 <div class="text-xs font-bold text-slate-800 mt-1">100% Refundable</div>
                 <p class="text-[10px] text-slate-500 mt-0.5">Garansi dana kembali utuh jika pengajuan tidak disetujui.</p>
+            </div>
+        </div>
+
+        <!-- UNRESERVED LEADS WAITING FOR UNIT SELECTION -->
+        <div v-if="props.unreservedLeads && props.unreservedLeads.length > 0" class="mb-6 p-4 bg-teal-50/90 border border-teal-200 rounded-2xl shadow-xs">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🔖</span>
+                    <div>
+                        <h4 class="font-black text-sm text-teal-950">
+                            {{ props.unreservedLeads.length }} Calon Pembeli (Lead) Berstatus Reservasi Unit
+                        </h4>
+                        <p class="text-xs text-teal-700">
+                            Konsumen ini telah diubah ke status "Reservasi Unit" di menu Leads. Klik tombol "Pilih Unit" di bawah untuk memilih unit kavling & menerbitkan kwitansi reservasi resminya.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                <div v-for="l in props.unreservedLeads" :key="l.id" class="p-3 bg-white rounded-xl border border-teal-200 flex items-center justify-between gap-3 shadow-xs">
+                    <div class="min-w-0">
+                        <Link :href="`/leads/${l.id}`" class="text-xs font-black text-slate-900 hover:text-blue-600 truncate block">
+                            {{ l.name }}
+                        </Link>
+                        <p class="text-[10px] text-slate-500 font-medium">
+                            📱 {{ l.phone }} · {{ l.project?.name || 'Semua Proyek' }}
+                        </p>
+                    </div>
+                    <Link :href="`/reservations/create?lead_id=${l.id}`" class="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0 transition-all shadow-xs flex items-center gap-1">
+                        <span>➕</span> <span>Pilih Unit</span>
+                    </Link>
+                </div>
             </div>
         </div>
 

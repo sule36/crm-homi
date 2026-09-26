@@ -332,6 +332,24 @@ function scoreColor(s) {
             </div>
         </div>
 
+        <!-- UNRESERVED CALLOUT IF LEAD STATUS IS RESERVATION BUT NO RESERVATION RECORD YET -->
+        <div v-if="lead.status === 'reservation' && (!lead.reservations || lead.reservations.length === 0)" 
+            class="mb-6 p-4 bg-teal-50 border-2 border-teal-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div class="flex items-start gap-3">
+                <span class="text-2xl">🔖</span>
+                <div>
+                    <h4 class="font-black text-sm text-teal-950">Status Lead: Reservasi Unit</h4>
+                    <p class="text-xs text-teal-700 mt-0.5">
+                        Calon pembeli ini berstatus "Reservasi Unit", namun belum memiliki data transaksi Reservasi resmi. Unit kavling belum terkunci dan kwitansi belum terbit.
+                    </p>
+                </div>
+            </div>
+            <Link :href="`/reservations/create?lead_id=${lead.id}`" 
+                class="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-teal-600/20 shrink-0 flex items-center gap-1.5 justify-center">
+                <span>➕</span> <span>Pilih Unit & Terbitkan Reservasi →</span>
+            </Link>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- LEFT: Activity Timeline -->
             <div class="lg:col-span-2 space-y-6">

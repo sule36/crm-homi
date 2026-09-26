@@ -60,7 +60,16 @@ const kanbanLeads = computed(() => {
 });
 
 function updateLeadStatus(leadId, newStatus) {
-    router.put(`/leads/${leadId}`, { status: newStatus }, { preserveState: true });
+    router.put(`/leads/${leadId}`, { status: newStatus }, { 
+        preserveState: true,
+        onSuccess: () => {
+            if (newStatus === 'reservation') {
+                if (confirm('Status prospek berhasil diubah ke "Reservasi Unit"! Apakah Anda ingin langsung memilih unit kavling & membuat data Reservasi resmi agar tercatat di menu Reservasi Unit?')) {
+                    router.visit(`/reservations/create?lead_id=${leadId}`);
+                }
+            }
+        }
+    });
 }
 
 // Quick add lead modal

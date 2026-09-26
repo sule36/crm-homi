@@ -34,7 +34,11 @@ function onMove(evt) {
     }, {
         preserveScroll: true,
         onSuccess: () => {
-            // Success notification could go here
+            if (newStatus === 'reservation') {
+                if (confirm('Status prospek berhasil diubah ke "Reservasi Unit"! Apakah Anda ingin langsung memilih unit kavling & membuat data Reservasi resmi agar tercatat di menu Reservasi Unit?')) {
+                    router.visit(`/reservations/create?lead_id=${leadId}`);
+                }
+            }
         }
     });
 }
