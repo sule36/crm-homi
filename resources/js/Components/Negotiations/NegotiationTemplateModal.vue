@@ -8,6 +8,7 @@ const props = defineProps({
     leads: { type: Array, default: () => [] },
     units: { type: Array, default: () => [] },
     negotiation: { type: Object, default: null },
+    initialTab: { type: String, default: 'page1' },
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -43,6 +44,7 @@ const form = useForm({
     client_name: '',
     client_phone: '',
     client_email: '',
+    status: 'draft',
 
     // Form data structure matching the PDF
     form_data: {
@@ -110,7 +112,7 @@ const form = useForm({
 // Watch isOpen & initialize data
 watch(() => props.isOpen, (open) => {
     if (!open) return;
-    activeTab.value = 'page1';
+    activeTab.value = props.initialTab || 'page1';
 
     if (props.negotiation) {
         // Edit existing negotiation
@@ -120,6 +122,7 @@ watch(() => props.isOpen, (open) => {
         form.client_name = n.client_name || '';
         form.client_phone = n.client_phone || '';
         form.client_email = n.client_email || '';
+        form.status = n.status || 'draft';
 
         const fd = n.form_details || n.form_data || {};
         if (fd && Object.keys(fd).length > 0) {
@@ -232,7 +235,10 @@ function resetJawabanNotes() {
     form.form_data.jawaban.notes = [...defaultJawabanNotes];
 }
 
-function submitForm() {
+function submitForm(asStatus = null) {
+    if (asStatus) {
+        form.status = asStatus;
+    }
     if (props.negotiation) {
         form.put(`/negotiations/${props.negotiation.id}`, {
             preserveScroll: true,
@@ -907,9 +913,9 @@ function openPdf() {
                                 v-if="activeTab === 'page1'" 
                                 type="button" 
                                 @click="activeTab = 'page2'" 
-                                class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                                class="px-4 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5"
                             >
-                                Lanjut ke Halaman 2 (Jawaban) →
+                                <span>💼</span> Ke Halaman 2 (Jawaban Developer) →
                             </button>
                             <button 
                                 v-if="activeTab === 'page2'" 
@@ -917,7 +923,7 @@ function openPdf() {
                                 @click="activeTab = 'page1'" 
                                 class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
                             >
-                                ← Kembali ke Halaman 1
+                                ← Kembali ke Halaman 1 (Pengajuan)
                             </button>
                         </div>
 
@@ -925,9 +931,27 @@ function openPdf() {
                             <button type="button" @click="closeModal" class="px-4 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-200 transition-colors">
                                 Batal
                             </button>
-                            <button type="submit" :disabled="form.processing" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black rounded-xl text-xs shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2 disabled:opacity-50">
+                            
+                            <!-- Approve button when on page 2 (Jawaban) or editing -->
+                            <button 
+                                v-if="negotiation && activeTab === 'page2'" 
+                                type="button" 
+                                @click="submitForm('approved')" 
+                                :disabled="form.processing" 
+                                class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-xl text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-2 disabled:opacity-50"
+                            >
+                                <span>✅</span>
+                                <span>Simpan & SETUJUI Negosiasi</span>
+                            </button>
+
+                            <button 
+                                type="button" 
+                                @click="submitForm()" 
+                                :disabled="form.processing" 
+                                class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black rounded-xl text-xs shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2 disabled:opacity-50"
+                            >
                                 <span>💾</span>
-                                <span>{{ negotiation ? 'Simpan Perubahan Dokumen' : 'Simpan & Dapatkan Link Negosiasi' }}</span>
+                                <span>{{ negotiation ? (activeTab === 'page2' ? 'Simpan Draft Jawaban' : 'Simpan Perubahan Dokumen') : 'Simpan & Dapatkan Link Negosiasi' }}</span>
                             </button>
                         </div>
                     </div>

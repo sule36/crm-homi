@@ -13,8 +13,14 @@ const props = defineProps({
 });
 const nego = computed(() => props.negotiation);
 
-// Edit Form (Pengajuan & Ganti Unit)
+// Edit Form (Pengajuan & Ganti Unit & Jawaban Developer)
 const showEditModal = ref(false);
+const initialModalTab = ref('page1');
+
+const formDetails = computed(() => props.negotiation.form_details || props.negotiation.form_data || {});
+const jawaban = computed(() => formDetails.value.jawaban || {});
+const pengajuan = computed(() => formDetails.value.pengajuan || {});
+
 const editForm = useForm({
     unit_id: '',
     client_name: '',
@@ -34,6 +40,7 @@ const editForm = useForm({
 });
 
 function openEditModal() {
+    initialModalTab.value = 'page1';
     editForm.unit_id = nego.value.unit_id;
     editForm.client_name = nego.value.client_name || '';
     editForm.client_phone = nego.value.client_phone || '';
@@ -50,6 +57,19 @@ function openEditModal() {
     editForm.counter_price = nego.value.counter_price || '';
     editForm.counter_notes = nego.value.counter_notes || '';
     showEditModal.value = true;
+}
+
+function openJawabanModal() {
+    initialModalTab.value = 'page2';
+    openEditModal();
+    initialModalTab.value = 'page2';
+}
+
+function quickApprove() {
+    if (confirm(`Apakah Anda yakin ingin menyetujui pengajuan negosiasi untuk ${nego.value.client_name}? Harga kesepakatan akan dikunci dan siap dilanjutkan ke reservasi/booking.`)) {
+        reviewForm.action = 'approve';
+        submitReview();
+    }
 }
 
 function addBonusItem() {
@@ -175,8 +195,11 @@ function shareWhatsApp() {
                 <Link v-if="nego.status === 'approved' || nego.client_response === 'accepted'" :href="`/reservations/create?negotiation_id=${nego.id}&unit_id=${nego.unit_id}&lead_id=${nego.lead_id}`" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5">
                     <span>🔖</span> Buat Reservasi Unit
                 </Link>
+                <button @click="openJawabanModal" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl shadow-md shadow-purple-500/25 transition-all flex items-center gap-1.5 cursor-pointer">
+                    <span>💼</span> Input Jawaban Developer & Setujui
+                </button>
                 <button @click="openEditModal" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
-                    <span>✏️</span> Edit Pengajuan & Ganti Unit
+                    <span>✏️</span> Edit Form Pengajuan
                 </button>
                 <button @click="openPdf" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5">📄 Download PDF</button>
                 <button @click="copyLink" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all">📋 Salin Link</button>
@@ -287,13 +310,147 @@ function shareWhatsApp() {
                     </div>
                 </div>
 
-                <!-- ACTION BUTTONS -->
-                <div v-if="nego.status === 'pending'" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-900 mb-5">Aksi Developer</h3>
+                <!-- JAWABAN DEVELOPER SECTION -->
+                <div class="bg-white border-2 border-purple-200/90 rounded-2xl p-6 shadow-sm relative overflow-hidden space-y-5">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-purple-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-black text-lg">
+                                🏛️
+                            </div>
+                            <div>
+                                <h3 class="text-xs font-black uppercase tracking-widest text-purple-950">2. Jawaban Resmi Developer</h3>
+                                <p class="text-[11px] text-slate-500 font-medium">Keputusan, kesepakatan harga, jadwal termin pembayaran, & klausul developer</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span v-if="nego.status === 'approved'" class="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg border border-emerald-200 inline-flex items-center gap-1">
+                                ✅ Disetujui Resmi
+                            </span>
+                            <span v-else-if="nego.status === 'counter_offer'" class="px-3 py-1 bg-purple-100 text-purple-700 text-[10px] font-black rounded-lg border border-purple-200 inline-flex items-center gap-1">
+                                🔄 Counter Offer
+                            </span>
+                            <span v-else class="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-black rounded-lg border border-amber-200 inline-flex items-center gap-1">
+                                ⏳ Menunggu Keputusan
+                            </span>
+                            <button @click="openJawabanModal" class="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1">
+                                <span>✏️</span> Input / Edit Jawaban
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Info Grid: Cara Bayar & Harga Kesepakatan -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Skema Cara Bayar Disetujui</p>
+                            <p class="text-sm font-black text-slate-900 mt-1">{{ jawaban.cara_bayar || paymentLabels[nego.payment_scheme] || 'Cash Bertahap 3X' }}</p>
+                        </div>
+                        <div class="p-3.5 bg-purple-50/70 rounded-xl border border-purple-200">
+                            <p class="text-[10px] font-black text-purple-600 uppercase tracking-wider">Harga Kesepakatan (Deal Price)</p>
+                            <p class="text-lg font-black text-purple-900 font-mono mt-1">
+                                {{ jawaban.price || (nego.counter_price ? formatCurrency(nego.counter_price) : formatCurrency(nego.offered_price)) }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Jadwal Termin Pembayaran Jawaban -->
+                    <div>
+                        <h4 class="text-[11px] font-black uppercase tracking-wider text-slate-700 mb-2.5">
+                            📅 Jadwal Termin Pembayaran yang Disetujui Developer
+                        </h4>
+                        <div class="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden text-xs bg-slate-50/30">
+                            <div class="grid grid-cols-12 p-2.5 bg-slate-100/60 font-black text-[10px] text-slate-500 uppercase tracking-wider">
+                                <div class="col-span-4">Termin</div>
+                                <div class="col-span-4 text-right">Nominal</div>
+                                <div class="col-span-4 text-right">Jatuh Tempo</div>
+                            </div>
+                            <div class="grid grid-cols-12 p-2.5 items-center">
+                                <div class="col-span-4 font-bold text-slate-800">1. Tanda Jadi (Reservasi)</div>
+                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.reservasi || '10.000.000,-' }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.reservasi_date || '08 Sept 2026' }}</div>
+                            </div>
+                            <div class="grid grid-cols-12 p-2.5 items-center">
+                                <div class="col-span-4 font-bold text-slate-800">2. Booking Fee (UTJ)</div>
+                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.booking_fee || '7.000.000,-' }} <span class="text-[10px] text-slate-400 font-normal">{{ jawaban.booking_fee_total }}</span></div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.booking_fee_date || '24 Sept 2026' }}</div>
+                            </div>
+                            <div class="grid grid-cols-12 p-2.5 items-center">
+                                <div class="col-span-4 font-bold text-slate-800">3. Uang Muka (DP 1)</div>
+                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.dp1_amount || '200.000.000,-' }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.dp1_date || '1 Okt 2026' }}</div>
+                            </div>
+                            <div v-if="jawaban.dp2_amount" class="grid grid-cols-12 p-2.5 items-center">
+                                <div class="col-span-4 font-bold text-slate-800">4. Uang Muka (DP 2)</div>
+                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.dp2_amount }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.dp2_date || '25 Des 2026' }}</div>
+                            </div>
+                            <div class="grid grid-cols-12 p-2.5 items-center bg-purple-50/40">
+                                <div class="col-span-4 font-black text-purple-950">5. Pelunasan Sisa</div>
+                                <div class="col-span-4 text-right font-black font-mono text-purple-900">{{ jawaban.pelunasan_amount || '-' }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.pelunasan_date || '25 Des 2027' }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Klausul Ketentuan Developer (Notes) -->
+                    <div v-if="jawaban.notes && jawaban.notes.length > 0" class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <p class="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                            ⚖️ Klausul & Ketentuan Resmi Developer:
+                        </p>
+                        <ol class="list-decimal pl-5 space-y-1.5 text-xs text-slate-700 leading-relaxed">
+                            <li v-for="(jn, idx) in jawaban.notes" :key="idx" class="pl-1">
+                                {{ jn }}
+                            </li>
+                        </ol>
+                    </div>
+
+                    <!-- Lembar TTD Resmi -->
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div class="text-[10px] text-slate-500 font-bold mb-2">{{ jawaban.sig_city_date || 'Jakarta' }}</div>
+                        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div class="p-2 bg-white rounded-lg border border-slate-100">
+                                <span class="text-[9px] font-bold text-slate-400 block uppercase">1. Pengaju (Client)</span>
+                                <p class="font-black text-slate-800 mt-1">{{ jawaban.sig_pengaju_name || nego.client_name }}</p>
+                            </div>
+                            <div class="p-2 bg-white rounded-lg border border-slate-100">
+                                <span class="text-[9px] font-bold text-slate-400 block uppercase">2. Mengetahui</span>
+                                <p class="font-black text-slate-800 mt-1">{{ jawaban.sig_mengetahui_name || 'Maulizar' }}</p>
+                                <span class="text-[9px] text-emerald-600 font-semibold block">✓ Agent Coord</span>
+                            </div>
+                            <div class="p-2 bg-white rounded-lg border border-slate-100">
+                                <span class="text-[9px] font-bold text-slate-400 block uppercase">3. Menyetujui</span>
+                                <p class="font-black text-purple-900 mt-1">{{ jawaban.sig_menyetujui_name || 'Ch. Bramantyo P.' }}</p>
+                                <span class="text-[9px] text-emerald-600 font-semibold block">✓ Developer</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tombol Aksi Cepat Setujui -->
+                    <div v-if="nego.status !== 'approved'" class="pt-4 border-t border-purple-100 flex flex-wrap gap-2.5 justify-end">
+                        <button @click="openJawabanModal" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5">
+                            <span>✏️</span> Sesuaikan Nilai Jawaban
+                        </button>
+                        <button @click="quickApprove" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-1.5">
+                            <span>✅</span> Setujui Negosiasi Ini
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ACTION BUTTONS (Always available for unapproved negotiations) -->
+                <div v-if="nego.status !== 'approved' && !nego.booking_id" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-900 mb-5">Aksi Persetujuan Developer</h3>
                     <div class="flex flex-wrap gap-3">
-                        <button @click="openReview('approve')" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg transition-all">✅ Setujui Negosiasi</button>
-                        <button @click="openReview('counter')" class="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-lg transition-all">🔄 Counter Offer</button>
-                        <button @click="openReview('reject')" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-lg transition-all">❌ Tolak</button>
+                        <button @click="openJawabanModal" class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs rounded-xl shadow-lg shadow-purple-500/25 transition-all flex items-center justify-center gap-1.5">
+                            <span>💼</span> Input Jawaban & Setujui
+                        </button>
+                        <button @click="openReview('approve')" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg transition-all">
+                            ✅ Setujui Langsung
+                        </button>
+                        <button @click="openReview('counter')" class="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-lg transition-all">
+                            🔄 Counter Offer
+                        </button>
+                        <button @click="openReview('reject')" class="py-3 px-5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-lg transition-all">
+                            ❌ Tolak
+                        </button>
                     </div>
                 </div>
 
@@ -403,6 +560,7 @@ function shareWhatsApp() {
             :is-open="showEditModal" 
             :negotiation="nego" 
             :units="units" 
+            :initial-tab="initialModalTab"
             @close="showEditModal = false" 
             @saved="router.reload({ preserveScroll: true })" 
         />

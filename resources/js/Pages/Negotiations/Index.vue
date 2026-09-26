@@ -35,14 +35,23 @@ function applyFilters() {
 // Negotiation Template Modal (Official 2-Page Format)
 const showTemplateModal = ref(false);
 const editingNego = ref(null);
+const initialModalTab = ref('page1');
 
 function openCreate() {
     editingNego.value = null;
+    initialModalTab.value = 'page1';
     showTemplateModal.value = true;
 }
 
 function openEdit(nego) {
     editingNego.value = nego;
+    initialModalTab.value = 'page1';
+    showTemplateModal.value = true;
+}
+
+function openJawaban(nego) {
+    editingNego.value = nego;
+    initialModalTab.value = 'page2';
     showTemplateModal.value = true;
 }
 
@@ -224,6 +233,9 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                                     <a :href="`/negotiations/${nego.id}/pdf`" target="_blank" title="Download Dokumen PDF Pengajuan" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10px] font-bold transition-all flex items-center gap-1">
                                         <span>📄</span> PDF
                                     </a>
+                                    <button @click="openJawaban(nego)" title="Input Jawaban Developer & Setujui" class="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-[10px] font-black border border-purple-200 transition-all flex items-center gap-1 cursor-pointer">
+                                        <span>💼</span> Jawaban
+                                    </button>
                                     <Link :href="`/negotiations/${nego.id}`" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold transition-all">
                                         Detail
                                     </Link>
@@ -262,6 +274,7 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
             :negotiation="editingNego" 
             :units="units" 
             :leads="leads" 
+            :initial-tab="initialModalTab"
             @close="showTemplateModal = false" 
             @saved="router.reload({ preserveScroll: true })" 
         />

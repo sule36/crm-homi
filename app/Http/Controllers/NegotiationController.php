@@ -285,6 +285,10 @@ class NegotiationController extends Controller
 
         if (!empty($validated['status'])) {
             $updateData['status'] = $validated['status'];
+            if ($validated['status'] === 'approved') {
+                $updateData['reviewed_by'] = auth()->id();
+                $updateData['reviewed_at'] = now();
+            }
         }
         if (array_key_exists('counter_price', $validated)) {
             $updateData['counter_price'] = $validated['counter_price'];
@@ -294,6 +298,18 @@ class NegotiationController extends Controller
         }
 
         $negotiation->update($updateData);
+
+        // If approved and linked to lead, log activity and update lead status
+        if (($updateData['status'] ?? '') === 'approved' && $negotiation->lead_id) {
+            Lead::where('id', $negotiation->lead_id)->update(['status' => 'negotiation']);
+            $dealPrice = $updateData['counter_price'] ?? $updateData['offered_price'] ?? $negotiation->offered_price;
+            LeadActivity::create([
+                'lead_id' => $negotiation->lead_id,
+                'user_id' => auth()->id(),
+                'type' => 'status_change',
+                'description' => "✅ Jawaban Developer diisi & Negosiasi DISETUJUI untuk unit {$newUnit->code}. Harga Kesepakatan: Rp " . number_format($dealPrice, 0, ',', '.'),
+            ]);
+        }
 
         // If unit changed and linked to lead, log activity
         if ($oldUnitId != $newUnit->id && $negotiation->lead_id) {
@@ -306,7 +322,7 @@ class NegotiationController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Pengajuan negosiasi berhasil diperbarui!');
+        return back()->with('success', 'Pengajuan negosiasi & jawaban developer berhasil diperbarui!');
     }
 
     /**
@@ -318,25 +334,43 @@ class NegotiationController extends Controller
             'action' => 'required|in:approve,counter,reject',
             'counter_price' => 'required_if:action,counter|nullable|numeric|min:0',
             'counter_notes' => 'nullable|string|max:1000',
+            'form_data' => 'nullable|array',
         ]);
 
         $action = $request->action;
 
         if ($action === 'approve') {
-            $negotiation->update([
+            $approvalData = [
                 'status' => 'approved',
                 'reviewed_by' => auth()->id(),
                 'reviewed_at' => now(),
-            ]);
+            ];
+
+            if ($request->has('form_data')) {
+                $approvalData['form_data'] = $request->form_data;
+                if (!empty($request->input('form_data.jawaban.price'))) {
+                    $cleanedDeal = (int)preg_replace('/[^0-9]/', '', $request->input('form_data.jawaban.price'));
+                    if ($cleanedDeal > 0) {
+                        $approvalData['counter_price'] = $cleanedDeal;
+                    }
+                }
+            }
+
+            if ($request->filled('counter_price')) {
+                $approvalData['counter_price'] = $request->counter_price;
+            }
+
+            $negotiation->update($approvalData);
 
             // Update lead status
             if ($negotiation->lead_id) {
                 Lead::where('id', $negotiation->lead_id)->update(['status' => 'negotiation']);
+                $dealPrice = $negotiation->counter_price ?? $negotiation->offered_price;
                 LeadActivity::create([
                     'lead_id' => $negotiation->lead_id,
                     'user_id' => auth()->id(),
                     'type' => 'status_change',
-                    'description' => "✅ Negosiasi DISETUJUI untuk unit {$negotiation->unit->code}. Harga: Rp " . number_format($negotiation->offered_price, 0, ',', '.'),
+                    'description' => "✅ Negosiasi DISETUJUI untuk unit {$negotiation->unit->code}. Harga Kesepakatan: Rp " . number_format($dealPrice, 0, ',', '.'),
                 ]);
             }
         } elseif ($action === 'counter') {
