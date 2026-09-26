@@ -120,10 +120,91 @@ return new class extends Migration
                 if (!Schema::hasColumn('reservations', 'agent_coordinator_title')) {
                     $table->string('agent_coordinator_title')->nullable()->after('agent_coordinator_name');
                 }
+                if (!Schema::hasColumn('reservations', 'booking_id')) {
+                    $table->foreignId('booking_id')->nullable()->after('refunded_by');
+                }
             });
         }
 
-        // 4. Ensure audit_logs has description
+        // 4. Ensure leads has npwp, address, job
+        if (Schema::hasTable('leads')) {
+            Schema::table('leads', function (Blueprint $table) {
+                if (!Schema::hasColumn('leads', 'npwp')) {
+                    $table->string('npwp')->nullable()->after('identity_number');
+                }
+                if (!Schema::hasColumn('leads', 'address')) {
+                    $table->text('address')->nullable()->after('npwp');
+                }
+                if (!Schema::hasColumn('leads', 'job')) {
+                    $table->string('job')->nullable()->after('address');
+                }
+            });
+        }
+
+        // 5. Ensure bookings has all required extended columns
+        if (Schema::hasTable('bookings')) {
+            Schema::table('bookings', function (Blueprint $table) {
+                if (!Schema::hasColumn('bookings', 'buyer_nik')) {
+                    $table->string('buyer_nik')->nullable()->after('booked_by');
+                }
+                if (!Schema::hasColumn('bookings', 'buyer_npwp')) {
+                    $table->string('buyer_npwp')->nullable()->after('buyer_nik');
+                }
+                if (!Schema::hasColumn('bookings', 'buyer_address')) {
+                    $table->text('buyer_address')->nullable()->after('buyer_npwp');
+                }
+                if (!Schema::hasColumn('bookings', 'buyer_job')) {
+                    $table->string('buyer_job')->nullable()->after('buyer_address');
+                }
+                if (!Schema::hasColumn('bookings', 'secondary_name')) {
+                    $table->string('secondary_name')->nullable()->after('buyer_job');
+                }
+                if (!Schema::hasColumn('bookings', 'secondary_nik')) {
+                    $table->string('secondary_nik')->nullable()->after('secondary_name');
+                }
+                if (!Schema::hasColumn('bookings', 'secondary_phone')) {
+                    $table->string('secondary_phone')->nullable()->after('secondary_nik');
+                }
+                if (!Schema::hasColumn('bookings', 'secondary_relationship')) {
+                    $table->string('secondary_relationship')->nullable()->after('secondary_phone');
+                }
+                if (!Schema::hasColumn('bookings', 'secondary_address')) {
+                    $table->string('secondary_address')->nullable()->after('secondary_relationship');
+                }
+                if (!Schema::hasColumn('bookings', 'secondary_email')) {
+                    $table->string('secondary_email')->nullable()->after('secondary_address');
+                }
+                if (!Schema::hasColumn('bookings', 'special_bonus_items')) {
+                    $table->json('special_bonus_items')->nullable()->after('secondary_email');
+                }
+                if (!Schema::hasColumn('bookings', 'sig1_title')) {
+                    $table->string('sig1_title')->nullable()->after('special_bonus_items');
+                }
+                if (!Schema::hasColumn('bookings', 'sig1_name')) {
+                    $table->string('sig1_name')->nullable()->after('sig1_title');
+                }
+                if (!Schema::hasColumn('bookings', 'sig2_title')) {
+                    $table->string('sig2_title')->nullable()->after('sig1_name');
+                }
+                if (!Schema::hasColumn('bookings', 'sig2_name')) {
+                    $table->string('sig2_name')->nullable()->after('sig2_title');
+                }
+                if (!Schema::hasColumn('bookings', 'sig3_title')) {
+                    $table->string('sig3_title')->nullable()->after('sig2_name');
+                }
+                if (!Schema::hasColumn('bookings', 'sig3_name')) {
+                    $table->string('sig3_name')->nullable()->after('sig3_title');
+                }
+                if (!Schema::hasColumn('bookings', 'sig4_title')) {
+                    $table->string('sig4_title')->nullable()->after('sig3_name');
+                }
+                if (!Schema::hasColumn('bookings', 'sig4_name')) {
+                    $table->string('sig4_name')->nullable()->after('sig4_title');
+                }
+            });
+        }
+
+        // 6. Ensure audit_logs has description
         if (Schema::hasTable('audit_logs')) {
             Schema::table('audit_logs', function (Blueprint $table) {
                 if (!Schema::hasColumn('audit_logs', 'description')) {

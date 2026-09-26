@@ -145,9 +145,6 @@ class Booking extends Model
     public static function generateSprNumber($projectId = null): string
     {
         $year = date('Y');
-        $countThisYear = static::whereYear('created_at', $year)->count();
-        $nextSeq3 = sprintf('%03d', $countThisYear + 1);
-        $nextSeq2 = sprintf('%02d', $countThisYear + 1);
 
         $projectCode = 'ALC';
         $project = null;
@@ -172,18 +169,34 @@ class Booking extends Model
             7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'
         ];
         $monthNum = (int)date('n');
-        $monthRoman = $romanMonths[$monthNum] ?? 'VIII';
+        $monthRoman = $romanMonths[$monthNum] ?? 'IX';
 
         $format = Setting::get('spr_number_format');
         if (empty($format) || !str_contains($format, '{month_roman}')) {
             $format = '{seq}/SPR-{code}/{month_roman}/{year}';
         }
 
-        return str_replace(
-            ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
-            [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
-            $format
-        );
+        $seq = max(1, static::withTrashed()->whereYear('created_at', $year)->count() + 1);
+        $attempts = 0;
+        do {
+            $nextSeq3 = sprintf('%03d', $seq);
+            $nextSeq2 = sprintf('%02d', $seq);
+
+            $candidate = str_replace(
+                ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
+                [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
+                $format
+            );
+
+            $exists = static::withTrashed()->where('spk_number', $candidate)->exists();
+            if (!$exists) {
+                return $candidate;
+            }
+            $seq++;
+            $attempts++;
+        } while ($attempts < 1000);
+
+        return sprintf('%s-%d', $candidate, time());
     }
 
     public function getTotalPaidAttribute(): int

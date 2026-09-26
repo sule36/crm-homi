@@ -11,6 +11,8 @@ use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class BookingController extends Controller
 {
@@ -90,6 +92,20 @@ class BookingController extends Controller
 
     public function store(Request $request)
     {
+        // 1. Sanitize empty strings and numeric inputs
+        if ($request->has('negotiation_id') && empty($request->input('negotiation_id'))) {
+            $request->merge(['negotiation_id' => null]);
+        }
+        if ($request->has('reservation_id') && empty($request->input('reservation_id'))) {
+            $request->merge(['reservation_id' => null]);
+        }
+        foreach (['booking_fee', 'base_price', 'final_price', 'ppn_amount', 'bphtb_amount', 'ajb_bbn_amount', 'other_legal_fees', 'dp_amount'] as $nField) {
+            if ($request->has($nField) && is_string($request->input($nField))) {
+                $cleaned = preg_replace('/[^0-9]/', '', $request->input($nField));
+                $request->merge([$nField => $cleaned !== '' ? (float)$cleaned : 0]);
+            }
+        }
+
         $validated = $request->validate([
             'reservation_id' => 'nullable|exists:reservations,id',
             'negotiation_id' => 'nullable|exists:negotiations,id',
@@ -130,93 +146,150 @@ class BookingController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $request) {
-            $unit = Unit::findOrFail($validated['unit_id']);
-            $agent = \App\Models\User::findOrFail($validated['booked_by']);
-            $agent->load('brokerCompany');
-            $rate = $agent->effective_commission_rate;
-            $baseCommission = $validated['final_price'] * ($rate / 100);
-            $promoBonus = (float)($agent->custom_bonus ?? 0);
-            $commissionAmount = $baseCommission + $promoBonus;
-            
-            // 1. Create Booking
-            $booking = Booking::create([
-                'spk_number' => Booking::generateSpkNumber($validated['project_id'] ?? null),
-                'unit_id' => $validated['unit_id'],
-                'lead_id' => $validated['lead_id'],
-                'project_id' => $unit->project_id,
-                'booked_by' => $validated['booked_by'],
-                'booking_fee' => $validated['booking_fee'],
-                'unit_price' => ($unit->final_price > 0 ? $unit->final_price : ($unit->unitType?->current_price > 0 ? $unit->unitType->current_price : $validated['base_price'])),
-                'base_price' => $validated['base_price'],
-                'ppn_amount' => $validated['ppn_amount'] ?? 0,
-                'bphtb_amount' => $validated['bphtb_amount'] ?? 0,
-                'ajb_bbn_amount' => $validated['ajb_bbn_amount'] ?? 0,
-                'other_legal_fees' => $validated['other_legal_fees'] ?? 0,
-                'final_price' => $validated['final_price'],
-                'payment_scheme' => $validated['payment_scheme'],
-                'installment_months' => $validated['installment_months'] ?? 12,
-                'dp_amount' => $validated['dp_amount'] ?? 0,
-                'dp_installment_months' => $validated['dp_installment_months'] ?? 0,
-                'booking_date' => $validated['booking_date'] ?? now()->format('Y-m-d'),
-                'buyer_nik' => $validated['buyer_nik'] ?? null,
-                'buyer_npwp' => $validated['buyer_npwp'] ?? null,
-                'buyer_address' => $validated['buyer_address'] ?? null,
-                'buyer_job' => $validated['buyer_job'] ?? null,
-                'secondary_name' => $validated['secondary_name'] ?? null,
-                'secondary_nik' => $validated['secondary_nik'] ?? null,
-                'secondary_phone' => $validated['secondary_phone'] ?? null,
-                'secondary_relationship' => $validated['secondary_relationship'] ?? null,
-                'secondary_address' => $validated['secondary_address'] ?? null,
-                'secondary_email' => $validated['secondary_email'] ?? null,
-                'special_bonus_items' => $validated['special_bonus_items'] ?? null,
-                'status' => 'pending',
-                'notes' => $validated['notes'],
-                'commission_amount' => $commissionAmount,
+        try {
+            return DB::transaction(function () use ($validated, $request) {
+                $unit = Unit::findOrFail($validated['unit_id']);
+                $agent = \App\Models\User::findOrFail($validated['booked_by']);
+                $agent->load('brokerCompany');
+                $rate = $agent->effective_commission_rate;
+                $baseCommission = $validated['final_price'] * ($rate / 100);
+                $promoBonus = (float)($agent->custom_bonus ?? 0);
+                $commissionAmount = $baseCommission + $promoBonus;
+
+                // 1. Create Booking safely with schema filtering
+                $bookingData = [
+                    'spk_number' => Booking::generateSpkNumber($unit->project_id),
+                    'unit_id' => $validated['unit_id'],
+                    'lead_id' => $validated['lead_id'],
+                    'project_id' => $unit->project_id,
+                    'booked_by' => $validated['booked_by'],
+                    'booking_fee' => $validated['booking_fee'],
+                    'unit_price' => ($unit->final_price > 0 ? $unit->final_price : ($unit->unitType?->current_price > 0 ? $unit->unitType->current_price : $validated['base_price'])),
+                    'base_price' => $validated['base_price'],
+                    'ppn_amount' => $validated['ppn_amount'] ?? 0,
+                    'bphtb_amount' => $validated['bphtb_amount'] ?? 0,
+                    'ajb_bbn_amount' => $validated['ajb_bbn_amount'] ?? 0,
+                    'other_legal_fees' => $validated['other_legal_fees'] ?? 0,
+                    'final_price' => $validated['final_price'],
+                    'payment_scheme' => $validated['payment_scheme'],
+                    'installment_months' => $validated['installment_months'] ?? 12,
+                    'dp_amount' => $validated['dp_amount'] ?? 0,
+                    'dp_installment_months' => $validated['dp_installment_months'] ?? 0,
+                    'booking_date' => $validated['booking_date'] ?? now()->format('Y-m-d'),
+                    'buyer_nik' => $validated['buyer_nik'] ?? null,
+                    'buyer_npwp' => $validated['buyer_npwp'] ?? null,
+                    'buyer_address' => $validated['buyer_address'] ?? null,
+                    'buyer_job' => $validated['buyer_job'] ?? null,
+                    'secondary_name' => $validated['secondary_name'] ?? null,
+                    'secondary_nik' => $validated['secondary_nik'] ?? null,
+                    'secondary_phone' => $validated['secondary_phone'] ?? null,
+                    'secondary_relationship' => $validated['secondary_relationship'] ?? null,
+                    'secondary_address' => $validated['secondary_address'] ?? null,
+                    'secondary_email' => $validated['secondary_email'] ?? null,
+                    'sig1_title' => $validated['sig1_title'] ?? null,
+                    'sig1_name' => $validated['sig1_name'] ?? null,
+                    'sig2_title' => $validated['sig2_title'] ?? null,
+                    'sig2_name' => $validated['sig2_name'] ?? null,
+                    'sig3_title' => $validated['sig3_title'] ?? null,
+                    'sig3_name' => $validated['sig3_name'] ?? null,
+                    'sig4_title' => $validated['sig4_title'] ?? null,
+                    'sig4_name' => $validated['sig4_name'] ?? null,
+                    'special_bonus_items' => $validated['special_bonus_items'] ?? null,
+                    'status' => 'pending',
+                    'notes' => $validated['notes'] ?? null,
+                    'commission_amount' => $commissionAmount,
+                ];
+
+                $safeData = [];
+                foreach ($bookingData as $col => $val) {
+                    if (Schema::hasColumn('bookings', $col)) {
+                        $safeData[$col] = $val;
+                    }
+                }
+
+                $booking = Booking::create($safeData);
+
+                // Update linked reservation if present
+                if (!empty($validated['reservation_id'])) {
+                    $reservation = Reservation::find($validated['reservation_id']);
+                    if ($reservation) {
+                        $resUpdate = ['status' => 'converted'];
+                        if (Schema::hasColumn('reservations', 'booking_id')) {
+                            $resUpdate['booking_id'] = $booking->id;
+                        }
+                        try {
+                            $reservation->update($resUpdate);
+                        } catch (\Throwable $re) {
+                            Log::warning("Reservation status update failed: " . $re->getMessage());
+                        }
+                    }
+                }
+
+                // Update linked negotiation if present
+                if (!empty($validated['negotiation_id'])) {
+                    $negotiation = Negotiation::find($validated['negotiation_id']);
+                    if ($negotiation) {
+                        $negoUpdate = ['status' => 'approved'];
+                        if (Schema::hasColumn('negotiations', 'booking_id')) {
+                            $negoUpdate['booking_id'] = $booking->id;
+                        }
+                        try {
+                            $negotiation->update($negoUpdate);
+                        } catch (\Throwable $ne) {
+                            Log::warning("Negotiation status update failed: " . $ne->getMessage());
+                        }
+                    }
+                }
+
+                // Update Lead info & status to 'booking'
+                $lead = Lead::find($validated['lead_id']);
+                if ($lead) {
+                    $leadData = ['status' => 'booking'];
+                    $optFields = [
+                        'identity_number' => $validated['buyer_nik'] ?? null,
+                        'npwp' => $validated['buyer_npwp'] ?? null,
+                        'address' => $validated['buyer_address'] ?? null,
+                        'job' => $validated['buyer_job'] ?? null,
+                    ];
+                    foreach ($optFields as $lCol => $lVal) {
+                        if (!empty($lVal) && Schema::hasColumn('leads', $lCol)) {
+                            $leadData[$lCol] = $lVal;
+                        }
+                    }
+                    try {
+                        $lead->update($leadData);
+                    } catch (\Throwable $le) {
+                        Log::warning("Lead update failed: " . $le->getMessage());
+                    }
+                }
+
+                // 2. Update Unit Status to 'hold'
+                try {
+                    $unit->update([
+                        'status' => 'hold',
+                        'held_by' => $validated['booked_by'],
+                        'held_until' => now()->addDays(2),
+                    ]);
+                } catch (\Throwable $ue) {
+                    Log::warning("Unit update to hold failed: " . $ue->getMessage());
+                }
+
+                try {
+                    AuditLog::record('booking_created', $booking, null, $booking->toArray());
+                } catch (\Throwable $ae) {
+                    Log::warning("AuditLog recording failed: " . $ae->getMessage());
+                }
+
+                return redirect()->route('bookings.index')->with('success', 'Booking berhasil diajukan.');
+            });
+        } catch (\Throwable $e) {
+            Log::error("Failed to store booking: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
             ]);
 
-            // Update linked reservation if present
-            if (!empty($validated['reservation_id'])) {
-                $reservation = Reservation::find($validated['reservation_id']);
-                if ($reservation) {
-                    $reservation->update([
-                        'status' => 'converted',
-                        'booking_id' => $booking->id,
-                    ]);
-                }
-            }
-
-            // Update linked negotiation if present
-            if (!empty($validated['negotiation_id'])) {
-                $negotiation = \App\Models\Negotiation::find($validated['negotiation_id']);
-                if ($negotiation) {
-                    $negotiation->update([
-                        'status' => 'approved',
-                        'booking_id' => $booking->id,
-                    ]);
-                }
-            }
-
-            // Update Lead info & status to 'booking'
-            $lead = \App\Models\Lead::find($validated['lead_id']);
-            if ($lead) {
-                $lead->update(array_merge([
-                    'status' => 'booking',
-                ], array_filter([
-                    'identity_number' => $validated['buyer_nik'] ?? $lead->identity_number,
-                    'npwp' => $validated['buyer_npwp'] ?? $lead->npwp,
-                    'address' => $validated['buyer_address'] ?? $lead->address,
-                    'job' => $validated['buyer_job'] ?? $lead->job,
-                ])));
-            }
-
-            // 2. Update Unit Status to 'hold'
-            $unit->update(['status' => 'hold', 'held_by' => $validated['booked_by'], 'held_until' => now()->addDays(2)]);
-
-            AuditLog::record('booking_created', $booking, null, $booking->toArray());
-
-            return redirect()->route('bookings.index')->with('success', 'Booking berhasil diajukan.');
-        });
+            return back()->withInput()->with('error', 'Gagal membuat booking: ' . $e->getMessage());
+        }
     }
 
     public function show(Booking $booking)
