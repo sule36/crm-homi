@@ -161,7 +161,7 @@ class LeadController extends Controller
                 ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id')
                 ->orderBy('name')
                 ->get(),
-            'brokerCompanies' => \App\Models\BrokerCompany::where('is_active', true)
+            'brokerCompanies' => \App\Models\BrokerCompany::when(\Illuminate\Support\Facades\Schema::hasColumn('broker_companies', 'status'), fn ($q) => $q->where('status', 'active'))
                 ->select('id', 'name', 'code')
                 ->orderBy('name')
                 ->get(),
