@@ -17,6 +17,15 @@ class Lead extends Model
         'last_contacted_at',
     ];
 
+    protected $appends = ['transaction_code'];
+
+    public function getTransactionCodeAttribute(): string
+    {
+        $projCode = strtoupper(substr($this->project?->name ?? 'HOMI', 0, 3));
+        $year = $this->created_at ? $this->created_at->format('Y') : date('Y');
+        return sprintf('TRX-%s-%s-%06d', $projCode, $year, $this->id);
+    }
+
     protected function casts(): array
     {
         return [

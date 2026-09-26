@@ -127,16 +127,20 @@ class LeadController extends Controller
     {
         $relations = [
             'assignedTo', 'project', 'campaign', 'brokerCompany',
-            'activities.user', 'reminders', 'bookings.unit',
+            'activities.user', 'reminders', 
+            'bookings.unit.project', 'bookings.unit.unitType', 'bookings.paymentSchedules', 'bookings.transactions', 'bookings.bookedBy', 'bookings.approvedBy',
         ];
 
         if (\Illuminate\Support\Facades\Schema::hasTable('negotiations')) {
-            $relations[] = 'negotiations.unit';
+            $relations[] = 'negotiations.unit.project';
+            $relations[] = 'negotiations.unit.unitType';
             $relations[] = 'negotiations.creator';
         }
 
         if (\Illuminate\Support\Facades\Schema::hasTable('reservations')) {
-            $relations[] = 'reservations.unit';
+            $relations[] = 'reservations.unit.project';
+            $relations[] = 'reservations.unit.unitType';
+            $relations[] = 'reservations.agentCoordinator';
         }
 
         $lead->load($relations);
@@ -152,6 +156,7 @@ class LeadController extends Controller
         return Inertia::render('Leads/Show', [
             'lead' => $lead,
             'units' => $units,
+            'projects' => \App\Models\Project::select('id', 'name', 'code')->get(),
             'agents' => User::with('brokerCompany:id,name,code')
                 ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id')
                 ->get(),
