@@ -236,6 +236,7 @@
         // Safe base64 image helper to prevent DOMPDF blank screen crashes
         $getSafeBase64 = function($relativePath) {
             if (empty($relativePath)) return null;
+            if (str_starts_with($relativePath, 'data:image')) return $relativePath;
             $cleanPath = ltrim(str_replace('storage/', '', $relativePath), '/');
             $candidates = [
                 storage_path('app/public/' . $cleanPath),
@@ -334,10 +335,10 @@
             ]);
 
         // Prepare Base64 Signature Images
-        $sig1ImageData = $getSafeBase64($sigs['sig1_image'] ?? null);
-        $sig2ImageData = $getSafeBase64($sigs['sig2_image'] ?? null);
-        $sig3ImageData = $getSafeBase64($sigs['sig3_image'] ?? null);
-        $sig4ImageData = $getSafeBase64($sigs['sig4_image'] ?? null);
+        $sig1ImageData = !empty($booking->sig1_image) ? $getSafeBase64($booking->sig1_image) : $getSafeBase64($sigs['sig1_image'] ?? null);
+        $sig2ImageData = !empty($booking->sig2_image) ? $getSafeBase64($booking->sig2_image) : $getSafeBase64($sigs['sig2_image'] ?? null);
+        $sig3ImageData = !empty($booking->sig3_image) ? $getSafeBase64($booking->sig3_image) : $getSafeBase64($sigs['sig3_image'] ?? null);
+        $sig4ImageData = !empty($booking->sig4_image) ? $getSafeBase64($booking->sig4_image) : $getSafeBase64($sigs['sig4_image'] ?? null);
 
         // Buyer details
         $buyerNik = $booking->buyer_nik ?? $booking->lead->identity_number ?? '-';

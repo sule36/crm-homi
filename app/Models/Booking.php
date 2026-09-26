@@ -37,9 +37,12 @@ class Booking extends Model
         'buyer_nik', 'buyer_npwp', 'buyer_address', 'buyer_job',
         'secondary_name', 'secondary_nik', 'secondary_npwp', 'secondary_phone', 'secondary_relationship', 'secondary_address', 'secondary_email',
         'special_bonus_items', 'special_package_items',
-        // Per-Booking Signature Overrides
-        'sig1_title', 'sig1_name', 'sig2_title', 'sig2_name',
-        'sig3_title', 'sig3_name', 'sig4_title', 'sig4_name', 'sigs_city',
+        // Per-Booking Signature Overrides & Digital E-Signatures
+        'sig1_title', 'sig1_name', 'sig1_image',
+        'sig2_title', 'sig2_name', 'sig2_image',
+        'sig3_title', 'sig3_name', 'sig3_image', 'agent_signed_at',
+        'sig4_title', 'sig4_name', 'sig4_image', 'customer_signed_at',
+        'sigs_city',
         // Per-Booking SPR Template Customization & Developer Bank Account
         'bank_account_id', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', 'spr_date', 'spr_schedule_dates', 'receipt_settings',
     ];
@@ -49,6 +52,8 @@ class Booking extends Model
         return [
             'booking_date' => 'date',
             'spr_date' => 'date',
+            'agent_signed_at' => 'datetime',
+            'customer_signed_at' => 'datetime',
             'booking_fee' => 'float',
             'unit_price' => 'float',
             'base_price' => 'float',

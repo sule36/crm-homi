@@ -15,6 +15,7 @@ Route::get('/', function () {
 
 // Public Tracking Portal & Document Access
 Route::get('/track/{token}', [\App\Http\Controllers\PublicTrackingController::class, 'show'])->name('public.tracking');
+Route::post('/track/{token}/sign', [\App\Http\Controllers\PublicTrackingController::class, 'sign'])->name('public.tracking.sign');
 Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spk.stream');
 
 // Public Negotiation Form (No Auth)
