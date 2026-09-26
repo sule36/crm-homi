@@ -231,8 +231,8 @@ class Negotiation extends Model
         $projectAddress = $this->project->address ?? 'Jl. Bhakti, RT.002/RW.007, Cilandak Tim, Ps Minggu, Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta. 12560';
         $kavling = $this->unit ? ('Blok ' . ($this->unit->block ?? 'A3') . ($this->unit->number ? ' ' . $this->unit->number : '')) : 'Blok A3';
         $unitType = $this->unit->unitType->name ?? 'Badan';
-        $luasTanah = $this->unit->surface_area ?? $this->unit->unitType->land_area ?? '105';
-        $luasBangunan = $this->unit->building_area ?? $this->unit->unitType->building_area ?? '198';
+        $luasTanah = $this->unit?->unitType?->land_area ?? '105';
+        $luasBangunan = $this->unit?->unitType?->building_area ?? '198';
 
         $priceListVal = $this->unit_listed_price ? number_format($this->unit_listed_price, 0, ',', '.') . ',-' : '3,840,921,600,-';
         $offeredPriceVal = $this->offered_price ? number_format($this->offered_price, 0, ',', '.') . ',-' : '3,550,921,600,-';
