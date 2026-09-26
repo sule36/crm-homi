@@ -474,6 +474,11 @@
                         <td class="lbl">Legalitas & Pajak</td>
                         <td class="val">: Rp {{ number_format(($booking->ppn_amount + $booking->bphtb_amount + $booking->ajb_bbn_amount + $booking->other_legal_fees), 2, '.', ',') }}</td>
                     </tr>
+                    @else
+                    <tr>
+                        <td class="lbl">Legalitas & Pajak</td>
+                        <td class="val" style="color: #059669; font-weight: bold;">: Rp 0 (Free PPN, BPHTB & Biaya Surat - All-in Developer)</td>
+                    </tr>
                     @endif
                     <tr>
                         <td class="lbl">Harga Jual Kesepakatan</td>

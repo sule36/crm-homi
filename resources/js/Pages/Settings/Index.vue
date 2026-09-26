@@ -218,6 +218,9 @@ const form = useForm({
     spk_terms: props.settings.spk_terms || '',
     company_logo: null,
     
+    spr_default_free_ppn: props.settings.spr_default_free_ppn !== undefined ? Boolean(props.settings.spr_default_free_ppn) : true,
+    spr_default_free_legal: props.settings.spr_default_free_legal !== undefined ? Boolean(props.settings.spr_default_free_legal) : true,
+
     spr_number_format: props.settings.spr_number_format || '{seq}/SPR-{code}/{month_roman}/{year}',
     spr_terms_conditions: props.settings.spr_terms_conditions || [
         "Pembeli menyatakan telah mengerti dan menyetujui serta akan tunduk kepada persyaratan dan ketentuan serta kebijakan yang ditetapkan oleh Pengembang dalam SPR",
@@ -568,6 +571,51 @@ const tabs = [
                                 <button type="button" @click="removeTerm(idx)" class="p-2 text-slate-400 hover:text-rose-600 transition-colors shrink-0" title="Hapus Poin Ini">
                                     🗑️
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 5: Pengaturan Bebas Biaya & Pajak Default (Free PPN & BPHTB) -->
+                    <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600">5. Default Bebas Biaya & Pajak (Free PPN & BPHTB - All In)</h3>
+                                <p class="text-[10px] text-slate-400 mt-0.5">Pengaturan standar saat pembuatan Booking baru maupun konversi dari Form Negosiasi.</p>
+                            </div>
+                            <span class="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                All-in Developer
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Toggle Free PPN -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                                <label class="flex items-center justify-between cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">Bebas PPN (11%)</span>
+                                    <input v-model="form.spr_default_free_ppn" type="checkbox" class="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                </label>
+                                <p class="text-[11px] text-slate-500 leading-relaxed">
+                                    Jika diaktifkan, PPN 11% otomatis <strong>Rp 0 (Free)</strong> pada booking baru sehingga tidak menambah harga jual dasar.
+                                </p>
+                            </div>
+
+                            <!-- Toggle Free BPHTB & Biaya Surat -->
+                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                                <label class="flex items-center justify-between cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">Bebas BPHTB & Biaya Surat (AJB/BBN)</span>
+                                    <input v-model="form.spr_default_free_legal" type="checkbox" class="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                </label>
+                                <p class="text-[11px] text-slate-500 leading-relaxed">
+                                    Jika diaktifkan, BPHTB dan AJB/BBN otomatis <strong>Rp 0 (Free Developer)</strong> dan dicatat sebagai promo All-in pada cetakan SPR.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
+                            <span class="text-base">💡</span>
+                            <div class="leading-relaxed">
+                                <strong>Keterangan Terintegrasi ke SPR & Closing:</strong><br>
+                                Ketika opsi ini aktif, saat tim sales membuat booking baru atau menyetujui form negosiasi menjadi SPR, total harga booking langsung bernilai <strong>All-in</strong> (sama dengan harga dasar yang disepakati) tanpa penambahan pajak terpisah. Pada lembar PDF SPR resmi juga otomatis tertera: <em>"Legalitas & Pajak : Rp 0 (Free PPN, BPHTB & Biaya Surat - All-in Developer)"</em>.
                             </div>
                         </div>
                     </div>

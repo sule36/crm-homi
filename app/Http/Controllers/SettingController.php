@@ -87,6 +87,18 @@ class SettingController extends Controller
             ];
         }
 
+        if (!isset($settings['spr_default_free_ppn'])) {
+            $settings['spr_default_free_ppn'] = true;
+        } else {
+            $settings['spr_default_free_ppn'] = filter_var($settings['spr_default_free_ppn'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (!isset($settings['spr_default_free_legal'])) {
+            $settings['spr_default_free_legal'] = true;
+        } else {
+            $settings['spr_default_free_legal'] = filter_var($settings['spr_default_free_legal'], FILTER_VALIDATE_BOOLEAN);
+        }
+
         return Inertia::render('Settings/Index', [
             'settings' => $settings,
             'tokens' => $request->user()->tokens,
@@ -183,8 +195,16 @@ class SettingController extends Controller
             }
         }
 
-        // 6. Handle remaining settings scalar key/value pairs
-        $excluded = ['company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4', 'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', '_token'];
+        // 6. Handle boolean SPR tax defaults
+        if ($request->has('spr_default_free_ppn')) {
+            Setting::set('spr_default_free_ppn', $request->boolean('spr_default_free_ppn'));
+        }
+        if ($request->has('spr_default_free_legal')) {
+            Setting::set('spr_default_free_legal', $request->boolean('spr_default_free_legal'));
+        }
+
+        // 7. Handle remaining settings scalar key/value pairs
+        $excluded = ['company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4', 'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', 'spr_default_free_ppn', 'spr_default_free_legal', '_token'];
         $settings = $request->except($excluded);
         foreach ($settings as $key => $value) {
             if ($value !== null) {

@@ -33,13 +33,20 @@ class BookingController extends Controller
     public function create(Request $request)
     {
         $reservation = $request->reservation_id ? Reservation::with(['unit', 'lead'])->find($request->reservation_id) : null;
-        $unitId = $request->unit_id ?? $reservation?->unit_id;
-        $leadId = $request->lead_id ?? $reservation?->lead_id;
+        $negotiation = $request->negotiation_id ? \App\Models\Negotiation::with(['unit.project', 'unit.unitType', 'lead'])->find($request->negotiation_id) : null;
+        $unitId = $request->unit_id ?? $reservation?->unit_id ?? $negotiation?->unit_id;
+        $leadId = $request->lead_id ?? $reservation?->lead_id ?? $negotiation?->lead_id;
+
+        $defaultFreePpn = \App\Models\Setting::get('spr_default_free_ppn', true);
+        $defaultFreeLegal = \App\Models\Setting::get('spr_default_free_legal', true);
 
         return Inertia::render('Bookings/Create', [
             'unit' => $unitId ? Unit::with('project', 'unitType')->find($unitId) : null,
             'lead' => $leadId ? Lead::find($leadId) : null,
             'reservation' => $reservation,
+            'negotiation' => $negotiation,
+            'defaultFreePpn' => (bool)$defaultFreePpn,
+            'defaultFreeLegal' => (bool)$defaultFreeLegal,
             'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderBy('block')->orderByRaw('CAST(number AS UNSIGNED) ASC')->get(),
             'leads' => Lead::whereNotIn('status', ['won', 'lost'])->get(),
             'agents' => \App\Models\User::orderBy('name', 'asc')->get(),
@@ -50,6 +57,7 @@ class BookingController extends Controller
     {
         $validated = $request->validate([
             'reservation_id' => 'nullable|exists:reservations,id',
+            'negotiation_id' => 'nullable|exists:negotiations,id',
             'unit_id' => 'required|exists:units,id',
             'lead_id' => 'required|exists:leads,id',
             'booked_by' => 'required|exists:users,id',
@@ -138,6 +146,17 @@ class BookingController extends Controller
                 if ($reservation) {
                     $reservation->update([
                         'status' => 'converted',
+                        'booking_id' => $booking->id,
+                    ]);
+                }
+            }
+
+            // Update linked negotiation if present
+            if (!empty($validated['negotiation_id'])) {
+                $negotiation = \App\Models\Negotiation::find($validated['negotiation_id']);
+                if ($negotiation) {
+                    $negotiation->update([
+                        'status' => 'approved',
                         'booking_id' => $booking->id,
                     ]);
                 }
@@ -346,6 +365,13 @@ class BookingController extends Controller
             'unit_certificate_status' => 'nullable|string|max:100',
             'unit_certificate_number' => 'nullable|string|max:100',
             'receipt_settings' => 'nullable|array',
+            'base_price' => 'nullable|numeric|min:0',
+            'ppn_amount' => 'nullable|numeric|min:0',
+            'bphtb_amount' => 'nullable|numeric|min:0',
+            'ajb_bbn_amount' => 'nullable|numeric|min:0',
+            'other_legal_fees' => 'nullable|numeric|min:0',
+            'final_price' => 'nullable|numeric|min:0',
+            'sync_schedules' => 'nullable|boolean',
         ]);
 
         if (array_key_exists('unit_certificate_status', $validated) || array_key_exists('unit_certificate_number', $validated)) {
@@ -362,6 +388,19 @@ class BookingController extends Controller
                 }
             }
             unset($validated['unit_certificate_status'], $validated['unit_certificate_number']);
+        }
+
+        if (isset($validated['base_price']) && isset($validated['final_price'])) {
+            $this->applyFinancialUpdates($booking, [
+                'base_price' => $validated['base_price'],
+                'ppn_amount' => $validated['ppn_amount'] ?? 0,
+                'bphtb_amount' => $validated['bphtb_amount'] ?? 0,
+                'ajb_bbn_amount' => $validated['ajb_bbn_amount'] ?? 0,
+                'other_legal_fees' => $validated['other_legal_fees'] ?? 0,
+                'final_price' => $validated['final_price'],
+                'sync_schedules' => $validated['sync_schedules'] ?? true,
+            ]);
+            unset($validated['base_price'], $validated['ppn_amount'], $validated['bphtb_amount'], $validated['ajb_bbn_amount'], $validated['other_legal_fees'], $validated['final_price'], $validated['sync_schedules']);
         }
 
         $sprBankInfo = is_array($booking->spr_bank_info) ? $booking->spr_bank_info : [];
@@ -420,6 +459,126 @@ class BookingController extends Controller
         $booking->update($validated);
 
         return back()->with('success', 'Template & Parameter SPR khusus booking ini berhasil diperbarui.');
+    }
+
+    public function updateFinancial(Request $request, Booking $booking)
+    {
+        $validated = $request->validate([
+            'base_price' => 'required|numeric|min:0',
+            'ppn_amount' => 'nullable|numeric|min:0',
+            'bphtb_amount' => 'nullable|numeric|min:0',
+            'ajb_bbn_amount' => 'nullable|numeric|min:0',
+            'other_legal_fees' => 'nullable|numeric|min:0',
+            'final_price' => 'required|numeric|min:0',
+            'sync_schedules' => 'nullable|boolean',
+        ]);
+
+        $this->applyFinancialUpdates($booking, $validated);
+
+        return back()->with('success', 'Rincian biaya, PPN, BPHTB, dan Total Kesepakatan (All-in) berhasil diperbarui.');
+    }
+
+    private function applyFinancialUpdates(Booking $booking, array $validated)
+    {
+        DB::transaction(function () use ($booking, $validated) {
+            $newFinalPrice = (float)$validated['final_price'];
+            $basePrice = (float)$validated['base_price'];
+            $ppnAmount = (float)($validated['ppn_amount'] ?? 0);
+            $bphtbAmount = (float)($validated['bphtb_amount'] ?? 0);
+            $ajbBbnAmount = (float)($validated['ajb_bbn_amount'] ?? 0);
+            $otherFees = (float)($validated['other_legal_fees'] ?? 0);
+
+            $booking->update([
+                'base_price' => $basePrice,
+                'ppn_amount' => $ppnAmount,
+                'bphtb_amount' => $bphtbAmount,
+                'ajb_bbn_amount' => $ajbBbnAmount,
+                'other_legal_fees' => $otherFees,
+                'final_price' => $newFinalPrice,
+            ]);
+
+            // Recalculate agent commission based on new final price
+            if ($booking->booked_by) {
+                $agent = \App\Models\User::find($booking->booked_by);
+                if ($agent) {
+                    $agent->load(['brokerCompany', 'masterLead']);
+                    $effectiveRate = $agent->effective_commission_rate;
+                    $promoBonus = (float)($agent->custom_bonus ?? 0);
+                    $newBaseCommission = $newFinalPrice * ($effectiveRate / 100);
+                    $newTotalCommission = $newBaseCommission + $promoBonus;
+
+                    $booking->update(['commission_amount' => $newTotalCommission]);
+
+                    \App\Models\Commission::where('booking_id', $booking->id)
+                        ->where('user_id', $booking->booked_by)
+                        ->update([
+                            'amount' => $newTotalCommission,
+                            'base_commission' => $newBaseCommission,
+                        ]);
+                }
+            }
+
+            // Sync payment schedules if requested (default true)
+            $syncSchedules = array_key_exists('sync_schedules', $validated) ? (bool)$validated['sync_schedules'] : true;
+            if ($syncSchedules) {
+                $taxTotal = $ppnAmount + $bphtbAmount + $ajbBbnAmount + $otherFees;
+
+                // Handle Tax Schedule (installment #99)
+                $taxSchedule = $booking->paymentSchedules()->where('installment_number', 99)->first();
+                if ($taxTotal <= 0) {
+                    if ($taxSchedule && $taxSchedule->status !== 'paid') {
+                        $taxSchedule->delete();
+                    }
+                } else {
+                    if ($taxSchedule) {
+                        if ($taxSchedule->status !== 'paid') {
+                            $taxSchedule->update(['amount' => $taxTotal]);
+                        }
+                    } else {
+                        $booking->paymentSchedules()->create([
+                            'installment_number' => 99,
+                            'label' => 'Pajak & Biaya Legal (PPN, BPHTB, AJB)',
+                            'amount' => $taxTotal,
+                            'due_date' => now()->addDays(30)->format('Y-m-d'),
+                            'status' => 'upcoming',
+                        ]);
+                    }
+                }
+
+                // Balance unpaid regular installments
+                $bookingFee = (float)$booking->booking_fee;
+                $paidSum = (float)$booking->paymentSchedules()
+                    ->where('status', 'paid')
+                    ->where('installment_number', '!=', 0)
+                    ->where('installment_number', '!=', 99)
+                    ->sum('amount');
+
+                $unpaidSchedules = $booking->paymentSchedules()
+                    ->where('status', '!=', 'paid')
+                    ->where('installment_number', '!=', 0)
+                    ->where('installment_number', '!=', 99)
+                    ->orderBy('installment_number', 'asc')
+                    ->get();
+
+                if ($unpaidSchedules->count() > 0) {
+                    $taxScheduleActive = $booking->paymentSchedules()->where('installment_number', 99)->exists();
+                    $targetForInstallments = $taxScheduleActive 
+                        ? ($basePrice - $bookingFee - $paidSum) 
+                        : ($newFinalPrice - $bookingFee - $paidSum);
+                    $targetForInstallments = max(0, $targetForInstallments);
+
+                    $count = $unpaidSchedules->count();
+                    $perItem = round($targetForInstallments / $count);
+
+                    foreach ($unpaidSchedules as $index => $item) {
+                        $itemAmount = ($index === $count - 1) ? ($targetForInstallments - ($perItem * ($count - 1))) : $perItem;
+                        $item->update(['amount' => max(0, $itemAmount)]);
+                    }
+                }
+            }
+
+            \App\Models\AuditLog::record('booking_financial_updated', $booking, null, $validated);
+        });
     }
 
     public function approve(Booking $booking)
@@ -544,7 +703,9 @@ class BookingController extends Controller
 
         // 3. Unit price installments (DP starts 1 month AFTER booking_date)
         $targetPrice = $booking->final_price > 0 ? $booking->final_price : ($booking->base_price ?: 0);
-        $remaining = $targetPrice - $booking->booking_fee;
+        $remaining = ($taxLegalTotal > 0 && $targetPrice > $basePrice)
+            ? ($basePrice - $booking->booking_fee)
+            : ($targetPrice - $booking->booking_fee);
 
         if ($booking->payment_scheme === 'kpr') {
             $dpTotal = $booking->dp_amount > 0 ? $booking->dp_amount : ($basePrice * 0.10);

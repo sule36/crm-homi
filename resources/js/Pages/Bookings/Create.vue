@@ -7,6 +7,15 @@ const props = defineProps({
     unit: Object,
     lead: Object,
     reservation: Object,
+    negotiation: Object,
+    defaultFreePpn: {
+        type: Boolean,
+        default: true,
+    },
+    defaultFreeLegal: {
+        type: Boolean,
+        default: true,
+    },
     availableUnits: Array,
     leads: Array,
     agents: Array,
@@ -15,22 +24,25 @@ const props = defineProps({
 const page = usePage();
 const currentUser = computed(() => page.props.auth.user);
 
+const initialBasePrice = props.negotiation?.offered_price || props.negotiation?.counter_price || props.unit?.final_price || '';
+
 const form = useForm({
     reservation_id: props.reservation?.id || '',
-    unit_id: props.unit?.id || props.reservation?.unit_id || '',
-    lead_id: props.lead?.id || props.reservation?.lead_id || '',
-    booked_by: props.lead?.assigned_to || page.props.auth.user.id || '',
+    negotiation_id: props.negotiation?.id || '',
+    unit_id: props.unit?.id || props.reservation?.unit_id || props.negotiation?.unit_id || '',
+    lead_id: props.lead?.id || props.reservation?.lead_id || props.negotiation?.lead_id || '',
+    booked_by: props.lead?.assigned_to || props.negotiation?.creator_id || page.props.auth.user.id || '',
     booking_date: new Date().toISOString().substring(0, 10),
     booking_fee: '',
-    base_price: props.unit?.final_price || '',
-    free_ppn: false,
-    free_legal: false,
+    base_price: initialBasePrice,
+    free_ppn: props.defaultFreePpn !== undefined ? props.defaultFreePpn : true,
+    free_legal: props.defaultFreeLegal !== undefined ? props.defaultFreeLegal : true,
     ppn_amount: 0,
     bphtb_amount: 0,
     ajb_bbn_amount: 0,
     other_legal_fees: 0,
-    final_price: props.unit?.final_price || '',
-    payment_scheme: 'kpr',
+    final_price: initialBasePrice,
+    payment_scheme: props.negotiation?.payment_scheme || 'kpr',
     buyer_nik: props.lead?.identity_number || '',
     buyer_npwp: props.lead?.npwp || '',
     buyer_address: props.lead?.address || '',
@@ -51,7 +63,8 @@ const form = useForm({
     sig3_name: '',
     sig4_title: '',
     sig4_name: '',
-    notes: '',
+    special_bonus_items: props.negotiation?.special_bonus_items || [],
+    notes: props.negotiation?.notes || '',
 });
 
 const calculateTaxes = () => {
@@ -115,9 +128,32 @@ const handleUnitChange = () => {
     }
 };
 
-// Calculate initial taxes if unit is pre-selected
-if (props.unit) {
+const setAllFree = () => {
+    form.free_ppn = true;
+    form.free_legal = true;
+    form.ppn_amount = 0;
+    form.bphtb_amount = 0;
+    form.ajb_bbn_amount = 0;
+    form.other_legal_fees = 0;
+    updateTotal();
+};
+
+const setStandardTaxes = () => {
+    form.free_ppn = false;
+    form.free_legal = false;
     calculateTaxes();
+};
+
+// Calculate initial taxes if unit is pre-selected and not free
+if (props.unit || props.negotiation) {
+    if (form.free_ppn && form.free_legal) {
+        form.ppn_amount = 0;
+        form.bphtb_amount = 0;
+        form.ajb_bbn_amount = 0;
+        updateTotal();
+    } else {
+        calculateTaxes();
+    }
 }
 
 const submit = () => {
@@ -151,6 +187,15 @@ const formatCurrency = (value) => {
                     <h4 class="font-black text-sm text-emerald-950">Dikonversi dari Reservasi #{{ props.reservation.reservation_number }}</h4>
                     <p class="mt-0.5">Pemohon: <strong>{{ props.reservation.client_name }}</strong> · Kredit Biaya Reservasi: <strong class="font-mono text-emerald-800 text-sm">{{ formatCurrency(props.reservation.amount) }}</strong></p>
                     <p class="text-[11px] text-emerald-700 mt-1 font-semibold">💡 Nominal reservasi sebesar {{ formatCurrency(props.reservation.amount) }} memotong Booking Fee (UTJ). Contoh: Jika UTJ Rp 17.000.000, maka sisa tagihan UTJ yang dibayar = Rp 7.000.000.</p>
+                </div>
+            </div>
+
+            <div v-if="props.negotiation" class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-900 flex items-start gap-3">
+                <span class="text-2xl">🤝</span>
+                <div>
+                    <h4 class="font-black text-sm text-purple-950">Dikonversi dari Form Negosiasi Resmi #{{ props.negotiation.negotiation_number || ('NEGO-' + props.negotiation.token) }}</h4>
+                    <p class="mt-0.5">Calon Pembeli: <strong>{{ props.negotiation.client_name }}</strong> · Harga Pengajuan Kesepakatan: <strong class="font-mono text-purple-800 text-sm">{{ formatCurrency(props.negotiation.offered_price || props.negotiation.counter_price) }} (All-in)</strong></p>
+                    <p class="text-[11px] text-purple-700 mt-1 font-semibold">💡 Pengajuan negosiasi ini otomatis menetapkan <strong>Free Legalitas & Bebas Pajak (PPN, AJB, BPHTB Rp 0)</strong> sesuai kesepakatan.</p>
                 </div>
             </div>
 
@@ -317,24 +362,65 @@ const formatCurrency = (value) => {
                                 </div>
                             </div>
 
-                            <div class="pt-6 border-t border-slate-50">
-                                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Rincian Biaya & Pajak</h3>
-                                <div class="grid grid-cols-2 gap-4">
+                            <div class="pt-6 border-t border-slate-100 space-y-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                     <div>
+                                        <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                            <span>💰</span> Rincian Biaya, PPN & BPHTB
+                                        </h3>
+                                        <p class="text-[11px] text-slate-500">Tentukan apakah unit dikenakan pajak standar atau Free / All-in oleh Developer.</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button type="button" @click="setAllFree" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer">
+                                            <span>⚡</span> <span>Semua Free (All-in)</span>
+                                        </button>
+                                        <button type="button" @click="setStandardTaxes" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer">
+                                            Hitung Pajak Standar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Free Toggles Box -->
+                                <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                                    <label class="flex items-center gap-2.5 cursor-pointer">
+                                        <input v-model="form.free_ppn" @change="calculateTaxes" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                        <span class="text-xs font-bold text-slate-800">
+                                            🏷️ Free PPN (11%) — <span class="text-emerald-700 font-black">Ditanggung Developer (Rp 0)</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-center gap-2.5 cursor-pointer">
+                                        <input v-model="form.free_legal" @change="calculateTaxes" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                        <span class="text-xs font-bold text-slate-800">
+                                            📜 Free BPHTB & Biaya Surat (AJB / BBN) — <span class="text-emerald-700 font-black">Ditanggung Developer (Rp 0)</span>
+                                        </span>
+                                    </label>
+                                </div>
+
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div class="col-span-2 md:col-span-1">
                                         <label class="block text-xs font-bold text-slate-700 mb-1.5">Harga Dasar Unit <span class="text-rose-500">*</span></label>
                                         <input v-model="form.base_price" @input="calculateTaxes" type="number" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-blue-500/20" />
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1.5">PPN (11%)</label>
-                                        <input v-model="form.ppn_amount" @input="updateTotal" type="number" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20" />
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <label class="text-xs font-bold text-slate-700">PPN (11%)</label>
+                                            <span v-if="form.free_ppn" class="text-[9px] font-black text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Free</span>
+                                        </div>
+                                        <input v-model="form.ppn_amount" :disabled="form.free_ppn" @input="updateTotal" type="number" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400 font-bold" />
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1.5">BPHTB (Est)</label>
-                                        <input v-model="form.bphtb_amount" @input="updateTotal" type="number" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20" />
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <label class="text-xs font-bold text-slate-700">BPHTB (5%)</label>
+                                            <span v-if="form.free_legal" class="text-[9px] font-black text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Free</span>
+                                        </div>
+                                        <input v-model="form.bphtb_amount" :disabled="form.free_legal" @input="updateTotal" type="number" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400 font-bold" />
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1.5">Biaya AJB/BBN</label>
-                                        <input v-model="form.ajb_bbn_amount" @input="updateTotal" type="number" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20" />
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <label class="text-xs font-bold text-slate-700">Biaya AJB/BBN</label>
+                                            <span v-if="form.free_legal" class="text-[9px] font-black text-emerald-600 uppercase bg-emerald-100 px-1.5 py-0.5 rounded">Free</span>
+                                        </div>
+                                        <input v-model="form.ajb_bbn_amount" :disabled="form.free_legal" @input="updateTotal" type="number" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400 font-bold" />
                                     </div>
                                 </div>
                             </div>

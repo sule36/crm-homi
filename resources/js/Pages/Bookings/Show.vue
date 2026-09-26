@@ -44,6 +44,121 @@ function submitChangeBookingUnit() {
     });
 }
 
+// Dedicated Financial & Tax Management Modal
+const showFinancialModal = ref(false);
+
+const financialForm = useForm({
+    base_price: Number(props.booking.base_price) || 0,
+    free_ppn: Number(props.booking.ppn_amount) === 0,
+    free_bphtb: Number(props.booking.bphtb_amount) === 0,
+    free_ajb: Number(props.booking.ajb_bbn_amount) === 0,
+    ppn_amount: Number(props.booking.ppn_amount) || 0,
+    bphtb_amount: Number(props.booking.bphtb_amount) || 0,
+    ajb_bbn_amount: Number(props.booking.ajb_bbn_amount) || 0,
+    other_legal_fees: Number(props.booking.other_legal_fees) || 0,
+    final_price: Number(props.booking.final_price) || 0,
+    sync_schedules: true,
+});
+
+function openFinancialModal() {
+    financialForm.base_price = Number(props.booking.base_price) || 0;
+    financialForm.free_ppn = Number(props.booking.ppn_amount) === 0;
+    financialForm.free_bphtb = Number(props.booking.bphtb_amount) === 0;
+    financialForm.free_ajb = Number(props.booking.ajb_bbn_amount) === 0;
+    financialForm.ppn_amount = Number(props.booking.ppn_amount) || 0;
+    financialForm.bphtb_amount = Number(props.booking.bphtb_amount) || 0;
+    financialForm.ajb_bbn_amount = Number(props.booking.ajb_bbn_amount) || 0;
+    financialForm.other_legal_fees = Number(props.booking.other_legal_fees) || 0;
+    financialForm.final_price = Number(props.booking.final_price) || 0;
+    financialForm.sync_schedules = true;
+    showFinancialModal.value = true;
+}
+
+function handleFinancialBasePriceChange() {
+    if (financialForm.free_ppn) {
+        financialForm.ppn_amount = 0;
+    } else {
+        financialForm.ppn_amount = Math.round(Number(financialForm.base_price || 0) * 0.11);
+    }
+    if (financialForm.free_bphtb) {
+        financialForm.bphtb_amount = 0;
+    } else {
+        financialForm.bphtb_amount = Math.max(0, Math.round((Number(financialForm.base_price || 0) - 60000000) * 0.05));
+    }
+    if (financialForm.free_ajb) {
+        financialForm.ajb_bbn_amount = 0;
+    } else {
+        financialForm.ajb_bbn_amount = Math.round(Number(financialForm.base_price || 0) * 0.01);
+    }
+    recalculateFinancialTotal();
+}
+
+function toggleFinancialFreePpn() {
+    if (financialForm.free_ppn) {
+        financialForm.ppn_amount = 0;
+    } else {
+        financialForm.ppn_amount = Math.round(Number(financialForm.base_price || 0) * 0.11);
+    }
+    recalculateFinancialTotal();
+}
+
+function toggleFinancialFreeBphtb() {
+    if (financialForm.free_bphtb) {
+        financialForm.bphtb_amount = 0;
+    } else {
+        financialForm.bphtb_amount = Math.max(0, Math.round((Number(financialForm.base_price || 0) - 60000000) * 0.05));
+    }
+    recalculateFinancialTotal();
+}
+
+function toggleFinancialFreeAjb() {
+    if (financialForm.free_ajb) {
+        financialForm.ajb_bbn_amount = 0;
+    } else {
+        financialForm.ajb_bbn_amount = Math.round(Number(financialForm.base_price || 0) * 0.01);
+    }
+    recalculateFinancialTotal();
+}
+
+function setFinancialAllFree() {
+    financialForm.free_ppn = true;
+    financialForm.free_bphtb = true;
+    financialForm.free_ajb = true;
+    financialForm.ppn_amount = 0;
+    financialForm.bphtb_amount = 0;
+    financialForm.ajb_bbn_amount = 0;
+    financialForm.other_legal_fees = 0;
+    financialForm.final_price = Number(financialForm.base_price || 0);
+}
+
+function setFinancialStandardTaxes() {
+    financialForm.free_ppn = false;
+    financialForm.free_bphtb = false;
+    financialForm.free_ajb = false;
+    const base = Number(financialForm.base_price || 0);
+    financialForm.ppn_amount = Math.round(base * 0.11);
+    financialForm.bphtb_amount = Math.max(0, Math.round((base - 60000000) * 0.05));
+    financialForm.ajb_bbn_amount = Math.round(base * 0.01);
+    recalculateFinancialTotal();
+}
+
+function recalculateFinancialTotal() {
+    financialForm.final_price = Number(financialForm.base_price || 0) +
+        Number(financialForm.ppn_amount || 0) +
+        Number(financialForm.bphtb_amount || 0) +
+        Number(financialForm.ajb_bbn_amount || 0) +
+        Number(financialForm.other_legal_fees || 0);
+}
+
+function submitFinancialForm() {
+    financialForm.post(`/bookings/${props.booking.id}/financial`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showFinancialModal.value = false;
+        }
+    });
+}
+
 function getScheduleTransaction(schedule) {
     if (!props.booking?.transactions) return null;
     return props.booking.transactions.find(tx => tx.payment_schedule_id === schedule.id);
@@ -164,7 +279,93 @@ const sprTemplateForm = useForm({
             receipt_header_title: 'Bukti Pembayaran Resmi',
             receipt_notes: 'Pembayaran ini dianggap sah apabila telah dibubuhi stempel & TTD resmi.',
         },
+    base_price: Number(props.booking.base_price) || 0,
+    free_ppn: Number(props.booking.ppn_amount) === 0,
+    free_bphtb: Number(props.booking.bphtb_amount) === 0,
+    free_ajb: Number(props.booking.ajb_bbn_amount) === 0,
+    ppn_amount: Number(props.booking.ppn_amount) || 0,
+    bphtb_amount: Number(props.booking.bphtb_amount) || 0,
+    ajb_bbn_amount: Number(props.booking.ajb_bbn_amount) || 0,
+    other_legal_fees: Number(props.booking.other_legal_fees) || 0,
+    final_price: Number(props.booking.final_price) || 0,
+    sync_schedules: true,
 });
+
+function handleSprBasePriceChange() {
+    if (sprTemplateForm.free_ppn) {
+        sprTemplateForm.ppn_amount = 0;
+    } else {
+        sprTemplateForm.ppn_amount = Math.round(Number(sprTemplateForm.base_price || 0) * 0.11);
+    }
+    if (sprTemplateForm.free_bphtb) {
+        sprTemplateForm.bphtb_amount = 0;
+    } else {
+        sprTemplateForm.bphtb_amount = Math.max(0, Math.round((Number(sprTemplateForm.base_price || 0) - 60000000) * 0.05));
+    }
+    if (sprTemplateForm.free_ajb) {
+        sprTemplateForm.ajb_bbn_amount = 0;
+    } else {
+        sprTemplateForm.ajb_bbn_amount = Math.round(Number(sprTemplateForm.base_price || 0) * 0.01);
+    }
+    recalculateSprFinancialTotal();
+}
+
+function toggleSprFreePpn() {
+    if (sprTemplateForm.free_ppn) {
+        sprTemplateForm.ppn_amount = 0;
+    } else {
+        sprTemplateForm.ppn_amount = Math.round(Number(sprTemplateForm.base_price || 0) * 0.11);
+    }
+    recalculateSprFinancialTotal();
+}
+
+function toggleSprFreeBphtb() {
+    if (sprTemplateForm.free_bphtb) {
+        sprTemplateForm.bphtb_amount = 0;
+    } else {
+        sprTemplateForm.bphtb_amount = Math.max(0, Math.round((Number(sprTemplateForm.base_price || 0) - 60000000) * 0.05));
+    }
+    recalculateSprFinancialTotal();
+}
+
+function toggleSprFreeAjb() {
+    if (sprTemplateForm.free_ajb) {
+        sprTemplateForm.ajb_bbn_amount = 0;
+    } else {
+        sprTemplateForm.ajb_bbn_amount = Math.round(Number(sprTemplateForm.base_price || 0) * 0.01);
+    }
+    recalculateSprFinancialTotal();
+}
+
+function setSprFinancialAllFree() {
+    sprTemplateForm.free_ppn = true;
+    sprTemplateForm.free_bphtb = true;
+    sprTemplateForm.free_ajb = true;
+    sprTemplateForm.ppn_amount = 0;
+    sprTemplateForm.bphtb_amount = 0;
+    sprTemplateForm.ajb_bbn_amount = 0;
+    sprTemplateForm.other_legal_fees = 0;
+    sprTemplateForm.final_price = Number(sprTemplateForm.base_price || 0);
+}
+
+function setSprFinancialStandardTaxes() {
+    sprTemplateForm.free_ppn = false;
+    sprTemplateForm.free_bphtb = false;
+    sprTemplateForm.free_ajb = false;
+    const base = Number(sprTemplateForm.base_price || 0);
+    sprTemplateForm.ppn_amount = Math.round(base * 0.11);
+    sprTemplateForm.bphtb_amount = Math.max(0, Math.round((base - 60000000) * 0.05));
+    sprTemplateForm.ajb_bbn_amount = Math.round(base * 0.01);
+    recalculateSprFinancialTotal();
+}
+
+function recalculateSprFinancialTotal() {
+    sprTemplateForm.final_price = Number(sprTemplateForm.base_price || 0) +
+        Number(sprTemplateForm.ppn_amount || 0) +
+        Number(sprTemplateForm.bphtb_amount || 0) +
+        Number(sprTemplateForm.ajb_bbn_amount || 0) +
+        Number(sprTemplateForm.other_legal_fees || 0);
+}
 
 function onReceiptSigSlotChange() {
     const slot = sprTemplateForm.receipt_settings.receipt_sig_slot;
@@ -183,7 +384,18 @@ function onReceiptSigSlotChange() {
     }
 }
 
-function openSprTemplateModal() {
+function openSprTemplateModal(tab = 'bank') {
+    activeSprTab.value = tab;
+    sprTemplateForm.base_price = Number(props.booking.base_price) || 0;
+    sprTemplateForm.free_ppn = Number(props.booking.ppn_amount) === 0;
+    sprTemplateForm.free_bphtb = Number(props.booking.bphtb_amount) === 0;
+    sprTemplateForm.free_ajb = Number(props.booking.ajb_bbn_amount) === 0;
+    sprTemplateForm.ppn_amount = Number(props.booking.ppn_amount) || 0;
+    sprTemplateForm.bphtb_amount = Number(props.booking.bphtb_amount) || 0;
+    sprTemplateForm.ajb_bbn_amount = Number(props.booking.ajb_bbn_amount) || 0;
+    sprTemplateForm.other_legal_fees = Number(props.booking.other_legal_fees) || 0;
+    sprTemplateForm.final_price = Number(props.booking.final_price) || 0;
+    sprTemplateForm.sync_schedules = true;
     showSprTemplateModal.value = true;
 }
 
@@ -767,30 +979,54 @@ const docTypeLabels = {
 
             <!-- SUMMARY SIDEBAR -->
             <div class="space-y-6">
-                <div class="bg-slate-900 rounded-2xl p-6 text-white shadow-xl">
-                    <h3 class="text-xs font-black uppercase tracking-[0.2em] text-blue-400 mb-6">Finansial</h3>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center">
-                            <span class="text-xs text-slate-400">Harga Dasar</span>
-                            <span class="text-xs font-black">{{ formatCurrency(booking.base_price) }}</span>
+                <div class="bg-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-5">
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-xs font-black uppercase tracking-[0.2em] text-blue-400">Finansial</h3>
+                            <span v-if="Number(booking.ppn_amount) === 0 && (Number(booking.bphtb_amount) + Number(booking.ajb_bbn_amount)) === 0" class="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
+                                Free All-in
+                            </span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-xs text-slate-400">Pajak PPN (11%)</span>
-                            <span class="text-xs font-black">{{ formatCurrency(booking.ppn_amount) }}</span>
+                        <button type="button" @click="openFinancialModal" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[10px] font-black rounded-xl transition-all shadow-md shadow-blue-500/20 flex items-center gap-1 cursor-pointer">
+                            <span>✏️</span> <span>Atur Biaya & Pajak</span>
+                        </button>
+                    </div>
+                    <div class="space-y-3.5">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Harga Dasar</span>
+                            <span class="font-black">{{ formatCurrency(booking.base_price) }}</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-xs text-slate-400">BPHTB + AJB/BBN</span>
-                            <span class="text-xs font-black">{{ formatCurrency(Number(booking.bphtb_amount) + Number(booking.ajb_bbn_amount)) }}</span>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 flex items-center gap-1.5">
+                                Pajak PPN (11%)
+                                <span v-if="Number(booking.ppn_amount) === 0" class="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-black">FREE</span>
+                            </span>
+                            <span class="font-black" :class="Number(booking.ppn_amount) === 0 ? 'text-emerald-400' : ''">
+                                {{ Number(booking.ppn_amount) === 0 ? 'Rp 0 (Free)' : formatCurrency(booking.ppn_amount) }}
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 flex items-center gap-1.5">
+                                BPHTB + AJB/BBN
+                                <span v-if="(Number(booking.bphtb_amount) + Number(booking.ajb_bbn_amount)) === 0" class="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-black">FREE</span>
+                            </span>
+                            <span class="font-black" :class="(Number(booking.bphtb_amount) + Number(booking.ajb_bbn_amount)) === 0 ? 'text-emerald-400' : ''">
+                                {{ (Number(booking.bphtb_amount) + Number(booking.ajb_bbn_amount)) === 0 ? 'Rp 0 (Free)' : formatCurrency(Number(booking.bphtb_amount) + Number(booking.ajb_bbn_amount)) }}
+                            </span>
+                        </div>
+                        <div v-if="Number(booking.other_legal_fees) > 0" class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Biaya Lainnya</span>
+                            <span class="font-black">{{ formatCurrency(booking.other_legal_fees) }}</span>
                         </div>
                         <div class="flex justify-between items-center pt-2 border-t border-white/10">
                             <span class="text-xs text-white font-black">Total All-in</span>
                             <span class="text-lg font-black text-blue-400">{{ formatCurrency(booking.final_price) }}</span>
                         </div>
-                        <div class="flex justify-between items-center pt-4 border-t border-white/10">
+                        <div class="flex justify-between items-center pt-3 border-t border-white/10">
                             <span class="text-xs text-slate-400">Booking Fee (UTJ)</span>
                             <span class="text-sm font-black text-emerald-400">{{ formatCurrency(booking.booking_fee) }}</span>
                         </div>
-                        <div class="flex justify-between items-center pt-4 border-t border-white/10">
+                        <div class="flex justify-between items-center pt-3 border-t border-white/10">
                             <span class="text-xs text-slate-400">Total Harga</span>
                             <span class="text-lg font-black">{{ formatCurrency(booking.final_price) }}</span>
                         </div>
@@ -1078,6 +1314,9 @@ const docTypeLabels = {
 
                 <!-- Tabs Bar -->
                 <div class="flex border-b border-slate-100 bg-slate-50 px-6 gap-2 pt-2 overflow-x-auto">
+                    <button type="button" @click="activeSprTab = 'financial'" :class="activeSprTab === 'financial' ? 'bg-white text-emerald-600 border-b-2 border-emerald-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0 flex items-center gap-1.5">
+                        <span>💰</span> <span>Finansial & Pajak (Free PPN / BPHTB)</span>
+                    </button>
                     <button type="button" @click="activeSprTab = 'bank'" :class="activeSprTab === 'bank' ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-black shadow-sm' : 'text-slate-500 font-bold hover:text-slate-800'" class="px-4 py-2.5 text-xs rounded-t-xl transition-all shrink-0">
                         💳 Bank Developer (Per-Baris LOV)
                     </button>
@@ -1101,6 +1340,94 @@ const docTypeLabels = {
                 <!-- Modal Body Scrollable -->
                 <div class="p-6 overflow-y-auto space-y-4 flex-1">
                     <form id="spr-template-form" @submit.prevent="submitSprTemplate">
+                        <!-- TAB FINANSIAL & BEBAS BIAYA (PPN, BPHTB, DLL) -->
+                        <div v-if="activeSprTab === 'financial'" class="space-y-5">
+                            <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div>
+                                        <h4 class="text-xs font-black uppercase text-emerald-950 flex items-center gap-1.5">
+                                            <span>⚡</span> Preset Cepat Biaya & Pajak
+                                        </h4>
+                                        <p class="text-[11px] text-emerald-800 mt-0.5">Tentukan apakah transaksi ini bebas biaya (All-in Developer) atau menerapkan pajak standar.</p>
+                                    </div>
+                                    <div class="flex gap-2 shrink-0">
+                                        <button type="button" @click="setSprFinancialAllFree" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition">
+                                            ✨ Semua Free (All-in)
+                                        </button>
+                                        <button type="button" @click="setSprFinancialStandardTaxes" class="px-3 py-1.5 bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 rounded-xl text-xs font-bold transition">
+                                            Hitung Pajak Standar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="md:col-span-2">
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Harga Dasar Unit Properti (Rp)</label>
+                                    <input v-model.number="sprTemplateForm.base_price" @input="handleSprBasePriceChange" type="number" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-900" />
+                                </div>
+
+                                <!-- PPN (11%) -->
+                                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <label class="text-[10px] font-black text-slate-700 uppercase">Pajak PPN (11%)</label>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input v-model="sprTemplateForm.free_ppn" @change="toggleSprFreePpn" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                            <span class="text-[11px] font-bold text-emerald-700">Free PPN</span>
+                                        </label>
+                                    </div>
+                                    <input v-model.number="sprTemplateForm.ppn_amount" :disabled="sprTemplateForm.free_ppn" @input="recalculateSprFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
+                                </div>
+
+                                <!-- BPHTB (5%) -->
+                                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <label class="text-[10px] font-black text-slate-700 uppercase">BPHTB (5%)</label>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input v-model="sprTemplateForm.free_bphtb" @change="toggleSprFreeBphtb" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                            <span class="text-[11px] font-bold text-emerald-700">Free BPHTB</span>
+                                        </label>
+                                    </div>
+                                    <input v-model.number="sprTemplateForm.bphtb_amount" :disabled="sprTemplateForm.free_bphtb" @input="recalculateSprFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
+                                </div>
+
+                                <!-- AJB/BBN -->
+                                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <label class="text-[10px] font-black text-slate-700 uppercase">AJB / BBN / Notaris</label>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input v-model="sprTemplateForm.free_ajb" @change="toggleSprFreeAjb" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                            <span class="text-[11px] font-bold text-emerald-700">Free AJB/BBN</span>
+                                        </label>
+                                    </div>
+                                    <input v-model.number="sprTemplateForm.ajb_bbn_amount" :disabled="sprTemplateForm.free_ajb" @input="recalculateSprFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
+                                </div>
+
+                                <!-- Biaya Lainnya -->
+                                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                    <label class="block text-[10px] font-black text-slate-700 uppercase">Biaya Lainnya (Opsional)</label>
+                                    <input v-model.number="sprTemplateForm.other_legal_fees" @input="recalculateSprFinancialTotal" type="number" placeholder="0" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                                </div>
+                            </div>
+
+                            <!-- Total Preview Banner -->
+                            <div class="p-4 bg-slate-900 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest">Total Harga All-in Kesepakatan</p>
+                                    <p class="text-xl font-black text-white mt-0.5">{{ formatCurrency(sprTemplateForm.final_price) }}</p>
+                                    <p v-if="sprTemplateForm.free_ppn && sprTemplateForm.free_bphtb" class="text-[10px] text-emerald-400 font-bold mt-1">
+                                        ✓ Skema Bebas Pajak & Surat Aktif (Harga All-in = Harga Dasar)
+                                    </p>
+                                </div>
+                                <div class="shrink-0">
+                                    <label class="flex items-center gap-2 cursor-pointer bg-white/10 px-3 py-2 rounded-xl border border-white/20">
+                                        <input v-model="sprTemplateForm.sync_schedules" type="checkbox" class="w-4 h-4 text-blue-500 rounded border-white/30" />
+                                        <span class="text-xs font-bold text-white">Sinkronkan ke Jadwal Pembayaran</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- TAB 1: BANK DEVELOPER LOV & NO SPR -->
                         <div v-if="activeSprTab === 'bank'" class="space-y-4">
                             <div>
@@ -1496,6 +1823,127 @@ const docTypeLabels = {
                         {{ sprTemplateForm.processing ? 'MEMPROSES...' : 'SIMPAN TEMPLATE KHUSUS BOOKING INI' }}
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- STANDALONE FINANCIAL & TAX MODAL -->
+        <div v-if="showFinancialModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" @click="showFinancialModal = false"></div>
+            <div class="relative bg-white dark:bg-slate-900 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
+                <!-- Header -->
+                <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                            <span>💰</span> Atur Pajak & Bebas Biaya (Free PPN & BPHTB)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Unit {{ booking.unit?.block }}{{ booking.unit?.number }} - {{ booking.lead?.name }}</p>
+                    </div>
+                    <button @click="showFinancialModal = false" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+                </div>
+
+                <!-- Form -->
+                <form @submit.prevent="submitFinancialForm" class="p-6 space-y-5">
+                    <!-- Presets -->
+                    <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <span class="text-[10px] font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1">
+                                <span>⚡</span> Pilihan Cepat:
+                            </span>
+                            <div class="flex gap-2">
+                                <button type="button" @click="setFinancialAllFree" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition">
+                                    ✨ Semua Free (All-in)
+                                </button>
+                                <button type="button" @click="setFinancialStandardTaxes" class="px-3 py-1.5 bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 rounded-xl text-xs font-bold transition">
+                                    Hitung Pajak Standar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fields -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Harga Dasar Unit Properti (Rp)</label>
+                            <input v-model.number="financialForm.base_price" @input="handleFinancialBasePriceChange" type="number" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-900" />
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <!-- PPN -->
+                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-[10px] font-black text-slate-700 uppercase">Pajak PPN (11%)</label>
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input v-model="financialForm.free_ppn" @change="toggleFinancialFreePpn" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                        <span class="text-[11px] font-bold text-emerald-700">Free PPN</span>
+                                    </label>
+                                </div>
+                                <input v-model.number="financialForm.ppn_amount" :disabled="financialForm.free_ppn" @input="recalculateFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
+                            </div>
+
+                            <!-- BPHTB -->
+                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-[10px] font-black text-slate-700 uppercase">BPHTB (5%)</label>
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input v-model="financialForm.free_bphtb" @change="toggleFinancialFreeBphtb" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                        <span class="text-[11px] font-bold text-emerald-700">Free BPHTB</span>
+                                    </label>
+                                </div>
+                                <input v-model.number="financialForm.bphtb_amount" :disabled="financialForm.free_bphtb" @input="recalculateFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
+                            </div>
+
+                            <!-- AJB/BBN -->
+                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-[10px] font-black text-slate-700 uppercase">AJB / BBN / Notaris</label>
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input v-model="financialForm.free_ajb" @change="toggleFinancialFreeAjb" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
+                                        <span class="text-[11px] font-bold text-emerald-700">Free AJB</span>
+                                    </label>
+                                </div>
+                                <input v-model.number="financialForm.ajb_bbn_amount" :disabled="financialForm.free_ajb" @input="recalculateFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
+                            </div>
+
+                            <!-- Biaya Lainnya -->
+                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                                <label class="block text-[10px] font-black text-slate-700 uppercase">Biaya Lainnya (Opsional)</label>
+                                <input v-model.number="financialForm.other_legal_fees" @input="recalculateFinancialTotal" type="number" placeholder="0" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
+                            </div>
+                        </div>
+
+                        <!-- Summary Result -->
+                        <div class="p-4 bg-slate-900 rounded-2xl text-white flex items-center justify-between">
+                            <div>
+                                <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest">Total Harga All-in Baru</p>
+                                <p class="text-xl font-black text-white mt-0.5">{{ formatCurrency(financialForm.final_price) }}</p>
+                            </div>
+                            <div class="text-right">
+                                <span v-if="financialForm.free_ppn && financialForm.free_bphtb" class="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                                    ✓ Bebas Pajak & Surat Aktif
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Checkbox Sinkronisasi Jadwal -->
+                        <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input v-model="financialForm.sync_schedules" type="checkbox" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
+                                <span class="text-xs font-black text-blue-950">Sinkronisasikan Jadwal Pembayaran Otomatis</span>
+                            </label>
+                            <p class="text-[11px] text-blue-800 leading-relaxed pl-6">
+                                Sistem akan menghapus baris tagihan pajak terpisah (#99) jika Free, serta menyesuaikan sisa cicilan yang belum dibayar agar total tagihan sama dengan Total All-in. Tagihan yang sudah dibayar tidak akan berubah.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Footer Buttons -->
+                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                        <button type="button" @click="showFinancialModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">Batal</button>
+                        <button type="submit" :disabled="financialForm.processing" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50">
+                            {{ financialForm.processing ? 'Menyimpan...' : 'Simpan & Terapkan ke Booking & Jadwal' }}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
