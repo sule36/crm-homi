@@ -395,7 +395,7 @@ function openSprTemplateModal(tab = 'bank') {
     sprTemplateForm.ajb_bbn_amount = Number(props.booking.ajb_bbn_amount) || 0;
     sprTemplateForm.other_legal_fees = Number(props.booking.other_legal_fees) || 0;
     sprTemplateForm.final_price = Number(props.booking.final_price) || 0;
-    sprTemplateForm.sync_schedules = true;
+    sprTemplateForm.sync_schedules = false;
     showSprTemplateModal.value = true;
 }
 
@@ -524,9 +524,61 @@ const editingScheduleRow = ref(null);
 
 const regenForm = useForm({
     payment_scheme: props.booking.payment_scheme || 'cash_installment',
-    installment_months: props.booking.installment_months || 60,
+    installment_months: props.booking.installment_months || 0,
     dp_amount: props.booking.dp_amount || 0,
     dp_installment_months: props.booking.dp_installment_months || 0,
+});
+
+const simulatedRegenRows = computed(() => {
+    const targetPrice = Number(props.booking.final_price || props.booking.base_price || 0);
+    const bookingFee = Number(props.booking.booking_fee || 0);
+    const scheme = regenForm.payment_scheme;
+    const dpAmount = Number(regenForm.dp_amount || 0);
+    const dpMonths = Number(regenForm.dp_installment_months || 0);
+    const instMonths = Number(regenForm.installment_months || 0);
+
+    const rows = [];
+    rows.push({ label: 'Booking Fee (UTJ)', amount: bookingFee, note: 'Tanda Jadi' });
+
+    let remaining = Math.max(0, targetPrice - bookingFee);
+
+    if (scheme === 'cash') {
+        rows.push({ label: 'Pelunasan Cash Keras', amount: remaining, note: '14 Hari' });
+    } else if (scheme === 'kpr') {
+        const dpTotal = dpAmount > 0 ? dpAmount : Math.round(targetPrice * 0.10);
+        const dpTenor = dpMonths > 0 ? dpMonths : 3;
+        const dpPerMonth = Math.round(dpTotal / dpTenor);
+        for (let d = 1; d <= dpTenor; d++) {
+            const amt = (d === dpTenor) ? (dpTotal - (dpPerMonth * (dpTenor - 1))) : dpPerMonth;
+            rows.push({ label: dpTenor > 1 ? `DP ${d}` : 'DP 1', amount: amt, note: `Bulan ke-${d}` });
+        }
+        const bankLoan = Math.max(0, remaining - dpTotal);
+        rows.push({ label: 'Pencairan KPR (Bank)', amount: bankLoan, note: `Saat Akad (Bulan ke-${dpTenor + 1})` });
+    } else {
+        // cash_installment
+        const dpTenor = dpMonths > 0 ? dpMonths : (dpAmount > 0 ? 1 : 0);
+        let offset = 0;
+        if (dpAmount > 0 && dpTenor > 0) {
+            const dpPerMonth = Math.round(dpAmount / dpTenor);
+            for (let d = 1; d <= dpTenor; d++) {
+                const amt = (d === dpTenor) ? (dpAmount - (dpPerMonth * (dpTenor - 1))) : dpPerMonth;
+                rows.push({ label: dpTenor > 1 ? `DP ${d}` : 'DP 1', amount: amt, note: `Bulan ke-${d}` });
+            }
+            offset = dpTenor;
+            remaining = Math.max(0, remaining - dpAmount);
+        }
+
+        const tenor = instMonths !== null && instMonths !== undefined ? instMonths : (dpAmount > 0 ? 0 : 12);
+        if (tenor > 0 && remaining > 0) {
+            const perMonth = Math.round(remaining / tenor);
+            for (let i = 1; i <= tenor; i++) {
+                const amt = (i === tenor) ? (remaining - (perMonth * (tenor - 1))) : perMonth;
+                rows.push({ label: `Cicilan Ke-${i} (dari ${tenor} Bulan)`, amount: amt, note: `Bulan ke-${offset + i}` });
+            }
+        }
+    }
+
+    return rows;
 });
 
 function submitRegenSchedule() {
@@ -1193,9 +1245,11 @@ const docTypeLabels = {
                     </div>
 
                     <div v-if="regenForm.payment_scheme === 'cash_installment'">
-                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tenor Cicilan (Bulan / Tahun)</label>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tenor Sisa Cicilan (Bulan / Tahun)</label>
                         <div class="grid grid-cols-2 gap-3">
                             <select v-model.number="regenForm.installment_months" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20">
+                                <option :value="0">0 Bulan (Pelunasan via Angsuran DP)</option>
+                                <option :value="3">3 Bulan (0.25 Tahun)</option>
                                 <option :value="6">6 Bulan (0.5 Tahun)</option>
                                 <option :value="12">12 Bulan (1 Tahun)</option>
                                 <option :value="24">24 Bulan (2 Tahun)</option>
@@ -1204,24 +1258,45 @@ const docTypeLabels = {
                                 <option :value="60">60 Bulan (5 Tahun)</option>
                                 <option :value="72">72 Bulan (6 Tahun)</option>
                             </select>
-                            <input v-model.number="regenForm.installment_months" type="number" min="1" max="360" placeholder="Custom (Bulan)" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20" />
+                            <input v-model.number="regenForm.installment_months" type="number" min="0" max="360" placeholder="Custom (Bulan)" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20" />
                         </div>
-                        <p class="text-[10px] text-amber-600 mt-1 font-bold">Total Durasi: {{ regenForm.installment_months }} Bulan ({{ (regenForm.installment_months / 12).toFixed(1) }} Tahun)</p>
+                        <p class="text-[10px] text-amber-600 mt-1 font-bold">
+                            {{ regenForm.installment_months > 0 ? `Total Durasi Cicilan: ${regenForm.installment_months} Bulan (${(regenForm.installment_months / 12).toFixed(1)} Tahun)` : 'Tanpa sisa cicilan (seluruh pembayaran diselesaikan di tahap DP)' }}
+                        </p>
                     </div>
 
                     <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Uang Muka / DP (Rp)</label>
                             <input v-model.number="regenForm.dp_amount" type="number" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                            <p class="text-[9px] text-slate-400 mt-1">Bisa diisi seluruh sisa kesepakatan</p>
                         </div>
                         <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tenor DP (Bulan)</label>
-                            <input v-model.number="regenForm.dp_installment_months" type="number" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Berapa Kali DP (Bulan)</label>
+                            <input v-model.number="regenForm.dp_installment_months" type="number" min="0" max="60" placeholder="1 (atau 2, 3)" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                            <p class="text-[9px] text-slate-400 mt-1">Isi 3 untuk dibagi jadi DP 1, DP 2, DP 3</p>
+                        </div>
+                    </div>
+
+                    <!-- Live Simulation Preview -->
+                    <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                        <div class="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                            <span>Simulasi Jadwal Yang Akan Dibuat:</span>
+                            <span class="text-blue-600">{{ simulatedRegenRows.length }} Baris</span>
+                        </div>
+                        <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                            <div v-for="(sim, sIdx) in simulatedRegenRows" :key="sIdx" class="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-100 text-xs">
+                                <div>
+                                    <span class="font-bold text-slate-800">{{ sim.label }}</span>
+                                    <span class="text-[10px] text-slate-400 ml-1.5 font-medium">({{ sim.note }})</span>
+                                </div>
+                                <span class="font-mono font-black text-slate-900">Rp {{ Number(sim.amount).toLocaleString('id-ID') }}</span>
+                            </div>
                         </div>
                     </div>
 
                     <div class="p-3 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-800 leading-relaxed font-medium">
-                        ⚠️ **Perhatian**: Meng-generate ulang jadwal akan memperbarui seluruh baris tagihan yang belum lunas disesuaikan dengan tenor & skema pembayaran baru.
+                        ⚠️ **Perhatian**: Meng-generate ulang jadwal akan memperbarui seluruh baris tagihan yang belum lunas disesuaikan dengan tenor & skema pembayaran di atas.
                     </div>
 
                     <div class="pt-3 flex justify-end gap-2">

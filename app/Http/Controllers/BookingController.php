@@ -120,7 +120,7 @@ class BookingController extends Controller
             'other_legal_fees' => 'nullable|numeric|min:0',
             'final_price' => 'required|numeric|min:0',
             'payment_scheme' => 'required|in:cash,cash_installment,kpr',
-            'installment_months' => 'nullable|integer|min:1|max:360',
+            'installment_months' => 'nullable|integer|min:0|max:360',
             'dp_amount' => 'nullable|numeric|min:0',
             'dp_installment_months' => 'nullable|integer|min:0|max:60',
             'booking_date' => 'nullable|date',
@@ -172,7 +172,7 @@ class BookingController extends Controller
                     'other_legal_fees' => $validated['other_legal_fees'] ?? 0,
                     'final_price' => $validated['final_price'],
                     'payment_scheme' => $validated['payment_scheme'],
-                    'installment_months' => $validated['installment_months'] ?? 12,
+                    'installment_months' => array_key_exists('installment_months', $validated) && $validated['installment_months'] !== null ? (int)$validated['installment_months'] : (($validated['dp_amount'] ?? 0) > 0 ? 0 : 12),
                     'dp_amount' => $validated['dp_amount'] ?? 0,
                     'dp_installment_months' => $validated['dp_installment_months'] ?? 0,
                     'booking_date' => $validated['booking_date'] ?? now()->format('Y-m-d'),
@@ -499,15 +499,19 @@ class BookingController extends Controller
         }
 
         if (isset($validated['base_price']) && isset($validated['final_price'])) {
-            $this->applyFinancialUpdates($booking, [
-                'base_price' => $validated['base_price'],
-                'ppn_amount' => $validated['ppn_amount'] ?? 0,
-                'bphtb_amount' => $validated['bphtb_amount'] ?? 0,
-                'ajb_bbn_amount' => $validated['ajb_bbn_amount'] ?? 0,
-                'other_legal_fees' => $validated['other_legal_fees'] ?? 0,
-                'final_price' => $validated['final_price'],
-                'sync_schedules' => $validated['sync_schedules'] ?? true,
-            ]);
+            $priceChanged = (float)$validated['final_price'] != (float)$booking->final_price || (float)$validated['base_price'] != (float)$booking->base_price;
+            $shouldSync = array_key_exists('sync_schedules', $validated) ? (bool)$validated['sync_schedules'] : false;
+            if ($priceChanged || $shouldSync) {
+                $this->applyFinancialUpdates($booking, [
+                    'base_price' => $validated['base_price'],
+                    'ppn_amount' => $validated['ppn_amount'] ?? 0,
+                    'bphtb_amount' => $validated['bphtb_amount'] ?? 0,
+                    'ajb_bbn_amount' => $validated['ajb_bbn_amount'] ?? 0,
+                    'other_legal_fees' => $validated['other_legal_fees'] ?? 0,
+                    'final_price' => $validated['final_price'],
+                    'sync_schedules' => $shouldSync,
+                ]);
+            }
             unset($validated['base_price'], $validated['ppn_amount'], $validated['bphtb_amount'], $validated['ajb_bbn_amount'], $validated['other_legal_fees'], $validated['final_price'], $validated['sync_schedules']);
         }
 
@@ -675,12 +679,46 @@ class BookingController extends Controller
                         : ($newFinalPrice - $bookingFee - $paidSum);
                     $targetForInstallments = max(0, $targetForInstallments);
 
-                    $count = $unpaidSchedules->count();
-                    $perItem = round($targetForInstallments / $count);
+                    // Separate DP rows, Bank KPR rows, and regular Cicilan rows
+                    $dpRows = $unpaidSchedules->filter(fn($s) => str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
+                    $bankRows = $unpaidSchedules->filter(fn($s) => str_contains(strtolower($s->label), 'kpr') || str_contains(strtolower($s->label), 'bank') || str_contains(strtolower($s->label), 'akad'));
+                    $cicilanRows = $unpaidSchedules->filter(fn($s) => 
+                        !str_contains(strtolower($s->label), 'dp') && 
+                        !str_contains(strtolower($s->label), 'uang muka') && 
+                        !str_contains(strtolower($s->label), 'kpr') && 
+                        !str_contains(strtolower($s->label), 'bank') && 
+                        !str_contains(strtolower($s->label), 'akad')
+                    );
 
-                    foreach ($unpaidSchedules as $index => $item) {
-                        $itemAmount = ($index === $count - 1) ? ($targetForInstallments - ($perItem * ($count - 1))) : $perItem;
-                        $item->update(['amount' => max(0, $itemAmount)]);
+                    if ($bankRows->count() > 0) {
+                        // KPR scheme: Keep DP rows intact! Only adjust the Bank loan row
+                        $unpaidDpSum = (float)$dpRows->sum('amount');
+                        $bankTarget = max(0, $targetForInstallments - $unpaidDpSum);
+                        foreach ($bankRows as $bRow) {
+                            $bRow->update(['amount' => $bankTarget]);
+                        }
+                    } elseif ($cicilanRows->count() > 0 && $dpRows->count() > 0) {
+                        // Cash Installment with both DP and Cicilan: Keep DP rows intact! Only adjust Cicilan rows
+                        $unpaidDpSum = (float)$dpRows->sum('amount');
+                        $cicilanTarget = max(0, $targetForInstallments - $unpaidDpSum);
+                        $cCount = $cicilanRows->count();
+                        if ($cCount > 0) {
+                            $perCicilan = round($cicilanTarget / $cCount);
+                            $idx = 0;
+                            foreach ($cicilanRows as $cRow) {
+                                $cAmount = ($idx === $cCount - 1) ? ($cicilanTarget - ($perCicilan * ($cCount - 1))) : $perCicilan;
+                                $cRow->update(['amount' => max(0, $cAmount)]);
+                                $idx++;
+                            }
+                        }
+                    } else {
+                        // Pure installments or pure DP: distribute equally across unpaid schedules without rounding drift
+                        $count = $unpaidSchedules->count();
+                        $perItem = round($targetForInstallments / $count);
+                        foreach ($unpaidSchedules as $index => $item) {
+                            $itemAmount = ($index === $count - 1) ? ($targetForInstallments - ($perItem * ($count - 1))) : $perItem;
+                            $item->update(['amount' => max(0, $itemAmount)]);
+                        }
                     }
                 }
             }
@@ -824,7 +862,7 @@ class BookingController extends Controller
                 $amount = ($i === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
                 $booking->paymentSchedules()->create([
                     'installment_number' => $i,
-                    'label' => "DP Ke-$i",
+                    'label' => $dpTenor > 1 ? "DP $i" : "DP 1",
                     'amount' => $amount,
                     'due_date' => $bookingDate->copy()->addMonths($i)->format('Y-m-d'),
                     'status' => 'upcoming',
@@ -857,7 +895,7 @@ class BookingController extends Controller
                 $dpPerMonth = round($dpTotal / $dpTenor);
                 for ($d = 1; $d <= $dpTenor; $d++) {
                     $amountDp = ($d === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
-                    $dpLabel = $dpTenor > 1 ? "DP Ke-$d" : "DP 1";
+                    $dpLabel = $dpTenor > 1 ? "DP $d" : "DP 1";
                     $booking->paymentSchedules()->create([
                         'installment_number' => $d,
                         'label' => $dpLabel,
@@ -870,19 +908,22 @@ class BookingController extends Controller
                 $remaining = max(0, $remaining - $dpTotal);
             }
 
-            $tenor = $booking->installment_months > 0 ? (int)$booking->installment_months : 12;
-            $perMonth = $tenor > 0 ? round($remaining / $tenor) : $remaining;
+            // Tenor cicilan: only if remaining > 0 or if dpTotal was 0
+            $tenor = $booking->installment_months !== null ? (int)$booking->installment_months : ($dpTotal > 0 ? 0 : 12);
+            if ($tenor > 0 && $remaining > 0) {
+                $perMonth = round($remaining / $tenor);
 
-            for ($i = 1; $i <= $tenor; $i++) {
-                $num = $offsetMonths + $i;
-                $amount = ($i === $tenor) ? ($remaining - ($perMonth * ($tenor - 1))) : $perMonth;
-                $booking->paymentSchedules()->create([
-                    'installment_number' => $num,
-                    'label' => "Cicilan Ke-$i (dari $tenor Bulan)",
-                    'amount' => $amount,
-                    'due_date' => $bookingDate->copy()->addMonths($num)->format('Y-m-d'),
-                    'status' => 'upcoming',
-                ]);
+                for ($i = 1; $i <= $tenor; $i++) {
+                    $num = $offsetMonths + $i;
+                    $amount = ($i === $tenor) ? ($remaining - ($perMonth * ($tenor - 1))) : $perMonth;
+                    $booking->paymentSchedules()->create([
+                        'installment_number' => $num,
+                        'label' => "Cicilan Ke-$i (dari $tenor Bulan)",
+                        'amount' => $amount,
+                        'due_date' => $bookingDate->copy()->addMonths($num)->format('Y-m-d'),
+                        'status' => 'upcoming',
+                    ]);
+                }
             }
         }
     }
@@ -891,7 +932,7 @@ class BookingController extends Controller
     {
         $validated = $request->validate([
             'payment_scheme' => 'required|in:cash,cash_installment,kpr',
-            'installment_months' => 'nullable|integer|min:1|max:360',
+            'installment_months' => 'nullable|integer|min:0|max:360',
             'dp_amount' => 'nullable|numeric|min:0',
             'dp_installment_months' => 'nullable|integer|min:0|max:60',
         ]);
@@ -899,7 +940,7 @@ class BookingController extends Controller
         DB::transaction(function () use ($booking, $validated) {
             $booking->update([
                 'payment_scheme' => $validated['payment_scheme'],
-                'installment_months' => $validated['installment_months'] ?? 12,
+                'installment_months' => isset($validated['installment_months']) ? (int)$validated['installment_months'] : 0,
                 'dp_amount' => $validated['dp_amount'] ?? 0,
                 'dp_installment_months' => $validated['dp_installment_months'] ?? 0,
             ]);
