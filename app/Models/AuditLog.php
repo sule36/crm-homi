@@ -24,19 +24,26 @@ class AuditLog extends Model
 
     public function user() { return $this->belongsTo(User::class); }
 
-    // Helper to log an action
-    public static function record(string $action, ?Model $model = null, ?array $oldValues = null, ?array $newValues = null): static
+    // Helper to log an action safely
+    public static function record(string $action, ?Model $model = null, ?array $oldValues = null, ?array $newValues = null): ?static
     {
-        return static::create([
-            'user_id' => auth()->id(),
-            'action' => $action,
-            'description' => $action . ($model ? ' ' . class_basename($model) . ' #' . $model->getKey() : ''),
-            'auditable_type' => $model ? get_class($model) : null,
-            'auditable_id' => $model?->getKey(),
-            'old_values' => $oldValues,
-            'new_values' => $newValues,
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-        ]);
+        try {
+            $data = [
+                'user_id' => auth()->id(),
+                'action' => $action,
+                'description' => $action . ($model ? ' ' . class_basename($model) . ' #' . $model->getKey() : ''),
+                'auditable_type' => $model ? get_class($model) : 'System',
+                'auditable_id' => $model?->getKey(),
+                'old_values' => $oldValues,
+                'new_values' => $newValues,
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+            ];
+
+            return static::create($data);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('AuditLog::record failed: ' . $e->getMessage());
+            return null;
+        }
     }
 }

@@ -108,9 +108,6 @@ class Reservation extends Model
     public static function generateReservationNumber($projectId = null): string
     {
         $year = date('Y');
-        $countThisYear = static::whereYear('created_at', $year)->count();
-        $nextSeq3 = sprintf('%03d', $countThisYear + 1);
-        $nextSeq2 = sprintf('%02d', $countThisYear + 1);
 
         $projectCode = 'ALC';
         $project = null;
@@ -142,10 +139,26 @@ class Reservation extends Model
             $format = '{seq}/RSV-{code}/{month_roman}/{year}';
         }
 
-        return str_replace(
-            ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
-            [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
-            $format
-        );
+        $seq = max(1, static::withTrashed()->whereYear('created_at', $year)->count() + 1);
+        $attempts = 0;
+        do {
+            $nextSeq3 = sprintf('%03d', $seq);
+            $nextSeq2 = sprintf('%02d', $seq);
+
+            $candidate = str_replace(
+                ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
+                [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
+                $format
+            );
+
+            $exists = static::withTrashed()->where('reservation_number', $candidate)->exists();
+            if (!$exists) {
+                return $candidate;
+            }
+            $seq++;
+            $attempts++;
+        } while ($attempts < 1000);
+
+        return sprintf('%s-%d', $candidate, time());
     }
 }

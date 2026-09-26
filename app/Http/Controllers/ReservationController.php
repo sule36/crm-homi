@@ -15,6 +15,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class ReservationController extends Controller
@@ -173,6 +175,23 @@ class ReservationController extends Controller
      */
     public function store(Request $request)
     {
+        // 1. Sanitize empty string values for foreign keys and clean amount
+        if ($request->has('agent_coordinator_id') && empty($request->input('agent_coordinator_id'))) {
+            $request->merge(['agent_coordinator_id' => null]);
+        }
+        if ($request->has('lead_id') && empty($request->input('lead_id'))) {
+            $request->merge(['lead_id' => null]);
+        }
+        if ($request->has('negotiation_id') && empty($request->input('negotiation_id'))) {
+            $request->merge(['negotiation_id' => null]);
+        }
+        if ($request->has('amount') && is_string($request->input('amount'))) {
+            $cleaned = preg_replace('/[^0-9]/', '', $request->input('amount'));
+            if ($cleaned !== '') {
+                $request->merge(['amount' => (int) $cleaned]);
+            }
+        }
+
         $validated = $request->validate([
             'unit_id' => 'required|exists:units,id',
             'lead_id' => 'nullable|exists:leads,id',
@@ -198,97 +217,147 @@ class ReservationController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $unit = Unit::with('project')->findOrFail($validated['unit_id']);
+        try {
+            DB::beginTransaction();
 
-        $proofPath = null;
-        if ($request->hasFile('payment_proof')) {
-            $proofPath = $request->file('payment_proof')->store('reservation_proofs', 'public');
-        }
+            $unit = Unit::with('project')->findOrFail($validated['unit_id']);
 
-        $coordUser = !empty($validated['agent_coordinator_id'])
-            ? User::find($validated['agent_coordinator_id'])
-            : auth()->user();
-
-        $coordName = !empty($validated['agent_coordinator_name'])
-            ? $validated['agent_coordinator_name']
-            : ($coordUser ? $coordUser->name : 'Agent Coordinator');
-
-        $coordTitle = !empty($validated['agent_coordinator_title'])
-            ? $validated['agent_coordinator_title']
-            : ($coordUser && $coordUser->agent_type === 'master_lead'
-                ? 'Master Lead / Agent Coordinator'
-                : ($coordUser ? 'Sales Coordinator' : 'Coordinator Representative'));
-
-        $companyName = !empty($validated['company_name'])
-            ? $validated['company_name']
-            : null;
-
-        $expiresAt = now()->addDays($validated['expires_days'] ?? 7);
-
-        $reservationData = [
-            'project_id' => $unit->project_id,
-            'unit_id' => $unit->id,
-            'lead_id' => $validated['lead_id'] ?? null,
-            'negotiation_id' => $validated['negotiation_id'] ?? null,
-            'created_by' => auth()->id(),
-            'client_name' => $validated['client_name'],
-            'client_phone' => $validated['client_phone'],
-            'client_email' => $validated['client_email'] ?? null,
-            'client_nik' => $validated['client_nik'] ?? null,
-            'amount' => $validated['amount'],
-            'payment_method' => $validated['payment_method'],
-            'payment_proof' => $proofPath,
-            'status' => 'active',
-            'refundable_policy' => '100% Refundable (Garansi Pengembalian Utuh)',
-            'company_name' => $companyName,
-            'receipt_title' => $validated['receipt_title'] ?? null,
-            'city' => $validated['city'] ?? null,
-            'terms_text' => $validated['terms_text'] ?? null,
-            'policy_title' => $validated['policy_title'] ?? null,
-            'policy_text' => $validated['policy_text'] ?? null,
-            'custom_overrides' => $validated['custom_overrides'] ?? null,
-            'agent_coordinator_id' => $coordUser?->id,
-            'agent_coordinator_name' => $coordName,
-            'agent_coordinator_title' => $coordTitle,
-            'expires_at' => $expiresAt,
-            'notes' => $validated['notes'] ?? null,
-        ];
-
-        // Safe filter against actual database schema to prevent crashes if migrations aren't executed yet
-        $safeData = [];
-        foreach ($reservationData as $column => $value) {
-            if (Schema::hasColumn('reservations', $column)) {
-                $safeData[$column] = $value;
+            $proofPath = null;
+            if ($request->hasFile('payment_proof')) {
+                $proofPath = $request->file('payment_proof')->store('reservation_proofs', 'public');
             }
-        }
 
-        $reservation = Reservation::create($safeData);
+            $coordUser = !empty($validated['agent_coordinator_id'])
+                ? User::find($validated['agent_coordinator_id'])
+                : auth()->user();
 
-        // Lock unit status to 'reserved'
-        $unit->update([
-            'status' => 'reserved',
-            'held_by' => auth()->id(),
-            'held_until' => $expiresAt,
-        ]);
+            $coordName = !empty($validated['agent_coordinator_name'])
+                ? $validated['agent_coordinator_name']
+                : ($coordUser ? $coordUser->name : 'Agent Coordinator');
 
-        // If linked to lead, record activity and set status to 'reservation'
-        if ($reservation->lead_id) {
-            $lead = Lead::find($reservation->lead_id);
-            if ($lead) {
-                $lead->update(['status' => 'reservation']);
-                LeadActivity::create([
-                    'lead_id' => $lead->id,
-                    'user_id' => auth()->id(),
-                    'type' => 'note',
-                    'description' => "🔖 Reservasi Unit {$unit->label} dibuat (No: {$reservation->reservation_number}). Nominal: Rp " . number_format($reservation->amount, 0, ',', '.') . " (Garansi 100% Refundable).",
+            $coordTitle = !empty($validated['agent_coordinator_title'])
+                ? $validated['agent_coordinator_title']
+                : ($coordUser && $coordUser->agent_type === 'master_lead'
+                    ? 'Master Lead / Agent Coordinator'
+                    : ($coordUser ? 'Sales Coordinator' : 'Coordinator Representative'));
+
+            $companyName = !empty($validated['company_name'])
+                ? $validated['company_name']
+                : null;
+
+            $expiresAt = now()->addDays($validated['expires_days'] ?? 7);
+
+            $reservationData = [
+                'reservation_number' => Reservation::generateReservationNumber($unit->project_id),
+                'project_id' => $unit->project_id,
+                'unit_id' => $unit->id,
+                'lead_id' => $validated['lead_id'] ?? null,
+                'negotiation_id' => $validated['negotiation_id'] ?? null,
+                'created_by' => auth()->id(),
+                'client_name' => $validated['client_name'],
+                'client_phone' => $validated['client_phone'],
+                'client_email' => $validated['client_email'] ?? null,
+                'client_nik' => $validated['client_nik'] ?? null,
+                'amount' => $validated['amount'],
+                'payment_method' => $validated['payment_method'],
+                'payment_proof' => $proofPath,
+                'status' => 'active',
+                'refundable_policy' => '100% Refundable (Garansi Pengembalian Utuh)',
+                'company_name' => $companyName,
+                'receipt_title' => $validated['receipt_title'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'terms_text' => $validated['terms_text'] ?? null,
+                'policy_title' => $validated['policy_title'] ?? null,
+                'policy_text' => $validated['policy_text'] ?? null,
+                'custom_overrides' => $validated['custom_overrides'] ?? null,
+                'agent_coordinator_id' => $coordUser?->id,
+                'agent_coordinator_name' => $coordName,
+                'agent_coordinator_title' => $coordTitle,
+                'expires_at' => $expiresAt,
+                'notes' => $validated['notes'] ?? null,
+            ];
+
+            // Safe filter against actual database schema to prevent crashes if migrations aren't executed yet
+            $safeData = [];
+            foreach ($reservationData as $column => $value) {
+                if (Schema::hasColumn('reservations', $column)) {
+                    $safeData[$column] = $value;
+                }
+            }
+
+            $reservation = Reservation::create($safeData);
+
+            // Lock unit status to 'reserved' (with self-healing fallback for MySQL ENUM)
+            try {
+                $unit->update([
+                    'status' => 'reserved',
+                    'held_by' => auth()->id(),
+                    'held_until' => $expiresAt,
                 ]);
+            } catch (\Throwable $ue) {
+                Log::warning("Direct unit update to reserved failed: " . $ue->getMessage());
+                try {
+                    DB::statement("ALTER TABLE units MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'available'");
+                    $unit->update([
+                        'status' => 'reserved',
+                        'held_by' => auth()->id(),
+                        'held_until' => $expiresAt,
+                    ]);
+                } catch (\Throwable $ue2) {
+                    Log::warning("Fallback unit update to hold: " . $ue2->getMessage());
+                    $unit->update([
+                        'status' => 'hold',
+                        'held_by' => auth()->id(),
+                        'held_until' => $expiresAt,
+                    ]);
+                }
             }
+
+            // If linked to lead, record activity and set status to 'reservation' (with self-healing fallback for MySQL ENUM)
+            if ($reservation->lead_id) {
+                $lead = Lead::find($reservation->lead_id);
+                if ($lead) {
+                    try {
+                        $lead->update(['status' => 'reservation']);
+                    } catch (\Throwable $le) {
+                        Log::warning("Direct lead update to reservation failed: " . $le->getMessage());
+                        try {
+                            DB::statement("ALTER TABLE leads MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'new'");
+                            $lead->update(['status' => 'reservation']);
+                        } catch (\Throwable $le2) {
+                            Log::warning("Fallback lead update to negotiation: " . $le2->getMessage());
+                            $lead->update(['status' => 'negotiation']);
+                        }
+                    }
+
+                    try {
+                        $unitLabel = $unit->label ?? ($unit->block . '-' . $unit->number);
+                        LeadActivity::create([
+                            'lead_id' => $lead->id,
+                            'user_id' => auth()->id(),
+                            'type' => 'note',
+                            'description' => "🔖 Reservasi Unit {$unitLabel} dibuat (No: {$reservation->reservation_number}). Nominal: Rp " . number_format($reservation->amount, 0, ',', '.') . " (Garansi 100% Refundable).",
+                        ]);
+                    } catch (\Throwable $ae) {
+                        Log::warning("Lead activity record skipped: " . $ae->getMessage());
+                    }
+                }
+            }
+
+            AuditLog::record('reservation_created', $reservation, null, $validated);
+
+            DB::commit();
+
+            return redirect()->route('reservations.show', $reservation->id)
+                ->with('success', "Reservasi unit berhasil dibuat dengan No. {$reservation->reservation_number}.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("Failed to store reservation: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withInput()->with('error', 'Gagal membuat reservasi: ' . $e->getMessage());
         }
-
-        AuditLog::record('reservation_created', $reservation, null, $validated);
-
-        return redirect()->route('reservations.show', $reservation->id)
-            ->with('success', "Reservasi unit berhasil dibuat dengan No. {$reservation->reservation_number}.");
     }
 
     /**
