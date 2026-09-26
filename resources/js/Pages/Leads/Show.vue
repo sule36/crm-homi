@@ -13,6 +13,10 @@ const props = defineProps({
         default: () => []
     },
     agents: Array,
+    brokerCompanies: {
+        type: Array,
+        default: () => []
+    },
 });
 
 // Active workspace tab: 'workspace' | 'timeline' | 'documents' | 'client'
@@ -269,13 +273,12 @@ const nextAction = computed(() => {
                 return {
                     stage: 'Tahap 6: Tanda Tangan Digital SPR',
                     title: 'Minta Tanda Tangan Digital Konsumen pada SPR',
-                    desc: 'Dokumen SPR resmi telah terbit. Kirimkan tautan tanda tangan digital kepada konsumen.',
-                    primaryAction: 'url_blank',
-                    actionUrl: `/booking-tracking/${booking.tracking_token}`,
-                    actionText: '🖋️ Buka Halaman TTD Digital SPR',
+                    desc: 'Dokumen SPR resmi telah terbit. Tinjau dokumen SPR, unduh PDF resmi, atau bagikan link tanda tangan digital ke konsumen.',
+                    primaryAction: 'preview_spr',
+                    actionText: '👁️ Tinjau Dokumen SPR',
                     secondaryAction: 'url_blank',
-                    secondaryUrl: `/bookings/${booking.id}/spr?pdf=1`,
-                    secondaryText: '📥 Unduh PDF SPR Resmi',
+                    secondaryUrl: `/booking-tracking/${booking.tracking_token}`,
+                    secondaryText: '🖋️ Buka Halaman TTD Digital',
                     icon: '📄',
                     color: 'from-indigo-600 to-purple-600'
                 };
@@ -284,9 +287,11 @@ const nextAction = computed(() => {
                     stage: 'Tahap 6: SPR Selesai Ditandatangani',
                     title: 'Verifikasi Pembayaran Termin DP / Akad KPR',
                     desc: 'SPR telah lengkap ditandatangani digital oleh konsumen & developer. Pantau jadwal pembayaran angsuran.',
-                    primaryAction: 'url',
-                    actionUrl: `/bookings/${booking.id}`,
-                    actionText: '💳 Buka Detail Jadwal Pembayaran & Kwitansi',
+                    primaryAction: 'preview_spr',
+                    actionText: '👁️ Tinjau Dokumen SPR',
+                    secondaryAction: 'url',
+                    secondaryUrl: `/bookings/${booking.id}`,
+                    secondaryText: '💳 Buka Detail Jadwal Pembayaran',
                     icon: '✅',
                     color: 'from-emerald-600 to-green-600'
                 };
@@ -319,7 +324,9 @@ const nextAction = computed(() => {
 });
 
 function handleNextAction(type, url) {
-    if (type === 'url') {
+    if (type === 'preview_spr') {
+        openSprPreview();
+    } else if (type === 'url') {
         router.visit(url);
     } else if (type === 'url_blank') {
         window.open(url, '_blank');
@@ -422,8 +429,9 @@ const documentList = computed(() => {
             status: latestBooking.value.customer_signed_at ? 'Ditandatangani Digital' : (latestBooking.value.status === 'approved' ? 'Terbit (Siap TTD)' : 'Draft Booking'),
             statusColor: latestBooking.value.customer_signed_at ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800',
             actions: [
-                { label: '📥 Unduh PDF', url: `/bookings/${latestBooking.value.id}/spr?pdf=1`, blank: true },
-                { label: '👁️ Lihat Dokumen', url: `/bookings/${latestBooking.value.id}/spr`, blank: true },
+                { label: '👁️ Tinjau Dokumen', action: 'preview_spr' },
+                { label: '📥 Unduh PDF', url: `/bookings/${latestBooking.value.id}/spk`, blank: true },
+                { label: '⚙️ Atur Skema & Jadwal', url: `/bookings/${latestBooking.value.id}`, blank: false },
                 { label: '🖋️ Link TTD Konsumen', url: `/booking-tracking/${latestBooking.value.tracking_token}`, blank: true },
             ]
         });
@@ -474,6 +482,36 @@ const showEditLeadModal = ref(false);
 const showReminderModal = ref(false);
 const showKprModal = ref(false);
 const showUnitPickerModal = ref(false);
+
+// SPR Preview Modal state
+const showSprPreviewModal = ref(false);
+const sprPreviewTimestamp = ref(Date.now());
+function openSprPreview() {
+    sprPreviewTimestamp.value = Date.now();
+    showSprPreviewModal.value = true;
+}
+
+// Quick Assign Agent Modal
+const showAssignAgentModal = ref(false);
+const assignAgentForm = useForm({
+    assigned_to: props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '',
+    broker_company_id: props.lead.broker_company_id || '',
+});
+
+function openAssignAgentModal() {
+    assignAgentForm.assigned_to = props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '';
+    assignAgentForm.broker_company_id = props.lead.broker_company_id || '';
+    showAssignAgentModal.value = true;
+}
+
+function submitAssignAgent() {
+    assignAgentForm.put(`/leads/${props.lead.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showAssignAgentModal.value = false;
+        }
+    });
+}
 
 // Forms
 const activityForm = useForm({ type: 'note', description: '' });
@@ -679,8 +717,14 @@ function submitChangeResUnit() {
                                 <span v-else class="text-slate-400 italic">Belum Memilih Kavling</span>
                             </span>
                             <span class="text-slate-300">•</span>
-                            <span class="flex items-center gap-1">
-                                <span>👤</span> Agen: <strong>{{ lead.assigned_to_user?.name || 'Belum Ditugaskan' }}</strong>
+                            <span class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/80">
+                                <span>👤</span> Agen: 
+                                <strong :class="lead.assigned_to_user ? 'text-slate-900' : 'text-amber-600 font-bold'">
+                                    {{ lead.assigned_to_user?.name || 'Belum Ditugaskan' }}
+                                </strong>
+                                <button type="button" @click="openAssignAgentModal" class="ml-1 px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1">
+                                    <span>✏️</span> {{ lead.assigned_to_user ? 'Ubah' : 'Tugaskan' }}
+                                </button>
                             </span>
                         </div>
                     </div>
@@ -748,6 +792,14 @@ function submitChangeResUnit() {
                         class="w-full md:w-auto px-5 py-3 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5">
                         {{ nextAction.actionText }}
                     </button>
+                    <Link v-if="latestBooking && (lead.status === 'booking' || lead.status === 'won')" :href="`/bookings/${latestBooking.id}`"
+                        class="w-full md:w-auto px-4 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5">
+                        <span>⚙️</span> Atur Skema & Jadwal
+                    </Link>
+                    <a v-if="latestBooking && (lead.status === 'booking' || lead.status === 'won')" :href="`/bookings/${latestBooking.id}/spk`" target="_blank"
+                        class="w-full md:w-auto px-4 py-3 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5">
+                        <span>📥</span> Unduh PDF SPR
+                    </a>
                     <button v-if="nextAction.secondaryAction" type="button" @click="handleNextAction(nextAction.secondaryAction, nextAction.secondaryUrl)"
                         class="w-full md:w-auto px-4 py-3 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5">
                         {{ nextAction.secondaryText }}
@@ -954,7 +1006,13 @@ function submitChangeResUnit() {
                                     </div>
 
                                     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
-                                        <a :href="`/bookings/${book.id}/spr?pdf=1`" target="_blank" class="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-1">
+                                        <button type="button" @click="openSprPreview" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs">
+                                            <span>👁️</span> Tinjau Dokumen SPR
+                                        </button>
+                                        <Link :href="`/bookings/${book.id}`" class="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1">
+                                            <span>⚙️</span> Atur Skema & Jadwal
+                                        </Link>
+                                        <a :href="`/bookings/${book.id}/spk`" target="_blank" class="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all flex items-center gap-1">
                                             <span>📥</span> Unduh PDF SPR
                                         </a>
                                         <a :href="`/booking-tracking/${book.tracking_token}`" target="_blank" class="px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-all flex items-center gap-1">
@@ -1042,10 +1100,16 @@ function submitChangeResUnit() {
                                     </p>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <a v-for="(act, aIdx) in doc.actions" :key="aIdx" :href="act.url" :target="act.blank ? '_blank' : '_self'"
-                                        class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-all">
-                                        {{ act.label }}
-                                    </a>
+                                    <template v-for="(act, aIdx) in doc.actions" :key="aIdx">
+                                        <button v-if="act.action === 'preview_spr'" type="button" @click="openSprPreview"
+                                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs">
+                                            {{ act.label }}
+                                        </button>
+                                        <a v-else :href="act.url" :target="act.blank ? '_blank' : '_self'"
+                                            class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-all">
+                                            {{ act.label }}
+                                        </a>
+                                    </template>
                                 </div>
                             </div>
                         </div>
@@ -1151,7 +1215,12 @@ function submitChangeResUnit() {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Konsultan / Agen</p>
-                                    <p class="font-bold text-slate-200 mt-0.5">{{ lead.assigned_to_user?.name || '-' }}</p>
+                                    <div class="flex items-center justify-end gap-1.5 mt-0.5">
+                                        <p class="font-bold text-slate-200">{{ lead.assigned_to_user?.name || 'Belum Ditugaskan' }}</p>
+                                        <button type="button" @click="openAssignAgentModal" class="text-[10px] text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer">
+                                            ({{ lead.assigned_to_user ? 'Ubah' : 'Tugaskan' }})
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1267,11 +1336,120 @@ function submitChangeResUnit() {
                             <textarea v-model="editForm.address" rows="2" class="w-full px-3 py-2 border border-slate-200 rounded-xl resize-none"></textarea>
                         </div>
 
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Tugaskan Agen / Sales</label>
+                                <select v-model="editForm.assigned_to" class="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
+                                    <option :value="null">-- Belum Ditugaskan --</option>
+                                    <option v-for="agent in agents" :key="agent.id" :value="agent.id">
+                                        {{ agent.name }} ({{ agent.agent_type || 'Internal' }}{{ agent.broker_company ? ' - ' + agent.broker_company.name : '' }})
+                                    </option>
+                                </select>
+                            </div>
+                            <div v-if="brokerCompanies && brokerCompanies.length > 0">
+                                <label class="block font-bold text-slate-700 mb-1">Kantor Agensi / Broker</label>
+                                <select v-model="editForm.broker_company_id" class="w-full px-3 py-2 border border-slate-200 rounded-xl font-medium bg-slate-50 focus:bg-white text-slate-800">
+                                    <option value="">-- Tanpa Agensi / In-House --</option>
+                                    <option v-for="bc in brokerCompanies" :key="bc.id" :value="bc.id">
+                                        {{ bc.name }} ({{ bc.code }})
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                             <button type="button" @click="showEditLeadModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
                             <button type="submit" :disabled="editForm.processing" class="px-5 py-2 bg-blue-600 text-white rounded-xl font-black">Simpan</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- MODAL: TUGASKAN AGEN -->
+        <teleport to="body">
+            <div v-if="showAssignAgentModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showAssignAgentModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>👤</span> Tugaskan Agen / Sales Properti
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Tentukan konsultan atau broker penanggung jawab untuk {{ lead.name }}</p>
+                        </div>
+                        <button @click="showAssignAgentModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitAssignAgent" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Pilih Agen / Sales <span class="text-rose-500">*</span></label>
+                            <select v-model="assignAgentForm.assigned_to" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20">
+                                <option value="">-- Belum Ditugaskan / Hapus Penugasan --</option>
+                                <option v-for="agent in agents" :key="agent.id" :value="agent.id">
+                                    {{ agent.name }} ({{ agent.agent_type || 'Internal' }}{{ agent.broker_company ? ' - ' + agent.broker_company.name : '' }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <div v-if="brokerCompanies && brokerCompanies.length > 0">
+                            <label class="block font-bold text-slate-700 mb-1">Kantor Agensi / Broker (Opsional)</label>
+                            <select v-model="assignAgentForm.broker_company_id" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-medium bg-slate-50 focus:bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20">
+                                <option value="">-- Tanpa Agensi / Agen In-House Developer --</option>
+                                <option v-for="bc in brokerCompanies" :key="bc.id" :value="bc.id">
+                                    {{ bc.name }} ({{ bc.code }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="p-3 bg-blue-50 border border-blue-100 rounded-2xl text-[11px] text-blue-700 leading-relaxed">
+                            💡 Agen yang ditugaskan akan otomatis dicatat sebagai penanggung jawab lead, tampil di laporan performa tim, dan dihubungkan pada Surat Pemesanan Rumah (SPR).
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showAssignAgentModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
+                            <button type="submit" :disabled="assignAgentForm.processing" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-md shadow-blue-500/20">
+                                {{ assignAgentForm.processing ? 'Menyimpan...' : 'Simpan Penugasan' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- MODAL: PRATINJAU DOKUMEN SPR -->
+        <teleport to="body">
+            <div v-if="showSprPreviewModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showSprPreviewModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col p-6 md:p-8">
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100 shrink-0">
+                        <div>
+                            <h3 class="text-sm font-black uppercase tracking-widest text-slate-900">Pratinjau Surat Pemesanan Rumah (SPR)</h3>
+                            <p class="text-[10px] text-slate-400">Pratinjau dokumen resmi pemesanan unit kavling {{ primaryUnit?.block }}{{ primaryUnit?.number }} - {{ lead.name }}</p>
+                        </div>
+                        <button @click="showSprPreviewModal = false" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 font-bold text-lg">&times;</button>
+                    </div>
+
+                    <!-- Live Document Stream Iframe -->
+                    <div class="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-inner">
+                        <iframe v-if="latestBooking" :src="`/bookings/${latestBooking.id}/spk/view?html=1&_t=${sprPreviewTimestamp}`" class="w-full h-full min-h-[500px] border-0 rounded-2xl"></iframe>
+                        <div v-else class="p-12 text-center text-slate-400 text-xs font-semibold">
+                            Data transaksi booking belum dibuat.
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0 pt-2">
+                        <Link v-if="latestBooking" :href="`/bookings/${latestBooking.id}`" class="px-4 py-2.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5">
+                            <span>⚙️</span> Atur Skema & Termin Pembayaran
+                        </Link>
+                        <div v-else></div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="showSprPreviewModal = false" class="px-5 py-2.5 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">Tutup</button>
+                            <a v-if="latestBooking" :href="`/bookings/${latestBooking.id}/spk`" target="_blank" class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-lg hover:shadow-slate-800 transition-all flex items-center gap-2">
+                                📥 Download PDF Resmi
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </teleport>

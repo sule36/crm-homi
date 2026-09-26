@@ -65,8 +65,15 @@ class SPKController extends Controller
         $booking->load($relations);
         $settings = $this->getSettingsForBooking($booking);
 
+        if (request()->has('download')) {
+            return $this->download($booking);
+        }
+
         if (request()->has('html') || request()->query('view') === 'html' || !request()->has('pdf')) {
-            return view('pdf.spr', compact('booking', 'settings'));
+            return response(view('pdf.spr', compact('booking', 'settings')))
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
         }
 
         $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);

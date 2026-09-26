@@ -159,6 +159,11 @@ class LeadController extends Controller
             'projects' => \App\Models\Project::select('id', 'name', 'code')->get(),
             'agents' => User::with('brokerCompany:id,name,code')
                 ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id')
+                ->orderBy('name')
+                ->get(),
+            'brokerCompanies' => \App\Models\BrokerCompany::where('is_active', true)
+                ->select('id', 'name', 'code')
+                ->orderBy('name')
                 ->get(),
         ]);
     }
@@ -187,6 +192,14 @@ class LeadController extends Controller
             'preferences' => 'nullable|array',
         ]);
 
+        // Auto-fill broker_company_id from assigned agent if empty
+        if (!empty($validated['assigned_to']) && empty($validated['broker_company_id'])) {
+            $agentUser = User::find($validated['assigned_to']);
+            if ($agentUser && $agentUser->broker_company_id) {
+                $validated['broker_company_id'] = $agentUser->broker_company_id;
+            }
+        }
+
         $old = $lead->toArray();
 
         // Log status change
@@ -203,6 +216,12 @@ class LeadController extends Controller
 
         $lead->update($validated);
         $lead->recalculateScore();
+
+        // Sync agent with active bookings if booked_by is empty
+        if (!empty($validated['assigned_to'])) {
+            $lead->bookings()->whereNull('booked_by')->update(['booked_by' => $validated['assigned_to']]);
+        }
+
         AuditLog::record('updated', $lead, $old, $validated);
 
         return back()->with('success', 'Lead berhasil diperbarui.');

@@ -19,6 +19,11 @@ const props = defineProps({
 const showPaymentModal = ref(false);
 const selectedSchedule = ref(null);
 const showSpkPreview = ref(false);
+const sprPreviewTimestamp = ref(Date.now());
+function openSpkPreview() {
+    sprPreviewTimestamp.value = Date.now();
+    showSpkPreview.value = true;
+}
 const showSprTemplateModal = ref(false);
 const showReceiptsModal = ref(false);
 const showChangeBookingUnitModal = ref(false);
@@ -584,7 +589,10 @@ const simulatedRegenRows = computed(() => {
 function submitRegenSchedule() {
     regenForm.post(`/bookings/${props.booking.id}/regenerate-schedule`, {
         preserveScroll: true,
-        onSuccess: () => { showScheduleModal.value = false; }
+        onSuccess: () => { 
+            showScheduleModal.value = false; 
+            sprPreviewTimestamp.value = Date.now();
+        }
     });
 }
 
@@ -597,7 +605,11 @@ const addRowForm = useForm({
 function submitAddRow() {
     addRowForm.post(`/bookings/${props.booking.id}/schedules`, {
         preserveScroll: true,
-        onSuccess: () => { showAddRowModal.value = false; addRowForm.reset(); }
+        onSuccess: () => { 
+            showAddRowModal.value = false; 
+            addRowForm.reset(); 
+            sprPreviewTimestamp.value = Date.now();
+        }
     });
 }
 
@@ -620,7 +632,10 @@ function submitEditRow() {
     if (!editingScheduleRow.value) return;
     editRowForm.put(`/payment-schedules/${editingScheduleRow.value.id}`, {
         preserveScroll: true,
-        onSuccess: () => { editingScheduleRow.value = null; }
+        onSuccess: () => { 
+            editingScheduleRow.value = null; 
+            sprPreviewTimestamp.value = Date.now();
+        }
     });
 }
 
@@ -763,7 +778,7 @@ const docTypeLabels = {
                         <span :class="statusColors[booking.status]" class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider">
                             {{ booking.status }}
                         </span>
-                        <span class="text-xs text-slate-400">Dibuat oleh {{ booking.booked_by?.name || 'Staff' }} pada {{ new Date(booking.booking_date).toLocaleString('id-ID') }}</span>
+                        <span class="text-xs text-slate-400">Dibuat oleh {{ booking.bookedBy?.name || booking.booked_by?.name || booking.lead?.assigned_to_user?.name || 'Staff' }} pada {{ new Date(booking.booking_date).toLocaleString('id-ID') }}</span>
                     </div>
                 </div>
             </div>
@@ -790,7 +805,7 @@ const docTypeLabels = {
                 <button @click="openSprTemplateModal" class="px-5 py-2.5 bg-amber-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     ⚙️ Edit Template SPR
                 </button>
-                <button @click="showSpkPreview = true" class="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                <button @click="openSpkPreview" class="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     👁️ Tinjau SPR
                 </button>
                 <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
@@ -1211,7 +1226,7 @@ const docTypeLabels = {
 
                 <!-- Live Document Stream Iframe -->
                 <div class="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-inner">
-                    <iframe :src="`/bookings/${booking.id}/spk/view?html=1`" class="w-full h-full min-h-[500px] border-0 rounded-2xl"></iframe>
+                    <iframe :src="`/bookings/${booking.id}/spk/view?html=1&_t=${sprPreviewTimestamp}`" class="w-full h-full min-h-[500px] border-0 rounded-2xl"></iframe>
                 </div>
 
                 <div class="mt-4 flex justify-end gap-3 shrink-0 pt-2">

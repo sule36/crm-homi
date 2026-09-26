@@ -17,6 +17,8 @@ Route::get('/', function () {
 Route::get('/track/{token}', [\App\Http\Controllers\PublicTrackingController::class, 'show'])->name('public.tracking');
 Route::post('/track/{token}/sign', [\App\Http\Controllers\PublicTrackingController::class, 'sign'])->name('public.tracking.sign');
 Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spk.stream');
+Route::get('/bookings/{booking}/spr/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spr.stream');
+Route::get('/bookings/{booking}/spr', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spr');
 
 // Public Negotiation Form (No Auth)
 Route::get('/nego/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicForm'])->name('public.negotiation');
@@ -69,6 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/bookings/{booking}/cancel', [\App\Http\Controllers\BookingController::class, 'cancel'])->name('bookings.cancel');
     Route::post('/bookings/{booking}/kpr', [\App\Http\Controllers\BookingController::class, 'updateKpr'])->name('bookings.updateKpr');
     Route::get('/bookings/{booking}/spk', [\App\Http\Controllers\SPKController::class, 'download'])->name('bookings.spk.download');
+    Route::get('/bookings/{booking}/spr/download', [\App\Http\Controllers\SPKController::class, 'download'])->name('bookings.spr.download');
     Route::post('/bookings/{booking}/documents', [\App\Http\Controllers\BookingDocumentController::class, 'store'])->name('bookings.documents.store');
     Route::delete('/booking-documents/{document}', [\App\Http\Controllers\BookingDocumentController::class, 'destroy'])->name('bookings.documents.destroy');
     Route::post('/bookings/{booking}/regenerate-schedule', [\App\Http\Controllers\BookingController::class, 'regenerateSchedule'])->name('bookings.regenerateSchedule');
