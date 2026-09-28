@@ -348,6 +348,11 @@ class ReservationController extends Controller
 
             DB::commit();
 
+            if ($request->input('redirect_to') === 'lead' && $reservation->lead_id) {
+                return redirect()->route('leads.show', $reservation->lead_id)
+                    ->with('success', "Reservasi unit {$unit->code} berhasil dibuat (No. {$reservation->reservation_number}). Unit berhasil di-hold!");
+            }
+
             return redirect()->route('reservations.show', $reservation->id)
                 ->with('success', "Reservasi unit berhasil dibuat dengan No. {$reservation->reservation_number}.");
         } catch (\Throwable $e) {

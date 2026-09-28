@@ -1,5 +1,6 @@
 <script setup>
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import TransactionTabs from '@/Components/Transactions/TransactionTabs.vue';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import NegotiationTemplateModal from '@/Components/Negotiations/NegotiationTemplateModal.vue';
@@ -107,6 +108,8 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
     <Head title="Negosiasi" />
     <CrmLayout>
         <template #breadcrumb>Pengajuan Negosiasi</template>
+
+        <TransactionTabs activeTab="negotiations" />
 
         <!-- HEADER -->
         <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">

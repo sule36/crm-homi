@@ -65,7 +65,11 @@ watch(() => page.props.errors, (errs) => {
 }, { deep: true, immediate: true });
 
 
-const navigationGroups = [
+const sitePlanUrl = computed(() => {
+    return `/projects/${activeProject.value?.id || 1}/site-plan`;
+});
+
+const navigationGroups = computed(() => [
     {
         title: 'Utama',
         items: [
@@ -73,64 +77,48 @@ const navigationGroups = [
         ]
     },
     {
-        title: 'Jaringan & Tim',
+        title: 'CRM & Penjualan',
         items: [
-            { name: 'Jaringan Keagenan', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') },
-            { name: 'Staff / Pengguna', href: '/users', icon: '👔', active: route().current('users.*') },
-            { name: 'Monitor Agen', href: '/agent-monitoring', icon: '👀', active: route().current('agent-monitoring.*') },
+            { name: 'Lead & Pipeline Workspace', href: '/leads', icon: '⚡', active: route().current('leads.*') },
+            { name: 'Transaksi Penjualan (SPR & UTJ)', href: '/bookings', icon: '📝', active: route().current('bookings.*') || route().current('reservations.*') || route().current('negotiations.*') || route().current('commissions.*') },
+            { name: 'Omnichannel Chat', href: '/whatsapp/inbox', icon: '💬', active: route().current('whatsapp.*') },
+            { name: 'Jaringan & Komisi Agen', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') || route().current('agent-monitoring.*') },
+            { name: 'Target & Laporan Sales', href: '/reports', icon: '📈', active: route().current('reports.*') || route().current('kpi.*') || route().current('campaigns.*') },
         ]
     },
     {
-        title: 'Marketing & Sales',
+        title: 'Properti & Inventori',
         items: [
-            { name: 'Lead & Transaction Workspace', href: '/leads', icon: '⚡', active: route().current('leads.*') },
-            { name: 'Omnichannel Chat', href: '/whatsapp/inbox', icon: '💬', active: route().current('whatsapp.inbox') },
-            { name: 'Pipeline', href: '/pipeline', icon: '📋', active: route().current('leads.pipeline') },
-            { name: 'Campaign', href: '/campaigns', icon: '📢', active: route().current('campaigns.*') },
-            { name: 'Target & Performa', href: '/kpi', icon: '🎯', active: route().current('kpi.*') },
-            { name: 'Laporan Sales', href: '/reports', icon: '📈', active: route().current('reports.*') },
+            { name: 'Interactive Site Plan', href: sitePlanUrl.value, icon: '🗺️', active: route().current('projects.siteplan') },
+            { name: 'Inventory Unit Kavling', href: '/units', icon: '🏠', active: route().current('units.*') },
+            { name: 'Master Proyek Kawasan', href: '/projects', icon: '🏗️', active: route().current('projects.index') || route().current('projects.show') || route().current('projects.edit') },
+            { name: 'Simulasi KPR & Neraca', href: '/kpr-scoring', icon: '🧮', active: route().current('kpr.scoring') || route().current('client-balance-sheets.*') || route().current('kpr.calculator') },
         ]
     },
     {
-        title: 'Operasional & Unit',
+        title: 'Keuangan & Kasir',
         items: [
-            { name: 'Interactive Site Plan', href: '/projects/1/site-plan', icon: '🗺️', active: route().current('projects.siteplan') },
-            { name: 'Proyek', href: '/projects', icon: '🏗️', active: route().current('projects.index') || route().current('projects.show') || route().current('projects.edit') },
-            { name: 'Inventory / Unit', href: '/units', icon: '🏠', active: route().current('units.*') },
-            { name: 'Kalkulator KPR', href: '/kalkulator-kpr', icon: '🧮', active: route().current('kpr.calculator') },
-            { name: 'Analisis Neraca KPR', href: '/kpr-scoring', icon: '📊', active: route().current('kpr.scoring') || route().current('client-balance-sheets.*') },
+            { name: 'Kas & Pembayaran Masuk', href: '/finance', icon: '💳', active: route().current('finance.index') || route().current('transactions.*') },
+            { name: 'Pengeluaran Operasional', href: '/finance/expenses', icon: '💸', active: route().current('finance.expenses.*') },
+            { name: 'Penggajian Staff (Payroll)', href: '/finance/payroll', icon: '💼', active: route().current('finance.payroll.*') },
+            { name: 'Laporan Keuangan', href: '/finance/reports', icon: '📊', active: route().current('finance.reports.*') },
         ]
     },
     {
-        title: 'Transaksi & Komisi',
+        title: 'Proyek & Konstruksi',
         items: [
-            { name: 'Pengajuan Negosiasi', href: '/negotiations', icon: '🤝', active: route().current('negotiations.*') },
-            { name: 'Reservasi Unit (100% Refundable)', href: '/reservations', icon: '🔖', active: route().current('reservations.*') },
-            { name: 'Booking & KPR', href: '/bookings', icon: '📝', active: route().current('bookings.*') },
-            { name: 'Komisi Developer', href: '/commissions', icon: '💸', active: route().current('commissions.*') },
-        ]
-    },
-    {
-        title: 'Keuangan & RAB',
-        items: [
-            { name: 'Keuangan', icon: '💰', isGroup: true, active: route().current('finance.*'), children: [
-                { name: 'Kas & Pembayaran', href: '/finance', icon: '💳', active: route().current('finance.index') },
-                { name: 'Pengeluaran', href: '/finance/expenses', icon: '💸', active: route().current('finance.expenses.*') },
-                { name: 'Penggajian', href: '/finance/payroll', icon: '💼', active: route().current('finance.payroll.*') },
-                { name: 'RAB Proyek', href: '/finance/rab', icon: '🏗️', active: route().current('finance.rab.*') },
-                { name: 'Kontrak Subkon', href: '/finance/contracts', icon: '🤝', active: route().current('finance.contracts.*') },
-                { name: 'Laporan Keuangan', href: '/finance/reports', icon: '📊', active: route().current('finance.reports.*') },
-            ]},
+            { name: 'RAB Bangunan & Realisasi', href: '/finance/rab', icon: '🏗️', active: route().current('finance.rab.*') },
+            { name: 'Kontrak Subkontraktor', href: '/finance/contracts', icon: '🤝', active: route().current('finance.contracts.*') },
         ]
     }
-];
+]);
 
 const bottomNav = [
-    { name: 'SaaS Developer', href: '/super-admin/companies', icon: '🌐', active: route().current('super-admin.companies.*') },
+    { name: 'Staff / Pengguna', href: '/users', icon: '👔', active: route().current('users.*') },
     { name: 'Hak Akses (RBAC)', href: '/settings/roles', icon: '🔐', active: route().current('settings.roles.*') },
-    { name: 'Panduan Penggunaan', href: '/guide', icon: '📖', active: route().current('guide.index') },
     { name: 'Audit Log', href: '/settings/audit-logs', icon: '🕵️', active: route().current('settings.auditLogs') },
-    { name: 'Pengaturan', href: '/settings', icon: '⚙️', active: route().current('settings.index') },
+    { name: 'Panduan Penggunaan', href: '/guide', icon: '📖', active: route().current('guide.index') },
+    { name: 'Pengaturan Sistem', href: '/settings', icon: '⚙️', active: route().current('settings.index') },
 ];
 
 </script>

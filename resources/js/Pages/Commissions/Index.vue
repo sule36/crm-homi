@@ -1,5 +1,6 @@
 <script setup>
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import TransactionTabs from '@/Components/Transactions/TransactionTabs.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
@@ -140,6 +141,8 @@ const simNetCommission = computed(() => {
     <Head title="Manajemen Komisi" />
     <CrmLayout>
         <template #breadcrumb>Komisi Developer</template>
+
+        <TransactionTabs activeTab="commissions" />
 
         <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>

@@ -1,5 +1,6 @@
 <script setup>
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import TransactionTabs from '@/Components/Transactions/TransactionTabs.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -45,6 +46,8 @@ const deleteBooking = (id) => {
     <Head title="Booking" />
     <CrmLayout>
         <template #breadcrumb>Booking</template>
+
+        <TransactionTabs activeTab="bookings" />
 
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>

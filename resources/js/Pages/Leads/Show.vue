@@ -17,6 +17,10 @@ const props = defineProps({
         type: Array,
         default: () => []
     },
+    bankAccounts: {
+        type: Array,
+        default: () => []
+    },
 });
 
 // Active workspace tab: 'workspace' | 'timeline' | 'documents' | 'client'
@@ -63,13 +67,12 @@ const progressPercentage = computed(() => {
 function changeStatus(newStatus) {
     if (newStatus === props.lead.status) return;
     if (newStatus === 'reservation') {
-        if (confirm('Ubah status ke "Reservasi Unit"? Ingin langsung memilih unit kavling & menerbitkan data reservasi?')) {
-            router.put(`/leads/${props.lead.id}`, { status: newStatus }, {
-                preserveScroll: true,
-                onSuccess: () => router.visit(`/reservations/create?lead_id=${props.lead.id}`)
-            });
-            return;
-        }
+        openReservationModal();
+        return;
+    }
+    if (newStatus === 'booking') {
+        openQuickBookingModal();
+        return;
     }
     router.put(`/leads/${props.lead.id}`, { status: newStatus }, { preserveScroll: true });
 }
@@ -201,11 +204,9 @@ const nextAction = computed(() => {
                 stage: 'Tahap 4: Negosiasi Disetujui (Deal)',
                 title: 'Negosiasi Disetujui! Kunci Kavling & Buat Reservasi',
                 desc: `Harga kesepakatan ${formatCurrency(nego.offered_price || nego.counter_price)} telah disetujui. Lanjutkan penguncian kavling dengan Uang Tanda Jadi (UTJ).`,
-                primaryAction: 'url',
-                actionUrl: `/reservations/create?lead_id=${props.lead.id}&negotiation_id=${nego.id}&unit_id=${nego.unit_id || ''}`,
+                primaryAction: 'res_create',
                 actionText: '🔖 Hold Unit & Buat Reservasi (UTJ)',
-                secondaryAction: 'url',
-                secondaryUrl: `/bookings/create?lead_id=${props.lead.id}&negotiation_id=${nego.id}&unit_id=${nego.unit_id || ''}`,
+                secondaryAction: 'booking_create',
                 secondaryText: '📝 Langsung Buat Booking (SPR)',
                 icon: '🎉',
                 color: 'from-emerald-600 to-teal-600'
@@ -219,8 +220,7 @@ const nextAction = computed(() => {
                 stage: 'Tahap 5: Reservasi Unit (Hold Unit)',
                 title: 'Pilih Kavling Unit & Terbitkan Kwitansi Reservasi',
                 desc: 'Konsumen berstatus reservasi namun belum memiliki data transaksi kavling. Pilih unit untuk me-lock stok dan cetak kwitansi.',
-                primaryAction: 'url',
-                actionUrl: `/reservations/create?lead_id=${props.lead.id}`,
+                primaryAction: 'res_create',
                 actionText: '➕ Pilih Unit & Buat Reservasi',
                 icon: '🔖',
                 color: 'from-teal-600 to-emerald-600'
@@ -231,8 +231,7 @@ const nextAction = computed(() => {
                 stage: 'Tahap 5: Reservasi Aktif (Hold Unit)',
                 title: 'Konversi Reservasi ke Booking & Terbitkan SPR',
                 desc: `Uang Tanda Jadi sebesar ${formatCurrency(reservation.amount)} telah diterima. Lanjutkan pembuatan Surat Pesanan Rumah (SPR) resmi.`,
-                primaryAction: 'url',
-                actionUrl: `/bookings/create?reservation_id=${reservation.id}&unit_id=${reservation.unit_id}&lead_id=${props.lead.id}&reserved_amount=${reservation.amount}`,
+                primaryAction: 'booking_create',
                 actionText: '➡️ Konversi ke Booking & Susun SPR',
                 secondaryAction: 'url_blank',
                 secondaryUrl: `/reservations/${reservation.id}/receipt`,
@@ -249,8 +248,7 @@ const nextAction = computed(() => {
                 stage: 'Tahap 6: Booking & Penerbitan SPR',
                 title: 'Formulir Booking Belum Dibuat',
                 desc: 'Lead berstatus booking namun data transaksi pemesanan (SPK/SPR) belum tersimpan.',
-                primaryAction: 'url',
-                actionUrl: `/bookings/create?lead_id=${props.lead.id}`,
+                primaryAction: 'booking_create',
                 actionText: '📝 Buat Formulir Booking & SPR',
                 icon: '💰',
                 color: 'from-blue-600 to-indigo-600'
@@ -261,8 +259,7 @@ const nextAction = computed(() => {
                 stage: 'Tahap 6: Review & Approval Booking',
                 title: 'Approve Booking & Kunci Status Unit (Booked)',
                 desc: 'Booking diajukan. Developer perlu menyetujui (Approve) agar jadwal termin pembayaran terbit dan unit terkunci Booked.',
-                primaryAction: 'url',
-                actionUrl: `/bookings/${booking.id}`,
+                primaryAction: 'approve_booking',
                 actionText: '✅ Approve Booking & Terbitkan Jadwal SPR',
                 icon: '⏳',
                 color: 'from-amber-600 to-orange-600'
@@ -326,6 +323,12 @@ const nextAction = computed(() => {
 function handleNextAction(type, url) {
     if (type === 'preview_spr') {
         openSprPreview();
+    } else if (type === 'res_create') {
+        openReservationModal();
+    } else if (type === 'booking_create') {
+        openQuickBookingModal(latestReservation.value);
+    } else if (type === 'approve_booking') {
+        if (latestBooking.value) approveBooking(latestBooking.value.id);
     } else if (type === 'url') {
         router.visit(url);
     } else if (type === 'url_blank') {
@@ -342,8 +345,6 @@ function handleNextAction(type, url) {
     } else if (type === 'activity_visit') {
         activityForm.type = 'visit';
         activeTab.value = 'timeline';
-    } else if (type === 'res_create') {
-        router.visit(`/reservations/create?lead_id=${props.lead.id}`);
     }
 }
 
@@ -522,6 +523,160 @@ function resetCustomerSignature(book) {
             }
         });
     }
+}
+
+// --- QUICK RESERVATION MODAL & ACTIONS ---
+const showReservationModal = ref(false);
+const reservationForm = useForm({
+    unit_id: '',
+    client_name: props.lead.name || '',
+    client_phone: props.lead.phone || '',
+    client_email: props.lead.email || '',
+    client_nik: props.lead.identity_number || '',
+    amount: 5000000,
+    payment_method: 'transfer',
+    bank_account_id: '',
+    agent_coordinator_id: props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '',
+    expires_days: 7,
+    notes: '',
+    lead_id: props.lead.id,
+    redirect_to: 'lead',
+});
+
+function openReservationModal(preferredUnitId = null) {
+    reservationForm.client_name = props.lead.name || '';
+    reservationForm.client_phone = props.lead.phone || '';
+    reservationForm.client_email = props.lead.email || '';
+    reservationForm.client_nik = props.lead.identity_number || '';
+    reservationForm.unit_id = preferredUnitId || preferredUnit.value?.id || (props.units?.[0]?.id || '');
+    reservationForm.amount = 5000000;
+    reservationForm.payment_method = 'transfer';
+    reservationForm.bank_account_id = props.bankAccounts?.[0]?.id || '';
+    reservationForm.agent_coordinator_id = props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '';
+    reservationForm.expires_days = 7;
+    reservationForm.notes = '';
+    reservationForm.lead_id = props.lead.id;
+    reservationForm.redirect_to = 'lead';
+    showReservationModal.value = true;
+}
+
+function submitQuickReservation() {
+    reservationForm.post('/reservations', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showReservationModal.value = false;
+        }
+    });
+}
+
+// --- QUICK BOOKING & SPR MODAL ---
+const showQuickBookingModal = ref(false);
+const quickBookingForm = useForm({
+    reservation_id: '',
+    negotiation_id: '',
+    unit_id: '',
+    lead_id: props.lead.id,
+    booked_by: (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '',
+    booking_date: new Date().toISOString().substring(0, 10),
+    booking_fee: 5000000,
+    base_price: 0,
+    final_price: 0,
+    payment_scheme: 'kpr',
+    dp_amount: 0,
+    dp_installment_months: 3,
+    installment_months: 12,
+    free_ppn: true,
+    free_legal: true,
+    buyer_nik: props.lead.identity_number || '',
+    buyer_npwp: props.lead.npwp || '',
+    buyer_address: props.lead.address || '',
+    buyer_job: props.lead.job || '',
+    auto_approve: true,
+    redirect_to: 'lead',
+});
+
+function openQuickBookingModal(res = null) {
+    const unitObj = res?.unit || primaryUnit.value || props.units?.[0] || null;
+    const unitPrice = Number(unitObj?.final_price || unitObj?.price || 0);
+    const reservedFee = res ? Number(res.amount) : 5000000;
+
+    quickBookingForm.reservation_id = res?.id || '';
+    quickBookingForm.negotiation_id = latestNegotiation.value?.id || '';
+    quickBookingForm.unit_id = unitObj?.id || '';
+    quickBookingForm.lead_id = props.lead.id;
+    quickBookingForm.booked_by = (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || (props.agents?.[0]?.id || '');
+    quickBookingForm.booking_date = new Date().toISOString().substring(0, 10);
+    quickBookingForm.booking_fee = reservedFee;
+    quickBookingForm.base_price = unitPrice;
+    quickBookingForm.final_price = unitPrice;
+    quickBookingForm.payment_scheme = 'kpr';
+    quickBookingForm.dp_amount = Math.round(unitPrice * 0.10);
+    quickBookingForm.dp_installment_months = 3;
+    quickBookingForm.installment_months = 12;
+    quickBookingForm.free_ppn = true;
+    quickBookingForm.free_legal = true;
+    quickBookingForm.buyer_nik = props.lead.identity_number || '';
+    quickBookingForm.buyer_npwp = props.lead.npwp || '';
+    quickBookingForm.buyer_address = props.lead.address || '';
+    quickBookingForm.buyer_job = props.lead.job || '';
+    quickBookingForm.auto_approve = true;
+    quickBookingForm.redirect_to = 'lead';
+    showQuickBookingModal.value = true;
+}
+
+function submitQuickBooking() {
+    quickBookingForm.post('/bookings', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showQuickBookingModal.value = false;
+        }
+    });
+}
+
+function approveBooking(bookingId) {
+    if (confirm('Setujui (Approve) transaksi Booking ini? Unit akan resmi berstatus Booked dan jadwal pembayaran termin akan diaktifkan.')) {
+        router.post(`/bookings/${bookingId}/approve`, {}, {
+            preserveScroll: true
+        });
+    }
+}
+
+// --- QUICK PAYMENT RECORD MODAL ---
+const showPaymentModal = ref(false);
+const activeSchedule = ref(null);
+const activeBookingForPay = ref(null);
+const paymentForm = useForm({
+    booking_id: '',
+    payment_schedule_id: '',
+    amount: 0,
+    payment_method: 'transfer',
+    bank_account_id: '',
+    bank_name: '',
+    reference_number: '',
+    notes: '',
+});
+
+function openRecordPaymentModal(schedule, book) {
+    activeSchedule.value = schedule;
+    activeBookingForPay.value = book;
+    paymentForm.booking_id = book.id;
+    paymentForm.payment_schedule_id = schedule.id;
+    paymentForm.amount = schedule.amount;
+    paymentForm.payment_method = 'transfer';
+    paymentForm.bank_account_id = props.bankAccounts?.[0]?.id || '';
+    paymentForm.bank_name = props.bankAccounts?.[0]?.bank_name || '';
+    paymentForm.reference_number = '';
+    paymentForm.notes = `Pembayaran ${schedule.label || 'Termin'} Unit ${book.unit?.block || ''}-${book.unit?.number || ''}`;
+    showPaymentModal.value = true;
+}
+
+function submitQuickPayment() {
+    paymentForm.post('/transactions', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showPaymentModal.value = false;
+        }
+    });
 }
 
 // Forms
@@ -933,9 +1088,9 @@ function submitChangeResUnit() {
                                     <span class="w-6 h-6 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs">🔖</span>
                                     <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider">Tahap Reservasi Unit (Hold Unit)</h3>
                                 </div>
-                                <Link :href="`/reservations/create?lead_id=${lead.id}`" class="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs">
+                                <button type="button" @click="openReservationModal()" class="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer">
                                     + Buat Reservasi
-                                </Link>
+                                </button>
                             </div>
 
                             <div v-if="lead.reservations?.length" class="space-y-3">
@@ -951,16 +1106,19 @@ function submitChangeResUnit() {
                                             Unit: <strong>{{ res.unit?.code || '-' }}</strong> · Uang Tanda Jadi: <strong class="text-emerald-700">{{ formatCurrency(res.amount) }}</strong>
                                         </p>
                                     </div>
-                                    <div class="flex items-center gap-1.5">
-                                        <Link :href="`/reservations/${res.id}`" class="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-[11px] font-bold text-blue-600">
-                                            Detail →
-                                        </Link>
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <button v-if="res.status === 'active' && (!lead.bookings || lead.bookings.length === 0)" type="button" @click="openQuickBookingModal(res)" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-xs flex items-center gap-1 cursor-pointer">
+                                            <span>➡️</span> Konversi ke Booking (SPR)
+                                        </button>
                                         <a :href="`/reservations/${res.id}/receipt`" target="_blank" class="px-2.5 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-[11px] font-bold">
                                             📄 Kwitansi UTJ
                                         </a>
-                                        <button v-if="res.status === 'active'" type="button" @click="openChangeResUnitModal(res)" class="px-2 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-[11px] font-bold">
+                                        <button v-if="res.status === 'active'" type="button" @click="openChangeResUnitModal(res)" class="px-2 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-[11px] font-bold cursor-pointer">
                                             🔄 Pindah Unit
                                         </button>
+                                        <Link :href="`/reservations/${res.id}`" class="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600">
+                                            Detail →
+                                        </Link>
                                     </div>
                                 </div>
                             </div>
@@ -976,23 +1134,31 @@ function submitChangeResUnit() {
                                     <span class="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs">📄</span>
                                     <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider">Tahap Booking & Surat Pesanan Rumah (SPR)</h3>
                                 </div>
-                                <Link :href="`/bookings/create?lead_id=${lead.id}`" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs">
+                                <button type="button" @click="openQuickBookingModal()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer">
                                     + Formulir Booking Baru
-                                </Link>
+                                </button>
                             </div>
 
                             <div v-if="lead.bookings?.length" class="space-y-4">
                                 <div v-for="book in lead.bookings" :key="book.id" class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center gap-2">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div class="flex items-center gap-2 flex-wrap">
                                             <span class="font-black text-sm text-slate-900">SPR #{{ book.spk_number }}</span>
                                             <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase" :class="book.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
                                                 {{ book.status }}
                                             </span>
+                                            <span v-if="book.unit" class="text-xs font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                🏠 Kavling {{ book.unit.block }}-{{ book.unit.number }} ({{ book.unit.unit_type?.name || 'Standard' }})
+                                            </span>
                                         </div>
-                                        <Link :href="`/bookings/${book.id}`" class="text-xs font-bold text-blue-600 hover:underline">
-                                            Kelola Booking & Pembayaran →
-                                        </Link>
+                                        <div class="flex items-center gap-2">
+                                            <button v-if="book.status === 'pending'" type="button" @click="approveBooking(book.id)" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer">
+                                                <span>✅</span> Setujui (Approve)
+                                            </button>
+                                            <Link :href="`/bookings/${book.id}`" class="text-xs font-bold text-blue-600 hover:underline">
+                                                Kelola Lengkap →
+                                            </Link>
+                                        </div>
                                     </div>
 
                                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -1013,6 +1179,36 @@ function submitChangeResUnit() {
                                             <p class="font-black mt-0.5" :class="book.customer_signed_at ? 'text-emerald-700' : 'text-amber-600'">
                                                 {{ book.customer_signed_at ? '✓ Lengkap' : 'Menunggu' }}
                                             </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- PAYMENT SCHEDULE / TERMIN SUMMARY & RECORD PAYMENT -->
+                                    <div v-if="book.payment_schedules && book.payment_schedules.length > 0" class="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <p class="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span>💳</span> Jadwal & Pembayaran Termin
+                                            </p>
+                                            <span class="text-[10px] font-bold text-slate-400">
+                                                {{ book.payment_schedules.filter(s => s.status === 'paid').length }}/{{ book.payment_schedules.length }} Termin Lunas
+                                            </span>
+                                        </div>
+                                        <div class="divide-y divide-slate-100 text-xs max-h-48 overflow-y-auto">
+                                            <div v-for="sched in book.payment_schedules" :key="sched.id" class="py-2 flex items-center justify-between gap-2">
+                                                <div class="min-w-0">
+                                                    <span class="font-bold text-slate-800">{{ sched.label }}</span>
+                                                    <span class="text-[10px] text-slate-400 ml-2">Jatuh Tempo: {{ formatDate(sched.due_date) }}</span>
+                                                </div>
+                                                <div class="flex items-center gap-2 shrink-0">
+                                                    <span class="font-black text-slate-900">{{ formatCurrency(sched.amount) }}</span>
+                                                    <span v-if="sched.status === 'paid'" class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-bold">✓ Lunas</span>
+                                                    <button v-else type="button" @click="openRecordPaymentModal(sched, book)" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer">
+                                                        <span>💳</span> Catat Bayar
+                                                    </button>
+                                                    <a v-if="sched.transactions && sched.transactions.length > 0" :href="`/finance/transactions/${sched.transactions[0].id}/receipt`" target="_blank" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold flex items-center gap-1" title="Lihat Kwitansi">
+                                                        <span>📄</span> Kwitansi
+                                                    </a>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -1536,6 +1732,282 @@ function submitChangeResUnit() {
                             <button type="button" @click="showChangeResUnitModal = false" class="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
                             <button type="submit" :disabled="changeResUnitForm.processing" class="px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50">
                                 🔄 Konfirmasi Pindah Unit
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- QUICK RESERVATION MODAL -->
+        <teleport to="body">
+            <div v-if="showReservationModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showReservationModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>🔖</span> Buat Reservasi & Hold Kavling
+                            </h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Uang Tanda Jadi (UTJ) 100% Refundable untuk {{ lead.name }}</p>
+                        </div>
+                        <button @click="showReservationModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitQuickReservation" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Pilih Kavling Unit <span class="text-rose-500">*</span></label>
+                            <select v-model="reservationForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                <option value="" disabled>-- Pilih Kavling Tersedia --</option>
+                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                    Blok {{ u.block }} No. {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }}) [{{ u.status }}]
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Nominal UTJ (Rp) <span class="text-rose-500">*</span></label>
+                                <input v-model="reservationForm.amount" type="number" min="0" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-700 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Masa Berlaku Hold (Hari)</label>
+                                <input v-model="reservationForm.expires_days" type="number" min="1" max="30" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Metode Bayar</label>
+                                <select v-model="reservationForm.payment_method" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <option value="transfer">Transfer Bank</option>
+                                    <option value="cash">Tunai / Cash</option>
+                                    <option value="qris">QRIS</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Rekening Bank Tujuan</label>
+                                <select v-model="reservationForm.bank_account_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <option value="">-- Rekening Utama Developer --</option>
+                                    <option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.bank_name }} - {{ b.account_number }} ({{ b.name }})</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Sales / Koordinator</label>
+                                <select v-model="reservationForm.agent_coordinator_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <option value="">-- Pilih Sales Agent --</option>
+                                    <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">NIK Pembeli</label>
+                                <input v-model="reservationForm.client_nik" type="text" placeholder="No. KTP" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Catatan Tambahan</label>
+                            <textarea v-model="reservationForm.notes" rows="2" placeholder="Catatan reservasi..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl resize-none"></textarea>
+                        </div>
+
+                        <div class="p-3 bg-teal-50 border border-teal-200 rounded-xl text-teal-800 text-[11px] leading-relaxed">
+                            🛡️ <strong>Garansi 100% Refundable:</strong> Dana tanda jadi aman dan dapat dikembalikan penuh bila pengajuan skema / KPR tidak disetujui. Unit kavling otomatis terkunci (Hold).
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showReservationModal = false" class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
+                            <button type="submit" :disabled="reservationForm.processing" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-black shadow-md shadow-teal-600/20">
+                                🔖 Kunci Unit & Terbitkan Reservasi
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- QUICK BOOKING & SPR MODAL -->
+        <teleport to="body">
+            <div v-if="showQuickBookingModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showQuickBookingModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>📝</span> Terbitkan Booking & Surat Pesanan Rumah (SPR)
+                            </h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Pembuatan dokumen pemesanan resmi untuk {{ lead.name }}</p>
+                        </div>
+                        <button @click="showQuickBookingModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitQuickBooking" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Pilih Kavling Unit <span class="text-rose-500">*</span></label>
+                            <select v-model="quickBookingForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" @change="e => {
+                                const sel = units.find(u => u.id == quickBookingForm.unit_id);
+                                if (sel) {
+                                    const p = Number(sel.final_price || sel.price || 0);
+                                    quickBookingForm.base_price = p;
+                                    quickBookingForm.final_price = p;
+                                    quickBookingForm.dp_amount = Math.round(p * 0.10);
+                                }
+                            }">
+                                <option value="" disabled>-- Pilih Kavling --</option>
+                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                    Blok {{ u.block }} No. {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Harga Kesepakatan SPR (Rp) <span class="text-rose-500">*</span></label>
+                                <input v-model="quickBookingForm.final_price" type="number" min="0" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-slate-900 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Booking Fee / UTJ (Rp) <span class="text-rose-500">*</span></label>
+                                <input v-model="quickBookingForm.booking_fee" type="number" min="0" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-emerald-700 text-sm" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Skema Pembayaran <span class="text-rose-500">*</span></label>
+                                <select v-model="quickBookingForm.payment_scheme" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <option value="kpr">KPR Bank</option>
+                                    <option value="cash">Cash Keras</option>
+                                    <option value="inhouse">Cash Bertahap (Inhouse)</option>
+                                </select>
+                            </div>
+                            <div v-if="quickBookingForm.payment_scheme === 'kpr'">
+                                <label class="block font-bold text-slate-700 mb-1">Total DP (Rp)</label>
+                                <input v-model="quickBookingForm.dp_amount" type="number" min="0" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                            <div v-else-if="quickBookingForm.payment_scheme === 'inhouse'">
+                                <label class="block font-bold text-slate-700 mb-1">Tenor Cicilan Bertahap (Bulan)</label>
+                                <input v-model="quickBookingForm.installment_months" type="number" min="1" max="60" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                        </div>
+
+                        <div v-if="quickBookingForm.payment_scheme === 'kpr'" class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">DP Dicicil (Bulan)</label>
+                                <select v-model="quickBookingForm.dp_installment_months" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <option :value="1">1 Bulan (Langsung Lunas)</option>
+                                    <option :value="2">2 Bulan</option>
+                                    <option :value="3">3 Bulan</option>
+                                    <option :value="6">6 Bulan</option>
+                                    <option :value="12">12 Bulan</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Sales Yang Menangani</label>
+                                <select v-model="quickBookingForm.booked_by" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <option value="">-- Pilih Sales Agent --</option>
+                                    <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">NIK Pembeli</label>
+                                <input v-model="quickBookingForm.buyer_nik" type="text" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">NPWP Pembeli</label>
+                                <input v-model="quickBookingForm.buyer_npwp" type="text" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Pekerjaan Pembeli</label>
+                                <input v-model="quickBookingForm.buyer_job" type="text" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Alamat Pembeli</label>
+                                <input v-model="quickBookingForm.buyer_address" type="text" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4 pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                                <input type="checkbox" v-model="quickBookingForm.auto_approve" class="rounded text-blue-600 focus:ring-blue-500" />
+                                <span>Langsung Approve & Terbitkan Jadwal Termin</span>
+                            </label>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showQuickBookingModal = false" class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
+                            <button type="submit" :disabled="quickBookingForm.processing" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-md shadow-blue-600/20">
+                                📝 Terbitkan Booking & Dokumen SPR
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- QUICK PAYMENT RECORD MODAL -->
+        <teleport to="body">
+            <div v-if="showPaymentModal && activeSchedule" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showPaymentModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>💳</span> Catat Pembayaran Tagihan
+                            </h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">{{ activeSchedule.label }} · SPR #{{ activeBookingForPay?.spk_number }}</p>
+                        </div>
+                        <button @click="showPaymentModal = false" class="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitQuickPayment" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Jumlah Pembayaran (Rp) <span class="text-rose-500">*</span></label>
+                            <input v-model="paymentForm.amount" type="number" min="1" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-emerald-700 text-base" />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Metode Bayar <span class="text-rose-500">*</span></label>
+                                <select v-model="paymentForm.payment_method" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <option value="transfer">Transfer Bank</option>
+                                    <option value="cash">Tunai / Cash</option>
+                                    <option value="cheque">Cek / Giro</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Rekening Bank Tujuan</label>
+                                <select v-model="paymentForm.bank_account_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" @change="e => {
+                                    const b = bankAccounts.find(x => x.id == paymentForm.bank_account_id);
+                                    if (b) paymentForm.bank_name = b.bank_name;
+                                }">
+                                    <option value="">-- Kas / Rekening Utama --</option>
+                                    <option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.bank_name }} ({{ b.account_number }})</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">No. Referensi / Bukti Transfer</label>
+                            <input v-model="paymentForm.reference_number" type="text" placeholder="Contoh: TRF-20260928-001" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Catatan</label>
+                            <textarea v-model="paymentForm.notes" rows="2" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl resize-none"></textarea>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showPaymentModal = false" class="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
+                            <button type="submit" :disabled="paymentForm.processing" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black shadow-md shadow-emerald-600/20">
+                                💳 Simpan & Konfirmasi Lunas
                             </button>
                         </div>
                     </form>

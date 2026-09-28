@@ -280,6 +280,19 @@ class BookingController extends Controller
                     Log::warning("AuditLog recording failed: " . $ae->getMessage());
                 }
 
+                if ($request->boolean('auto_approve')) {
+                    $booking->update([
+                        'status' => 'approved',
+                        'approved_by' => auth()->id(),
+                    ]);
+                    $this->generateSchedules($booking);
+                }
+
+                if ($request->input('redirect_to') === 'lead' && $booking->lead_id) {
+                    return redirect()->route('leads.show', $booking->lead_id)
+                        ->with('success', "Surat Pesanan Rumah (SPR #{$booking->spk_number}) berhasil diterbitkan!");
+                }
+
                 return redirect()->route('bookings.index')->with('success', 'Booking berhasil diajukan.');
             });
         } catch (\Throwable $e) {

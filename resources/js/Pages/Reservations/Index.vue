@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import TransactionTabs from '@/Components/Transactions/TransactionTabs.vue';
 
 const props = defineProps({
     reservations: Object,
@@ -63,6 +64,8 @@ const deleteReservation = (id) => {
 <template>
     <CrmLayout title="Manajemen Reservasi Unit">
         <Head title="Manajemen Reservasi Unit (100% Refundable)" />
+
+        <TransactionTabs activeTab="reservations" />
 
         <!-- PAGE HEADER -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">

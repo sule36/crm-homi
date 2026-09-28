@@ -128,7 +128,7 @@ class LeadController extends Controller
         $relations = [
             'assignedTo', 'project', 'campaign', 'brokerCompany',
             'activities.user', 'reminders', 
-            'bookings.unit.project', 'bookings.unit.unitType', 'bookings.paymentSchedules', 'bookings.transactions', 'bookings.bookedBy', 'bookings.approvedBy',
+            'bookings.unit.project', 'bookings.unit.unitType', 'bookings.paymentSchedules.transactions', 'bookings.transactions', 'bookings.bookedBy', 'bookings.approvedBy',
         ];
 
         if (\Illuminate\Support\Facades\Schema::hasTable('negotiations')) {
@@ -157,6 +157,7 @@ class LeadController extends Controller
             'lead' => $lead,
             'units' => $units,
             'projects' => \App\Models\Project::select('id', 'name', 'code')->get(),
+            'bankAccounts' => \App\Models\BankAccount::where('is_active', true)->select('id', 'name', 'account_number', 'bank_name', 'current_balance')->get(),
             'agents' => User::with('brokerCompany:id,name,code')
                 ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id')
                 ->orderBy('name')
