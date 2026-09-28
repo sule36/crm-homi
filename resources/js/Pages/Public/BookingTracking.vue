@@ -139,7 +139,11 @@ const submitSignature = () => {
     const signatureDataUrl = sigCanvas.value.toDataURL('image/png');
     
     isSubmitting.value = true;
-    router.post(`/track/${props.booking.tracking_token}/sign`, {
+    const signUrl = typeof window !== 'undefined' && window.location.pathname.startsWith('/booking-tracking')
+        ? `/booking-tracking/${props.booking.tracking_token}/sign`
+        : `/track/${props.booking.tracking_token}/sign`;
+
+    router.post(signUrl, {
         role: signRole.value,
         signature: signatureDataUrl,
         signer_name: signerName.value

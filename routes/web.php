@@ -16,15 +16,21 @@ Route::get('/', function () {
 // Public Tracking Portal & Document Access
 Route::get('/track/{token}', [\App\Http\Controllers\PublicTrackingController::class, 'show'])->name('public.tracking');
 Route::post('/track/{token}/sign', [\App\Http\Controllers\PublicTrackingController::class, 'sign'])->name('public.tracking.sign');
+Route::get('/booking-tracking/{token}', [\App\Http\Controllers\PublicTrackingController::class, 'show'])->name('public.booking-tracking');
+Route::post('/booking-tracking/{token}/sign', [\App\Http\Controllers\PublicTrackingController::class, 'sign'])->name('public.booking-tracking.sign');
 Route::get('/bookings/{booking}/spk/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spk.stream');
 Route::get('/bookings/{booking}/spr/view', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spr.stream');
 Route::get('/bookings/{booking}/spr', [\App\Http\Controllers\SPKController::class, 'stream'])->name('bookings.spr');
 
 // Public Negotiation Form (No Auth)
 Route::get('/nego/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicForm'])->name('public.negotiation');
+Route::get('/n/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicForm'])->name('public.negotiation.short');
 Route::get('/nego/{token}/pdf', [\App\Http\Controllers\NegotiationController::class, 'publicPdf'])->name('public.negotiation.pdf');
+Route::get('/n/{token}/pdf', [\App\Http\Controllers\NegotiationController::class, 'publicPdf'])->name('public.negotiation.short.pdf');
 Route::post('/nego/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicSubmit'])->name('public.negotiation.submit');
+Route::post('/n/{token}', [\App\Http\Controllers\NegotiationController::class, 'publicSubmit'])->name('public.negotiation.short.submit');
 Route::post('/nego/{token}/respond', [\App\Http\Controllers\NegotiationController::class, 'publicCounterResponse'])->name('public.negotiation.respond');
+Route::post('/n/{token}/respond', [\App\Http\Controllers\NegotiationController::class, 'publicCounterResponse'])->name('public.negotiation.short.respond');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
