@@ -513,6 +513,17 @@ function submitAssignAgent() {
     });
 }
 
+function resetCustomerSignature(book) {
+    if (confirm(`Reset tanda tangan digital konsumen untuk booking ini? Tanda tangan lama akan dihapus dan nama TTD akan disesuaikan dengan profil konsumen terbaru (${props.lead.name}).`)) {
+        router.post(`/bookings/${book.id}/reset-signature`, { role: 'customer' }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                alert('Tanda tangan digital konsumen berhasil direset.');
+            }
+        });
+    }
+}
+
 // Forms
 const activityForm = useForm({ type: 'note', description: '' });
 function submitActivity() {
@@ -1018,6 +1029,9 @@ function submitChangeResUnit() {
                                         <a :href="`/booking-tracking/${book.tracking_token}`" target="_blank" class="px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-all flex items-center gap-1">
                                             <span>🖋️</span> Link TTD Digital
                                         </a>
+                                        <button v-if="book.customer_signed_at || book.sig4_image" type="button" @click="resetCustomerSignature(book)" class="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold hover:bg-rose-100 transition-all flex items-center gap-1 cursor-pointer" title="Reset tanda tangan konsumen agar bisa tanda tangan ulang">
+                                            <span>🔄</span> Reset TTD Konsumen
+                                        </button>
                                     </div>
                                 </div>
                             </div>

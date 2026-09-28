@@ -340,11 +340,11 @@
         $sig3ImageData = !empty($booking->sig3_image) ? $getSafeBase64($booking->sig3_image) : $getSafeBase64($sigs['sig3_image'] ?? null);
         $sig4ImageData = !empty($booking->sig4_image) ? $getSafeBase64($booking->sig4_image) : $getSafeBase64($sigs['sig4_image'] ?? null);
 
-        // Buyer details
-        $buyerNik = $booking->buyer_nik ?? $booking->lead->identity_number ?? '-';
-        $buyerNpwp = $booking->buyer_npwp ?? $booking->lead->npwp ?? '-';
-        $buyerAddress = $booking->buyer_address ?? $booking->lead->address ?? '-';
-        $buyerJob = $booking->buyer_job ?? $booking->lead->job ?? '-';
+        // Buyer details: prioritize latest active lead details
+        $buyerNik = !empty($booking->lead->identity_number) ? $booking->lead->identity_number : ($booking->buyer_nik ?: '-');
+        $buyerNpwp = !empty($booking->lead->npwp) ? $booking->lead->npwp : ($booking->buyer_npwp ?: '-');
+        $buyerAddress = !empty($booking->lead->address) ? $booking->lead->address : ($booking->buyer_address ?: '-');
+        $buyerJob = !empty($booking->lead->job) ? $booking->lead->job : ($booking->buyer_job ?: '-');
     @endphp
 
     <!-- PAGE 1: SURAT PEMESANAN RUMAH (SPR) -->
@@ -755,9 +755,27 @@
             'image' => $sig3ImageData,
         ];
         // Slot 4: PEMESAN UTAMA / PENANGGUNG JAWAB
+        $hasSecondaryBuyer = !empty($booking->secondary_name);
+        $defaultSig4Title = $hasSecondaryBuyer 
+            ? ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Penanggung Jawab') 
+            : 'Pemesan / Pembeli';
+
+        $sig4Title = !empty($booking->sig4_title) 
+            ? $booking->sig4_title 
+            : (!empty($sigs['sig4_title']) && $hasSecondaryBuyer ? $sigs['sig4_title'] : $defaultSig4Title);
+
+        if ($hasSecondaryBuyer) {
+            $sig4Name = !empty($booking->sig4_name) 
+                ? $booking->sig4_name 
+                : ($booking->secondary_name ?: (!empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->lead->name ?? '-')));
+        } else {
+            // For primary buyer without secondary, ALWAYS use the active lead name (or fallback if empty)
+            $sig4Name = $booking->lead->name ?? (!empty($booking->sig4_name) ? $booking->sig4_name : '-');
+        }
+
         $sigSlots[] = [
-            'title' => !empty($booking->sig4_title) ? $booking->sig4_title : (!empty($sigs['sig4_title']) ? $sigs['sig4_title'] : ($booking->secondary_relationship ? 'Penanggung Jawab (' . $booking->secondary_relationship . ')' : 'Penanggung Jawab')),
-            'name' => !empty($booking->sig4_name) ? $booking->sig4_name : (!empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->secondary_name ?: ($booking->lead->name ?? '-'))),
+            'title' => $sig4Title,
+            'name' => $sig4Name,
             'image' => $sig4ImageData,
         ];
 

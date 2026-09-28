@@ -117,7 +117,7 @@ const clearSignature = () => {
 const openSignModal = (role) => {
     signRole.value = role;
     if (role === 'customer') {
-        signerName.value = props.booking.sig4_name || props.booking.lead?.name || '';
+        signerName.value = (props.booking.secondary_name ? props.booking.sig4_name : props.booking.lead?.name) || props.booking.lead?.name || props.booking.sig4_name || '';
     } else {
         const agent = props.booking.booked_by || props.booking.bookedBy;
         signerName.value = props.booking.sig3_name || agent?.name || 'Sales Agent';
@@ -381,7 +381,7 @@ const formatDate = (rawDate) => {
                                 </span>
                             </div>
                             <div class="text-xs font-black text-slate-900 truncate">
-                                {{ booking.sig4_name || booking.lead?.name || 'Konsumen' }}
+                                {{ (booking.secondary_name ? booking.sig4_name : booking.lead?.name) || booking.lead?.name || booking.sig4_name || 'Konsumen' }}
                             </div>
                             <div class="text-[10px] text-slate-400 mt-0.5">
                                 <span v-if="booking.customer_signed_at">Ditandatangani: {{ formatDate(booking.customer_signed_at) }}</span>

@@ -15,6 +15,19 @@ class PublicTrackingController extends Controller
             ->where('tracking_token', $token)
             ->firstOrFail();
 
+        // Auto-heal / auto-sync customer name with lead if profile was updated and no secondary signer
+        if (empty($booking->secondary_name) && $booking->lead) {
+            if ($booking->sig4_name && $booking->sig4_name !== $booking->lead->name) {
+                $booking->update([
+                    'sig4_name' => $booking->lead->name,
+                    'sig4_image' => null,
+                    'customer_signed_at' => null,
+                ]);
+            } elseif (empty($booking->sig4_name)) {
+                $booking->update(['sig4_name' => $booking->lead->name]);
+            }
+        }
+
         return Inertia::render('Public/BookingTracking', [
             'booking' => $booking,
         ]);

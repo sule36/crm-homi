@@ -262,6 +262,7 @@ const sprTemplateForm = useForm({
     sig3_title: props.booking.sig3_title || 'SALES',
     sig3_name: props.booking.sig3_name || '',
     sig4_title: props.booking.sig4_title || '',
+    sig4_name: props.booking.sig4_name || props.booking.lead?.name || '',
     sigs_city: props.booking.sigs_city || props.booking.spr_signatures?.city || 'Jakarta Selatan',
     receipt_settings: (props.booking.receipt_settings && typeof props.booking.receipt_settings === 'object')
         ? {
@@ -696,6 +697,18 @@ const copyTrackingLink = () => {
     alert('Link pelacakan berhasil disalin!');
 };
 
+const resetCustomerSignature = () => {
+    const leadName = props.booking.lead?.name || 'Konsumen';
+    if (confirm(`Reset tanda tangan digital konsumen untuk booking ini? Tanda tangan lama akan dihapus dan nama TTD akan disesuaikan dengan data profil terbaru (${leadName}).`)) {
+        router.post(`/bookings/${props.booking.id}/reset-signature`, { role: 'customer' }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                alert('Tanda tangan digital konsumen berhasil direset.');
+            }
+        });
+    }
+};
+
 const sendWaTxReceipt = (tx) => {
     const name = props.booking.lead?.name || 'Konsumen';
     const amountStr = formatCurrency(tx.amount);
@@ -807,6 +820,9 @@ const docTypeLabels = {
                 </button>
                 <button @click="openSpkPreview" class="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     👁️ Tinjau SPR
+                </button>
+                <button v-if="booking.customer_signed_at || booking.sig4_image" @click="resetCustomerSignature" class="px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl shadow-sm hover:bg-rose-100 transition-all flex items-center gap-1.5 cursor-pointer" title="Reset tanda tangan konsumen agar bisa ditandatangani ulang">
+                    <span>🔄</span> <span>Reset TTD Konsumen</span>
                 </button>
                 <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>

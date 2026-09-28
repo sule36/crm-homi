@@ -37,6 +37,20 @@ class SPKController extends Controller
             $relations[] = 'bankAccount';
         }
         $booking->load($relations);
+
+        // Auto-heal / auto-sync customer name with lead if profile was updated and no secondary signer
+        if (empty($booking->secondary_name) && $booking->lead) {
+            if ($booking->sig4_name && $booking->sig4_name !== $booking->lead->name) {
+                $booking->update([
+                    'sig4_name' => $booking->lead->name,
+                    'sig4_image' => null,
+                    'customer_signed_at' => null,
+                ]);
+            } elseif (empty($booking->sig4_name)) {
+                $booking->update(['sig4_name' => $booking->lead->name]);
+            }
+        }
+
         $settings = $this->getSettingsForBooking($booking);
         $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);
 
@@ -63,6 +77,20 @@ class SPKController extends Controller
             $relations[] = 'bankAccount';
         }
         $booking->load($relations);
+
+        // Auto-heal / auto-sync customer name with lead if profile was updated and no secondary signer
+        if (empty($booking->secondary_name) && $booking->lead) {
+            if ($booking->sig4_name && $booking->sig4_name !== $booking->lead->name) {
+                $booking->update([
+                    'sig4_name' => $booking->lead->name,
+                    'sig4_image' => null,
+                    'customer_signed_at' => null,
+                ]);
+            } elseif (empty($booking->sig4_name)) {
+                $booking->update(['sig4_name' => $booking->lead->name]);
+            }
+        }
+
         $settings = $this->getSettingsForBooking($booking);
 
         if (request()->has('download')) {

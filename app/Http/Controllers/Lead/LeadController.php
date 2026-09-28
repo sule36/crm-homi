@@ -222,6 +222,36 @@ class LeadController extends Controller
             $lead->bookings()->whereNull('booked_by')->update(['booked_by' => $validated['assigned_to']]);
         }
 
+        // Sync buyer details & SPR signature name with active bookings
+        foreach ($lead->bookings as $booking) {
+            $bUpdates = [];
+            if (isset($validated['name'])) {
+                if (empty($booking->secondary_name)) {
+                    if ($booking->sig4_name && $booking->sig4_name !== $validated['name']) {
+                        // The client name was changed to another person! Reset previous digital signature
+                        $bUpdates['sig4_image'] = null;
+                        $bUpdates['customer_signed_at'] = null;
+                    }
+                    $bUpdates['sig4_name'] = $validated['name'];
+                }
+            }
+            if (isset($validated['identity_number'])) {
+                $bUpdates['buyer_nik'] = $validated['identity_number'];
+            }
+            if (isset($validated['npwp'])) {
+                $bUpdates['buyer_npwp'] = $validated['npwp'];
+            }
+            if (isset($validated['address'])) {
+                $bUpdates['buyer_address'] = $validated['address'];
+            }
+            if (isset($validated['job'])) {
+                $bUpdates['buyer_job'] = $validated['job'];
+            }
+            if (!empty($bUpdates)) {
+                $booking->update($bUpdates);
+            }
+        }
+
         AuditLog::record('updated', $lead, $old, $validated);
 
         return back()->with('success', 'Lead berhasil diperbarui.');

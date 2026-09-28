@@ -573,6 +573,24 @@ class BookingController extends Controller
         return back()->with('success', 'Template & Parameter SPR khusus booking ini berhasil diperbarui.');
     }
 
+    public function resetSignature(Request $request, Booking $booking)
+    {
+        $role = $request->input('role', 'customer');
+        if ($role === 'customer') {
+            $booking->sig4_image = null;
+            $booking->customer_signed_at = null;
+            $booking->sig4_name = $booking->lead?->name;
+            $booking->save();
+            return back()->with('success', 'Tanda tangan digital konsumen berhasil direset. Silakan minta konsumen menandatangani ulang SPR.');
+        } elseif ($role === 'agent') {
+            $booking->sig3_image = null;
+            $booking->agent_signed_at = null;
+            $booking->save();
+            return back()->with('success', 'Tanda tangan digital agent berhasil direset.');
+        }
+        return back();
+    }
+
     public function updateFinancial(Request $request, Booking $booking)
     {
         $validated = $request->validate([
