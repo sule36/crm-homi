@@ -21,7 +21,7 @@ class Booking extends Model
 
     protected $fillable = [
         'company_id', 'spk_number', 'lead_id', 'unit_id', 'project_id',
-        'booked_by', 'approved_by', 'booking_fee', 'unit_price',
+        'booked_by', 'inhouse_pic_id', 'approved_by', 'booking_fee', 'unit_price',
         'discount_amount', 'discount_reason', 'final_price',
         'booking_date', 'payment_scheme', 'bank_name',
         'installment_months', 'dp_amount', 'dp_installment_months',
@@ -83,6 +83,7 @@ class Booking extends Model
     public function unit() { return $this->belongsTo(Unit::class)->withTrashed(); }
     public function project() { return $this->belongsTo(Project::class)->withTrashed(); }
     public function bookedBy() { return $this->belongsTo(User::class, 'booked_by')->withTrashed(); }
+    public function inhousePic() { return $this->belongsTo(User::class, 'inhouse_pic_id')->withTrashed(); }
     public function approvedBy() { return $this->belongsTo(User::class, 'approved_by')->withTrashed(); }
     public function paymentSchedules() { return $this->hasMany(PaymentSchedule::class)->orderBy('installment_number', 'asc')->orderBy('due_date', 'asc'); }
     public function transactions() { return $this->hasMany(Transaction::class); }

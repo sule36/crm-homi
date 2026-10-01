@@ -102,7 +102,11 @@ const deleteBooking = (id) => {
                                 </div>
                                 <div class="flex flex-col">
                                     <span class="text-sm font-bold text-slate-700">{{ booking.lead?.name || 'Konsumen' }}</span>
-                                    <span v-if="booking.lead?.deleted_at" class="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded w-fit">Lead Dihapus</span>
+                                    <div class="flex items-center gap-1.5 mt-0.5">
+                                        <span class="text-[10px] text-slate-500 font-medium">👤 {{ booking.booked_by?.name || booking.bookedBy?.name || '-' }}</span>
+                                        <span v-if="booking.inhouse_pic?.name || booking.inhousePic?.name" class="text-[10px] text-blue-600 font-bold">· 🏠 {{ booking.inhouse_pic?.name || booking.inhousePic?.name }}</span>
+                                    </div>
+                                    <span v-if="booking.lead?.deleted_at" class="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded w-fit mt-0.5">Lead Dihapus</span>
                                 </div>
                             </div>
                         </td>

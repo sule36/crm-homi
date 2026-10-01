@@ -791,7 +791,13 @@ const docTypeLabels = {
                         <span :class="statusColors[booking.status]" class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider">
                             {{ booking.status }}
                         </span>
-                        <span class="text-xs text-slate-400">Dibuat oleh {{ booking.bookedBy?.name || booking.booked_by?.name || booking.lead?.assigned_to_user?.name || 'Staff' }} pada {{ new Date(booking.booking_date).toLocaleString('id-ID') }}</span>
+                        <span class="text-xs text-slate-500">
+                            👤 Agen: <strong class="text-slate-800">{{ booking.bookedBy?.name || booking.booked_by?.name || booking.lead?.assigned_to_user?.name || 'Staff' }}</strong>
+                            <template v-if="booking.inhousePic">
+                                · 🏠 PIC In-House: <strong class="text-blue-700">{{ booking.inhousePic.name }}</strong>
+                            </template>
+                            · 📅 {{ new Date(booking.booking_date).toLocaleDateString('id-ID') }}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -937,6 +943,18 @@ const docTypeLabels = {
                                     <p class="text-[9px] font-black text-amber-700 uppercase tracking-wider">Pemesan 2 / Penanggung Jawab Pembayaran</p>
                                     <p class="text-xs font-bold text-slate-900">{{ booking.secondary_name }} ({{ booking.secondary_relationship || 'Penanggung Jawab' }})</p>
                                     <p class="text-[10px] text-slate-600">NIK: {{ booking.secondary_nik || '-' }} • Telp: {{ booking.secondary_phone || '-' }}</p>
+                                </div>
+
+                                <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5">
+                                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Penugasan Penjualan & PIC</p>
+                                    <div class="flex items-center justify-between text-xs">
+                                        <span class="text-slate-500">Agen Closing:</span>
+                                        <span class="font-bold text-slate-800">{{ booking.bookedBy?.name || '-' }}</span>
+                                    </div>
+                                    <div v-if="booking.inhousePic" class="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
+                                        <span class="text-slate-500">PIC In-House Developer:</span>
+                                        <span class="font-bold text-blue-700">{{ booking.inhousePic.name }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

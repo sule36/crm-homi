@@ -51,6 +51,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/leads/{lead}/activity', [LeadController::class, 'addActivity'])->name('leads.activity');
     Route::post('/leads/{lead}/reminder', [LeadController::class, 'addReminder'])->name('leads.reminder');
     Route::post('/reminders/{reminder}/complete', [LeadController::class, 'completeReminder'])->name('reminders.complete');
+    Route::post('/duty-schedules/set-today', [\App\Http\Controllers\DutyScheduleController::class, 'setTodayDuty'])->name('duty-schedules.set-today');
+    Route::post('/leads/{lead}/assign-duty-agent', [\App\Http\Controllers\DutyScheduleController::class, 'assignDutyAgentToLead'])->name('leads.assign-duty-agent');
 
     // Units / Inventory
     Route::get('/units', [UnitController::class, 'index'])->name('units.index');

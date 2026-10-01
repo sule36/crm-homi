@@ -21,6 +21,10 @@ const props = defineProps({
         type: Array,
         default: () => []
     },
+    dutyAgent: {
+        type: Object,
+        default: null
+    },
 });
 
 // Active workspace tab: 'workspace' | 'timeline' | 'documents' | 'client'
@@ -492,20 +496,91 @@ function openSprPreview() {
     showSprPreviewModal.value = true;
 }
 
-// Quick Assign Agent Modal
+// Agent filtering computed properties
+const inhouseAgents = computed(() => {
+    return (props.agents || []).filter(a => !a.broker_company_id || ['inhouse', 'inhouse_developer'].includes(a.agent_type));
+});
+
+const brokerAgents = computed(() => {
+    if (assignAgentForm.broker_company_id) {
+        return (props.agents || []).filter(a => a.broker_company_id === assignAgentForm.broker_company_id);
+    }
+    return (props.agents || []).filter(a => a.broker_company_id || ['agency_agent', 'independent'].includes(a.agent_type));
+});
+
+// 1-Click Quick Assign Duty Agent
+const quickAssigning = ref(false);
+function quickAssignDutyAgent() {
+    quickAssigning.value = true;
+    router.post(`/leads/${props.lead.id}/assign-duty-agent`, {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            quickAssigning.value = false;
+        }
+    });
+}
+
+// Set Today Duty Modal & Form
+const showSetDutyModal = ref(false);
+const setDutyForm = useForm({
+    project_id: props.lead.project_id || (props.projects?.[0]?.id || ''),
+    user_id: props.dutyAgent?.id || (inhouseAgents.value[0]?.id || ''),
+    shift: 'full_day',
+    notes: 'Jaga Kantor Pemasaran',
+});
+
+function submitSetDuty() {
+    setDutyForm.post('/duty-schedules/set-today', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showSetDutyModal.value = false;
+        }
+    });
+}
+
+// Assign Agent Modal (Dual Assignment: Walk-In vs Broker + In-House PIC)
 const showAssignAgentModal = ref(false);
+const isBrokerLead = computed(() => ['broker', 'agency', 'agent', 'independent'].includes(props.lead.source));
+
 const assignAgentForm = useForm({
+    arrival_type: isBrokerLead.value ? 'broker' : 'walk_in',
+    source: props.lead.source || 'walk_in',
     assigned_to: props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '',
+    inhouse_pic_id: props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id || '',
     broker_company_id: props.lead.broker_company_id || '',
 });
 
 function openAssignAgentModal() {
+    const isBroker = ['broker', 'agency', 'agent', 'independent'].includes(props.lead.source);
+    assignAgentForm.arrival_type = isBroker ? 'broker' : 'walk_in';
+    assignAgentForm.source = props.lead.source || 'walk_in';
     assignAgentForm.assigned_to = props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '';
+    assignAgentForm.inhouse_pic_id = props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id || (props.dutyAgent?.id || '');
     assignAgentForm.broker_company_id = props.lead.broker_company_id || '';
     showAssignAgentModal.value = true;
 }
 
+function selectDutyAgentForWalkIn() {
+    if (props.dutyAgent) {
+        assignAgentForm.assigned_to = props.dutyAgent.id;
+    }
+}
+
+function selectDutyAgentForInhousePic() {
+    if (props.dutyAgent) {
+        assignAgentForm.inhouse_pic_id = props.dutyAgent.id;
+    }
+}
+
 function submitAssignAgent() {
+    if (assignAgentForm.arrival_type === 'walk_in') {
+        assignAgentForm.source = 'walk_in';
+        assignAgentForm.broker_company_id = '';
+    } else {
+        if (!['broker', 'independent'].includes(assignAgentForm.source)) {
+            assignAgentForm.source = 'broker';
+        }
+    }
     assignAgentForm.put(`/leads/${props.lead.id}`, {
         preserveScroll: true,
         onSuccess: () => {
@@ -870,28 +945,68 @@ function submitChangeResUnit() {
                         </div>
 
                         <!-- Key Properties Metadata -->
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-2 font-medium">
-                            <span class="flex items-center gap-1">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-500 mt-2.5 font-medium">
+                            <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/80 text-slate-700">
                                 <span>🏢</span> <strong>{{ lead.project?.name || 'Belum Pilih Proyek' }}</strong>
                             </span>
-                            <span class="text-slate-300">•</span>
-                            <span class="flex items-center gap-1">
+
+                            <span class="flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/80">
                                 <span>🏠</span> 
                                 <strong v-if="primaryUnit" class="text-slate-900">
                                     Blok {{ primaryUnit.block }}{{ primaryUnit.number }} (Tipe {{ primaryUnit.unit_type?.name || 'Standard' }})
                                 </strong>
                                 <span v-else class="text-slate-400 italic">Belum Memilih Kavling</span>
                             </span>
-                            <span class="text-slate-300">•</span>
+
+                            <!-- Duty Agent Status of the Day -->
+                            <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all"
+                                :class="dutyAgent ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80 shadow-xs' : 'bg-slate-50 text-slate-500 border-dashed border-slate-300'">
+                                <span>🛡️</span>
+                                <span class="text-[11px]">Jaga Hari Ini:</span>
+                                <strong class="underline decoration-emerald-400 decoration-2 underline-offset-2">{{ dutyAgent ? dutyAgent.name : 'Belum Ditetapkan' }}</strong>
+                                <button type="button" @click="showSetDutyModal = true" class="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-black ml-0.5 cursor-pointer">
+                                    {{ dutyAgent ? 'Ubah' : '+ Set' }}
+                                </button>
+                            </span>
+
+                            <!-- Assigned Agent Badge -->
                             <span class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/80">
                                 <span>👤</span> Agen: 
                                 <strong :class="lead.assigned_to_user ? 'text-slate-900' : 'text-amber-600 font-bold'">
                                     {{ lead.assigned_to_user?.name || 'Belum Ditugaskan' }}
                                 </strong>
+                                <span v-if="lead.assigned_to_user?.broker_company || lead.broker_company" class="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-200/60">
+                                    🏢 {{ lead.assigned_to_user?.broker_company?.name || lead.broker_company?.name }}
+                                </span>
                                 <button type="button" @click="openAssignAgentModal" class="ml-1 px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1">
                                     <span>✏️</span> {{ lead.assigned_to_user ? 'Ubah' : 'Tugaskan' }}
                                 </button>
                             </span>
+
+                            <!-- If Broker Lead: In-House PIC Pendamping Badge -->
+                            <span v-if="['broker', 'agency', 'agent', 'independent'].includes(lead.source)" class="flex items-center gap-1.5 bg-indigo-50 text-indigo-900 px-2.5 py-1 rounded-xl border border-indigo-200/80 text-xs font-semibold">
+                                <span>🏠</span> PIC In-House: 
+                                <strong class="text-indigo-950 font-black">{{ lead.inhouse_pic_user?.name || 'Belum Ada' }}</strong>
+                                <button type="button" @click="openAssignAgentModal" class="text-[10px] text-indigo-600 hover:underline font-bold ml-0.5 cursor-pointer">
+                                    ✏️
+                                </button>
+                            </span>
+
+                            <!-- Quick 1-Click Action if Unassigned -->
+                            <button v-if="!lead.assigned_to_user && dutyAgent" 
+                                type="button" 
+                                @click="quickAssignDutyAgent" 
+                                :disabled="quickAssigning" 
+                                class="inline-flex items-center gap-1.5 px-3.5 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-xs font-black shadow-md shadow-amber-500/25 transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50">
+                                <span>⚡</span>
+                                <span>{{ quickAssigning ? 'Menugaskan...' : `Tugaskan ke Agen Jaga (${dutyAgent.name})` }}</span>
+                            </button>
+                            <button v-else-if="!lead.assigned_to_user && !dutyAgent" 
+                                type="button" 
+                                @click="showSetDutyModal = true" 
+                                class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-all cursor-pointer">
+                                <span>📅</span> Tetapkan Agen Jaga Hari Ini
+                            </button>
                         </div>
                     </div>
 
@@ -1577,49 +1692,198 @@ function submitChangeResUnit() {
         </teleport>
 
         <!-- MODAL: TUGASKAN AGEN -->
+        <!-- MODAL: TUGASKAN AGEN (DUAL ASSIGNMENT: WALK-IN VS BROKER + IN-HOUSE PIC) -->
         <teleport to="body">
             <div v-if="showAssignAgentModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showAssignAgentModal = false"></div>
-                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showAssignAgentModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
                     <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                         <div>
                             <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
-                                <span>👤</span> Tugaskan Agen / Sales Properti
+                                <span>👤</span> Penugasan Sales & Petugas Jaga
                             </h2>
-                            <p class="text-xs text-slate-400 mt-0.5">Tentukan konsultan atau broker penanggung jawab untuk {{ lead.name }}</p>
+                            <p class="text-xs text-slate-400 mt-0.5">Kelola penanggung jawab transaksi dan pendampingan untuk <strong>{{ lead.name }}</strong></p>
                         </div>
-                        <button @click="showAssignAgentModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+                        <button @click="showAssignAgentModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">✕</button>
                     </div>
 
                     <form @submit.prevent="submitAssignAgent" class="space-y-4 text-xs">
+                        <!-- Jalur Kedatangan Tamu (Toggle) -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">Pilih Agen / Sales <span class="text-rose-500">*</span></label>
-                            <select v-model="assignAgentForm.assigned_to" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20">
-                                <option value="">-- Belum Ditugaskan / Hapus Penugasan --</option>
-                                <option v-for="agent in agents" :key="agent.id" :value="agent.id">
-                                    {{ agent.name }} ({{ agent.agent_type || 'Internal' }}{{ agent.broker_company ? ' - ' + agent.broker_company.name : '' }})
-                                </option>
-                            </select>
+                            <label class="block font-bold text-slate-700 mb-1.5 uppercase tracking-wider text-[10px]">Jalur Kedatangan Calon Konsumen</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" 
+                                    @click="assignAgentForm.arrival_type = 'walk_in'"
+                                    :class="assignAgentForm.arrival_type === 'walk_in' ? 'bg-blue-50 border-blue-600 text-blue-900 ring-2 ring-blue-500/20 shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
+                                    class="p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-lg">🚶</span>
+                                        <span v-if="assignAgentForm.arrival_type === 'walk_in'" class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                                    </div>
+                                    <div class="font-black text-xs text-slate-900">Tamu Walk-In (WI)</div>
+                                    <div class="text-[10px] text-slate-500 mt-0.5 leading-snug">Datang sendiri / spanduk / iklan. Dilayani tim in-house developer.</div>
+                                </button>
+
+                                <button type="button" 
+                                    @click="assignAgentForm.arrival_type = 'broker'"
+                                    :class="assignAgentForm.arrival_type === 'broker' ? 'bg-amber-50 border-amber-500 text-amber-950 ring-2 ring-amber-500/20 shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
+                                    class="p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-lg">🏢</span>
+                                        <span v-if="assignAgentForm.arrival_type === 'broker'" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                    </div>
+                                    <div class="font-black text-xs text-slate-900">Bawaan Agen Luar</div>
+                                    <div class="text-[10px] text-slate-500 mt-0.5 leading-snug">Diantar Broker / Agency / Freelance. Berhak komisi broker.</div>
+                                </button>
+                            </div>
                         </div>
 
-                        <div v-if="brokerCompanies && brokerCompanies.length > 0">
-                            <label class="block font-bold text-slate-700 mb-1">Kantor Agensi / Broker (Opsional)</label>
-                            <select v-model="assignAgentForm.broker_company_id" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-medium bg-slate-50 focus:bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20">
-                                <option value="">-- Tanpa Agensi / Agen In-House Developer --</option>
-                                <option v-for="bc in brokerCompanies" :key="bc.id" :value="bc.id">
-                                    {{ bc.name }} ({{ bc.code }})
-                                </option>
-                            </select>
+                        <!-- 1. JALUR WALK-IN (IN-HOUSE) -->
+                        <div v-if="assignAgentForm.arrival_type === 'walk_in'" class="space-y-3 pt-2">
+                            <!-- Quick Duty Agent Banner -->
+                            <div v-if="dutyAgent" class="p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="text-xl">🛡️</span>
+                                    <div>
+                                        <div class="text-[10px] font-black uppercase tracking-wider text-emerald-800">Petugas Jaga Hari Ini (Piket)</div>
+                                        <div class="font-black text-slate-900 text-xs">{{ dutyAgent.name }}</div>
+                                    </div>
+                                </div>
+                                <button type="button" @click="selectDutyAgentForWalkIn" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold shadow-xs transition-all cursor-pointer">
+                                    ⚡ Pilih Agen Ini
+                                </button>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Sales In-House Penanggung Jawab <span class="text-rose-500">*</span></label>
+                                <select v-model="assignAgentForm.assigned_to" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20">
+                                    <option value="">-- Belum Ditugaskan / Hapus Penugasan --</option>
+                                    <option v-for="agent in inhouseAgents" :key="agent.id" :value="agent.id">
+                                        🏠 {{ agent.name }} {{ dutyAgent?.id === agent.id ? '(⭐ Sedang Jaga Hari Ini)' : '' }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="p-3 bg-blue-50 border border-blue-100 rounded-2xl text-[11px] text-blue-700 leading-relaxed">
+                                💡 <strong>Tamu Walk-In Murni:</strong> Seluruh komisi internal dan pencapaian target closing 100% dialokasikan untuk Sales In-House penanggung jawab.
+                            </div>
                         </div>
 
-                        <div class="p-3 bg-blue-50 border border-blue-100 rounded-2xl text-[11px] text-blue-700 leading-relaxed">
-                            💡 Agen yang ditugaskan akan otomatis dicatat sebagai penanggung jawab lead, tampil di laporan performa tim, dan dihubungkan pada Surat Pemesanan Rumah (SPR).
+                        <!-- 2. JALUR BROKER / AGEN LUAR -->
+                        <div v-else class="space-y-3 pt-2">
+                            <!-- Field 1: Kantor Agensi & Agen Pembawa -->
+                            <div class="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2.5">
+                                <div class="flex items-center gap-1.5 text-amber-900 font-black text-xs">
+                                    <span>🏢</span> 1. Kantor Broker & Agen Pembawa (Penerima Komisi Closing)
+                                </div>
+
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1 text-[11px]">Kantor Agensi / Broker</label>
+                                    <select v-model="assignAgentForm.broker_company_id" class="w-full px-3 py-2 border border-amber-300 rounded-xl font-medium bg-white text-slate-800 focus:ring-2 focus:ring-amber-500/20">
+                                        <option value="">-- Agen Freelance / Tanpa Kantor Agensi --</option>
+                                        <option v-for="bc in brokerCompanies" :key="bc.id" :value="bc.id">
+                                            🏢 {{ bc.name }} ({{ bc.code }})
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1 text-[11px]">Nama Agen Pembawa (External Agent) <span class="text-rose-500">*</span></label>
+                                    <select v-model="assignAgentForm.assigned_to" class="w-full px-3 py-2 border border-amber-300 rounded-xl font-bold bg-white text-slate-800 focus:ring-2 focus:ring-amber-500/20">
+                                        <option value="">-- Pilih Agen Eksternal --</option>
+                                        <option v-for="agent in brokerAgents" :key="agent.id" :value="agent.id">
+                                            {{ agent.name }} ({{ agent.broker_company?.name || agent.agent_type || 'Eksternal' }})
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Field 2: Sales In-House Pendamping Developer -->
+                            <div class="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-1.5 text-indigo-950 font-black text-xs">
+                                        <span>🏠</span> 2. Sales In-House Pendamping Developer
+                                    </div>
+                                    <button v-if="dutyAgent" type="button" @click="selectDutyAgentForInhousePic" class="text-[10px] text-indigo-600 hover:underline font-bold cursor-pointer">
+                                        ⚡ Gunakan Agen Jaga ({{ dutyAgent.name }})
+                                    </button>
+                                </div>
+
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1 text-[11px]">Sales Pendamping di Kantor Proyek</label>
+                                    <select v-model="assignAgentForm.inhouse_pic_id" class="w-full px-3 py-2 border border-indigo-300 rounded-xl font-bold bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500/20">
+                                        <option value="">-- Pilih Sales In-House Pendamping --</option>
+                                        <option v-for="agent in inhouseAgents" :key="agent.id" :value="agent.id">
+                                            🏠 {{ agent.name }} {{ dutyAgent?.id === agent.id ? '(⭐ Sedang Jaga Hari Ini)' : '' }}
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-[11px] text-slate-600 leading-relaxed">
+                                🤝 <strong>Hak Komisi Adil & Terkunci:</strong> Komisi broker (2.5% - 3%) tetap 100% menjadi hak Agen Luar. Sales In-House bertindak sebagai host pendamping developer untuk verifikasi kavling, formulir negosiasi, dan SPR.
+                            </div>
                         </div>
 
                         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                             <button type="button" @click="showAssignAgentModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
-                            <button type="submit" :disabled="assignAgentForm.processing" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-md shadow-blue-500/20">
+                            <button type="submit" :disabled="assignAgentForm.processing" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-md shadow-blue-500/20 disabled:opacity-50">
                                 {{ assignAgentForm.processing ? 'Menyimpan...' : 'Simpan Penugasan' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- MODAL: SET AGEN JAGA HARI INI (DUTY SCHEDULER) -->
+        <teleport to="body">
+            <div v-if="showSetDutyModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showSetDutyModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>📅</span> Jadwal Jaga Kantor Pemasaran
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Tentukan Sales In-House yang bertugas piket hari ini</p>
+                        </div>
+                        <button @click="showSetDutyModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitSetDuty" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Proyek Perumahan <span class="text-rose-500">*</span></label>
+                            <select v-model="setDutyForm.project_id" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
+                                <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Sales In-House yang Jaga Hari Ini <span class="text-rose-500">*</span></label>
+                            <select v-model="setDutyForm.user_id" required class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
+                                <option value="">-- Pilih Petugas Jaga --</option>
+                                <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">🏠 {{ a.name }}</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Shift / Jam Jaga</label>
+                            <select v-model="setDutyForm.shift" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-medium bg-slate-50 focus:bg-white text-slate-800">
+                                <option value="full_day">Full Day (Pagi - Sore / Tutup Kantor)</option>
+                                <option value="pagi">Shift 1 (Pagi - Siang)</option>
+                                <option value="siang">Shift 2 (Siang - Sore / Malam)</option>
+                            </select>
+                        </div>
+
+                        <div class="p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-[11px] text-emerald-800 leading-relaxed">
+                            🛡️ <strong>Otomatisasi Walk-In:</strong> Setiap tamu Walk-In baru yang masuk hari ini akan otomatis diarahkan ke Petugas Jaga yang dipilih di sini.
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showSetDutyModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
+                            <button type="submit" :disabled="setDutyForm.processing" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black shadow-md shadow-emerald-500/20 disabled:opacity-50">
+                                {{ setDutyForm.processing ? 'Menyimpan...' : 'Tetapkan Agen Jaga' }}
                             </button>
                         </div>
                     </form>

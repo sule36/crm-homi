@@ -18,7 +18,7 @@ class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        $bookings = Booking::with(['unit.project', 'lead', 'bookedBy'])
+        $bookings = Booking::with(['unit.project', 'lead', 'bookedBy', 'inhousePic'])
             ->when($request->search, function ($q, $s) {
                 $q->whereHas('lead', fn($query) => $query->where('name', 'like', "%{$s}%"))
                   ->orWhere('spk_number', 'like', "%{$s}%");
@@ -77,7 +77,7 @@ class BookingController extends Controller
 
         return Inertia::render('Bookings/Create', [
             'unit' => $unitId ? Unit::with('project', 'unitType')->find($unitId) : null,
-            'lead' => $leadId ? Lead::find($leadId) : null,
+            'lead' => $leadId ? Lead::with(['assignedToUser', 'inhousePic', 'brokerCompany'])->find($leadId) : null,
             'reservation' => $reservation,
             'negotiation' => $negotiation,
             'availableNegotiations' => $availableNegotiations,
@@ -85,8 +85,8 @@ class BookingController extends Controller
             'defaultFreePpn' => (bool)$defaultFreePpn,
             'defaultFreeLegal' => (bool)$defaultFreeLegal,
             'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderBy('block')->orderByRaw('CAST(number AS UNSIGNED) ASC')->get(),
-            'leads' => Lead::whereNotIn('status', ['won', 'lost'])->get(),
-            'agents' => \App\Models\User::orderBy('name', 'asc')->get(),
+            'leads' => Lead::whereNotIn('status', ['won', 'lost'])->with(['assignedToUser', 'inhousePic', 'brokerCompany'])->get(),
+            'agents' => \App\Models\User::with('brokerCompany')->orderBy('name', 'asc')->get(),
         ]);
     }
 
@@ -112,6 +112,7 @@ class BookingController extends Controller
             'unit_id' => 'required|exists:units,id',
             'lead_id' => 'required|exists:leads,id',
             'booked_by' => 'required|exists:users,id',
+            'inhouse_pic_id' => 'nullable|exists:users,id',
             'booking_fee' => 'required|numeric|min:0',
             'base_price' => 'required|numeric|min:0',
             'ppn_amount' => 'nullable|numeric|min:0',
@@ -163,6 +164,7 @@ class BookingController extends Controller
                     'lead_id' => $validated['lead_id'],
                     'project_id' => $unit->project_id,
                     'booked_by' => $validated['booked_by'],
+                    'inhouse_pic_id' => $validated['inhouse_pic_id'] ?? ($request->lead_id ? Lead::find($request->lead_id)?->inhouse_pic_id : null),
                     'booking_fee' => $validated['booking_fee'],
                     'unit_price' => ($unit->final_price > 0 ? $unit->final_price : ($unit->unitType?->current_price > 0 ? $unit->unitType->current_price : $validated['base_price'])),
                     'base_price' => $validated['base_price'],
@@ -355,7 +357,7 @@ class BookingController extends Controller
         }
 
         $relations = [
-            'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'approvedBy',
+            'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'inhousePic', 'approvedBy',
             'paymentSchedules.transactions',
             'transactions', 'documents'
         ];

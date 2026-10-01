@@ -50,13 +50,28 @@ class LeadController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
+        $projects = Project::select('id', 'name')->get();
+        $dutyAgents = [];
+        foreach ($projects as $proj) {
+            $da = \App\Models\ProjectDutySchedule::getDutyAgent($proj->id);
+            if ($da) {
+                $dutyAgents[$proj->id] = [
+                    'id' => $da->id,
+                    'name' => $da->name,
+                    'phone' => $da->phone,
+                    'agent_type' => $da->agent_type,
+                ];
+            }
+        }
+
         return Inertia::render('Leads/Index', [
             'leads' => $leads,
             'pipeline' => $pipeline,
             'filters' => $request->only(['search', 'status', 'project_id', 'source', 'assigned_to']),
-            'projects' => Project::select('id', 'name')->get(),
-            'agents' => User::with('brokerCompany:id,name,code')->select('id', 'name', 'agent_type', 'broker_company_id')->get(),
+            'projects' => $projects,
+            'agents' => User::with('brokerCompany:id,name,code')->select('id', 'name', 'agent_type', 'broker_company_id', 'project_id')->get(),
             'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
+            'dutyAgents' => $dutyAgents,
         ]);
     }
 
@@ -97,15 +112,33 @@ class LeadController extends Controller
             'job' => 'nullable|string|max:255',
             'budget' => 'nullable|numeric|min:0',
             'preferred_type' => 'nullable|string|max:255',
+            'inhouse_pic_id' => 'nullable|exists:users,id',
         ]);
 
         $validated['status'] = 'new';
         $validated['score'] = 5;
         $validated['company_id'] = auth()->user()?->company_id ?? 1;
 
-        // Smart Auto-Assign: Consider capacity and workload
+        // Smart Auto-Assign:
         if (empty($validated['assigned_to'])) {
-            $validated['assigned_to'] = $this->getNextAgent($validated['project_id'] ?? null);
+            // Prioritize today's In-House Duty Agent for Walk-In leads!
+            if (($validated['source'] ?? '') === 'walk_in' && !empty($validated['project_id'])) {
+                $dutyAgent = \App\Models\ProjectDutySchedule::getDutyAgent((int)$validated['project_id']);
+                if ($dutyAgent) {
+                    $validated['assigned_to'] = $dutyAgent->id;
+                }
+            }
+            if (empty($validated['assigned_to'])) {
+                $validated['assigned_to'] = $this->getNextAgent($validated['project_id'] ?? null);
+            }
+        }
+
+        // For broker / agency leads, auto-assign today's duty agent as in-house PIC if not provided
+        if (in_array($validated['source'] ?? '', ['broker', 'agency', 'agent', 'independent']) && empty($validated['inhouse_pic_id']) && !empty($validated['project_id'])) {
+            $dutyAgent = \App\Models\ProjectDutySchedule::getDutyAgent((int)$validated['project_id']);
+            if ($dutyAgent) {
+                $validated['inhouse_pic_id'] = $dutyAgent->id;
+            }
         }
 
         $lead = Lead::create($validated);
@@ -127,9 +160,9 @@ class LeadController extends Controller
     public function show(Lead $lead)
     {
         $relations = [
-            'assignedTo', 'project', 'campaign', 'brokerCompany',
+            'assignedTo.brokerCompany', 'inhousePic', 'project', 'campaign', 'brokerCompany',
             'activities.user', 'reminders', 
-            'bookings.unit.project', 'bookings.unit.unitType', 'bookings.paymentSchedules.transactions', 'bookings.transactions', 'bookings.bookedBy', 'bookings.approvedBy',
+            'bookings.unit.project', 'bookings.unit.unitType', 'bookings.paymentSchedules.transactions', 'bookings.transactions', 'bookings.bookedBy', 'bookings.inhousePic', 'bookings.approvedBy',
         ];
 
         if (\Illuminate\Support\Facades\Schema::hasTable('negotiations')) {
@@ -154,19 +187,27 @@ class LeadController extends Controller
             ->orderByRaw('CAST(number AS UNSIGNED) ASC')
             ->get();
 
+        $dutyAgent = $lead->project_id ? \App\Models\ProjectDutySchedule::getDutyAgent((int)$lead->project_id) : null;
+
         return Inertia::render('Leads/Show', [
             'lead' => $lead,
             'units' => $units,
             'projects' => \App\Models\Project::select('id', 'name', 'code')->get(),
             'bankAccounts' => \App\Models\BankAccount::where('is_active', true)->select('id', 'name', 'account_number', 'bank_name', 'current_balance')->get(),
             'agents' => User::with('brokerCompany:id,name,code')
-                ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id')
+                ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id', 'project_id')
                 ->orderBy('name')
                 ->get(),
             'brokerCompanies' => \App\Models\BrokerCompany::when(\Illuminate\Support\Facades\Schema::hasColumn('broker_companies', 'status'), fn ($q) => $q->where('status', 'active'))
                 ->select('id', 'name', 'code')
                 ->orderBy('name')
                 ->get(),
+            'dutyAgent' => $dutyAgent ? [
+                'id' => $dutyAgent->id,
+                'name' => $dutyAgent->name,
+                'phone' => $dutyAgent->phone,
+                'agent_type' => $dutyAgent->agent_type,
+            ] : null,
         ]);
     }
 
@@ -174,6 +215,9 @@ class LeadController extends Controller
     {
         if (is_array($request->input('assigned_to'))) {
             $request->merge(['assigned_to' => $request->input('assigned_to.id')]);
+        }
+        if (is_array($request->input('inhouse_pic_id'))) {
+            $request->merge(['inhouse_pic_id' => $request->input('inhouse_pic_id.id')]);
         }
 
         $validated = $request->validate([
@@ -186,6 +230,7 @@ class LeadController extends Controller
             'job' => 'nullable|string|max:255',
             'project_id' => 'nullable|exists:projects,id',
             'assigned_to' => 'nullable|exists:users,id',
+            'inhouse_pic_id' => 'nullable|exists:users,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'source' => 'sometimes|in:facebook,instagram,google,tiktok,walk_in,referral,broker,website,other',
             'status' => 'sometimes|in:new,contacted,visited,negotiation,reservation,booking,won,lost',
@@ -203,6 +248,27 @@ class LeadController extends Controller
         }
 
         $old = $lead->toArray();
+
+        // Log agent assignment change
+        if (array_key_exists('assigned_to', $validated) && $validated['assigned_to'] != $lead->assigned_to) {
+            $newAgent = !empty($validated['assigned_to']) ? User::find($validated['assigned_to']) : null;
+            LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => auth()->id(),
+                'type' => 'note',
+                'description' => "Agen penanggung jawab diubah ke: " . ($newAgent ? $newAgent->name : 'Belum Ditugaskan'),
+            ]);
+        }
+
+        if (array_key_exists('inhouse_pic_id', $validated) && $validated['inhouse_pic_id'] != $lead->inhouse_pic_id) {
+            $newPic = !empty($validated['inhouse_pic_id']) ? User::find($validated['inhouse_pic_id']) : null;
+            LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => auth()->id(),
+                'type' => 'note',
+                'description' => "Sales In-House Pendamping diubah ke: " . ($newPic ? $newPic->name : 'Tidak Ada'),
+            ]);
+        }
 
         // Log status change
         if (isset($validated['status']) && $validated['status'] !== $lead->status) {

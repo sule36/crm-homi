@@ -12,19 +12,29 @@ class Lead extends Model
     use HasFactory, SoftDeletes, BelongsToTenant;
 
     protected $fillable = [
-        'company_id', 'project_id', 'assigned_to', 'name', 'phone', 'email',
+        'company_id', 'project_id', 'assigned_to', 'inhouse_pic_id', 'name', 'phone', 'email',
         'identity_number', 'npwp', 'address', 'job', 'source', 'campaign_id', 'utm_campaign', 'broker_company_id',
         'status', 'score', 'lost_reason', 'notes', 'preferences',
         'last_contacted_at',
     ];
 
-    protected $appends = ['transaction_code'];
+    protected $appends = ['transaction_code', 'assigned_to_user', 'inhouse_pic_user'];
 
     public function getTransactionCodeAttribute(): string
     {
         $projCode = strtoupper(substr($this->project?->name ?? 'HOMI', 0, 3));
         $year = $this->created_at ? $this->created_at->format('Y') : date('Y');
         return sprintf('TRX-%s-%s-%06d', $projCode, $year, $this->id);
+    }
+
+    public function getAssignedToUserAttribute(): ?User
+    {
+        return $this->assignedTo;
+    }
+
+    public function getInhousePicUserAttribute(): ?User
+    {
+        return $this->inhousePic;
     }
 
     protected function casts(): array
@@ -43,6 +53,11 @@ class Lead extends Model
     public function assignedTo()
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function inhousePic()
+    {
+        return $this->belongsTo(User::class, 'inhouse_pic_id');
     }
 
     public function campaign()

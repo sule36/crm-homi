@@ -43,6 +43,7 @@ const form = useForm({
     unit_id: props.unit?.id || props.reservation?.unit_id || props.negotiation?.unit_id || '',
     lead_id: props.lead?.id || props.reservation?.lead_id || props.negotiation?.lead_id || '',
     booked_by: props.lead?.assigned_to || props.negotiation?.creator_id || page.props.auth.user.id || '',
+    inhouse_pic_id: props.lead?.inhouse_pic_id || '',
     booking_date: new Date().toISOString().substring(0, 10),
     booking_fee: initialBookingFee,
     base_price: initialBasePrice,
@@ -110,6 +111,9 @@ const handleLeadChange = () => {
         if (selectedLead.assigned_to) {
             form.booked_by = selectedLead.assigned_to;
         }
+        if (selectedLead.inhouse_pic_id) {
+            form.inhouse_pic_id = selectedLead.inhouse_pic_id;
+        }
         if (selectedLead.identity_number) form.buyer_nik = selectedLead.identity_number;
         if (selectedLead.npwp) form.buyer_npwp = selectedLead.npwp;
         if (selectedLead.address) form.buyer_address = selectedLead.address;
@@ -127,6 +131,14 @@ const updateTotal = () => {
 
 const selectedUnit = computed(() => {
     return props.availableUnits.find(u => u.id === form.unit_id) || props.unit;
+});
+
+const currentLead = computed(() => {
+    return (props.leads || []).find(l => l.id === form.lead_id) || props.lead;
+});
+
+const inhouseAgents = computed(() => {
+    return (props.agents || []).filter(a => !a.broker_company_id && a.role !== 'owner_saas');
 });
 
 const handleUnitChange = () => {
@@ -420,6 +432,55 @@ const formatCurrency = (value) => {
                                     </option>
                                 </select>
                                 <p v-if="form.errors.unit_id" class="text-xs text-rose-500 mt-1">{{ form.errors.unit_id }}</p>
+                            </div>
+
+                            <!-- PENUGASAN AGEN CLOSING & PIC DEVELOPER -->
+                            <div class="p-4 bg-slate-50/90 rounded-2xl border border-slate-200/90 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                        <span>👥</span> Penugasan Agen & PIC Pemasaran
+                                    </h3>
+                                    <span v-if="currentLead?.broker_company" class="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-black text-[10px] rounded-full flex items-center gap-1">
+                                        🏢 Agency: {{ currentLead.broker_company.name }}
+                                    </span>
+                                    <span v-else class="px-2.5 py-0.5 bg-blue-100 text-blue-800 font-black text-[10px] rounded-full">
+                                        🏢 Tim In-House Developer
+                                    </span>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">
+                                            👤 Agen Pembawa / Closing <span class="text-rose-500">*</span>
+                                            <span class="text-[10px] text-slate-500 font-normal ml-1">(Penerima Komisi)</span>
+                                        </label>
+                                        <select v-model="form.booked_by" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+                                            <option value="">Pilih Agen Penutup...</option>
+                                            <option v-for="a in agents" :key="a.id" :value="a.id">
+                                                {{ a.name }} {{ a.broker_company ? `(${a.broker_company.name})` : '(In-House)' }}
+                                            </option>
+                                        </select>
+                                        <p v-if="form.errors.booked_by" class="text-xs text-rose-500 mt-1">{{ form.errors.booked_by }}</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">
+                                            🏠 PIC In-House Pendamping
+                                            <span class="text-[10px] text-slate-500 font-normal ml-1">(Kantor Pemasaran)</span>
+                                        </label>
+                                        <select v-model="form.inhouse_pic_id" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
+                                            <option value="">Tidak Ada / Mandiri</option>
+                                            <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">
+                                                {{ a.name }} (PIC Developer)
+                                            </option>
+                                        </select>
+                                        <p v-if="form.errors.inhouse_pic_id" class="text-xs text-rose-500 mt-1">{{ form.errors.inhouse_pic_id }}</p>
+                                    </div>
+                                </div>
+
+                                <p class="text-[11px] text-slate-500 leading-relaxed">
+                                    💡 <strong>Info:</strong> Komisi SPK dihitung untuk Agen Pembawa. Jika tamu dibawa agen eksternal, PIC In-House mendampingi urusan administratif kantor tanpa mengurangi komisi agen.
+                                </p>
                             </div>
 
                             <!-- SECTION 1: KESEPAKATAN HARGA TERAKHIR -->
