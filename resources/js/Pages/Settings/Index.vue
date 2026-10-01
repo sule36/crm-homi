@@ -294,6 +294,7 @@ const form = useForm({
     ai_autopilot_whatsapp: props.settings.ai_autopilot_whatsapp === '1' || props.settings.ai_autopilot_whatsapp === true || props.settings.ai_autopilot_whatsapp === 'true',
     ai_autopilot_messenger: props.settings.ai_autopilot_messenger === '1' || props.settings.ai_autopilot_messenger === true || props.settings.ai_autopilot_messenger === 'true',
     ai_autopilot_instagram: props.settings.ai_autopilot_instagram === '1' || props.settings.ai_autopilot_instagram === true || props.settings.ai_autopilot_instagram === 'true',
+    instagram_lead_capture_enabled: props.settings.instagram_lead_capture_enabled !== undefined ? (props.settings.instagram_lead_capture_enabled === '1' || props.settings.instagram_lead_capture_enabled === true || props.settings.instagram_lead_capture_enabled === 'true') : true,
 });
 
 const addTerm = () => {
@@ -839,6 +840,34 @@ const tabs = [
                     </div>
 
                     <div class="space-y-6">
+                        <!-- Master Instagram Lead Capture Control -->
+                        <div class="p-5 bg-gradient-to-r from-pink-50 via-purple-50 to-indigo-50 border border-pink-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                            <div class="flex items-center gap-3.5">
+                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 via-rose-500 to-purple-600 flex items-center justify-center text-white text-2xl shadow-md shadow-pink-500/20 shrink-0">
+                                    📸
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h4 class="text-sm font-black text-slate-900">Penerimaan Lead Otomatis dari Instagram</h4>
+                                        <span :class="form.instagram_lead_capture_enabled ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-rose-100 text-rose-700 border-rose-300'" class="px-2.5 py-0.5 text-[9px] font-black uppercase rounded-full border">
+                                            {{ form.instagram_lead_capture_enabled ? '🟢 SEDANG AKTIF' : '⏸️ DIJEDA / STOP' }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mt-1">
+                                        {{ form.instagram_lead_capture_enabled ? 'Lead otomatis masuk ke CRM saat ada pesan atau interaksi baru di Instagram.' : 'Sinkronisasi lead Instagram dihentikan sementara. Pesan baru tidak akan dibuatkan lead baru.' }}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                type="button" 
+                                @click="form.instagram_lead_capture_enabled = !form.instagram_lead_capture_enabled"
+                                :class="form.instagram_lead_capture_enabled ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/20' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'"
+                                class="px-5 py-2.5 rounded-xl font-black text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                            >
+                                <span>{{ form.instagram_lead_capture_enabled ? '⏸️ Jeda / Stop Instagram' : '▶️ Jalankan Kembali Instagram' }}</span>
+                            </button>
+                        </div>
+
                         <!-- AI Autopilot Switches -->
                         <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
                             <h4 class="font-black text-slate-800 uppercase tracking-widest text-[10px] border-b border-slate-200 pb-2">Pengaturan AI Autopilot (Balasan Otomatis)</h4>

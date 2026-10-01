@@ -73,12 +73,19 @@
             vertical-align: top;
         }
         .info-table td.lbl {
-            width: 38%;
+            width: 28%;
             color: #525252;
+            white-space: nowrap;
         }
         .info-table td.val {
+            width: 72%;
             font-weight: 500;
             color: #171717;
+            word-break: break-word;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+            line-height: 1.35;
         }
 
         /* SCHEDULING TABLE */
@@ -340,11 +347,11 @@
         $sig3ImageData = !empty($booking->sig3_image) ? $getSafeBase64($booking->sig3_image) : $getSafeBase64($sigs['sig3_image'] ?? null);
         $sig4ImageData = !empty($booking->sig4_image) ? $getSafeBase64($booking->sig4_image) : $getSafeBase64($sigs['sig4_image'] ?? null);
 
-        // Buyer details: prioritize latest active lead details
-        $buyerNik = !empty($booking->lead->identity_number) ? $booking->lead->identity_number : ($booking->buyer_nik ?: '-');
-        $buyerNpwp = !empty($booking->lead->npwp) ? $booking->lead->npwp : ($booking->buyer_npwp ?: '-');
-        $buyerAddress = !empty($booking->lead->address) ? $booking->lead->address : ($booking->buyer_address ?: '-');
-        $buyerJob = !empty($booking->lead->job) ? $booking->lead->job : ($booking->buyer_job ?: '-');
+        // Buyer details: prioritize booking override first, then active lead details
+        $buyerNik = !empty($booking->buyer_nik) ? $booking->buyer_nik : ($booking->lead->identity_number ?? '-');
+        $buyerNpwp = !empty($booking->buyer_npwp) ? $booking->buyer_npwp : ($booking->lead->npwp ?? '-');
+        $buyerAddress = !empty($booking->buyer_address) ? $booking->buyer_address : ($booking->lead->address ?? '-');
+        $buyerJob = !empty($booking->buyer_job) ? $booking->buyer_job : ($booking->lead->job ?? '-');
     @endphp
 
     <!-- PAGE 1: SURAT PEMESANAN RUMAH (SPR) -->

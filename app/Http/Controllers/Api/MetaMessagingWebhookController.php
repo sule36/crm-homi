@@ -86,6 +86,15 @@ class MetaMessagingWebhookController extends Controller
         $lead = null;
 
         if (!$existingLead) {
+            // Cek apakah penangkapan lead otomatis dari Instagram sedang dijeda / di-stop
+            if ($platform === 'instagram') {
+                $isIgEnabled = Setting::get('instagram_lead_capture_enabled', true);
+                if ($isIgEnabled === false || $isIgEnabled === '0' || $isIgEnabled === 0 || $isIgEnabled === 'false') {
+                    Log::info("[Instagram Webhook] Penangkapan lead Instagram sedang DIJEDA/STOP. Melewati pembuatan lead baru untuk ID: {$senderId}");
+                    return;
+                }
+            }
+
             $name = $this->getProfileName($platform, $senderId);
             
             // Create new lead
@@ -93,6 +102,7 @@ class MetaMessagingWebhookController extends Controller
                 'name' => $name,
                 'phone' => $senderId, // Store Page-Scoped User ID in phone column
                 'source' => $platform,
+                'company_id' => 1,
                 'notes' => "[Via Meta " . ucfirst($platform) . " Chat] Pesan pertama: " . $messageText,
                 'status' => 'new',
             ]);

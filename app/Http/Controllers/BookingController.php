@@ -587,6 +587,26 @@ class BookingController extends Controller
         $validated['spr_bank_info'] = $sprBankInfo;
         $booking->update($validated);
 
+        // Pastikan update data pemesan di SPR juga tersinkronisasi ke profil lead konsumen
+        if ($booking->lead) {
+            $leadUpdates = [];
+            if (!empty($validated['buyer_address'])) {
+                $leadUpdates['address'] = $validated['buyer_address'];
+            }
+            if (!empty($validated['buyer_nik'])) {
+                $leadUpdates['identity_number'] = $validated['buyer_nik'];
+            }
+            if (!empty($validated['buyer_npwp'])) {
+                $leadUpdates['npwp'] = $validated['buyer_npwp'];
+            }
+            if (!empty($validated['buyer_job'])) {
+                $leadUpdates['job'] = $validated['buyer_job'];
+            }
+            if (!empty($leadUpdates)) {
+                $booking->lead->update($leadUpdates);
+            }
+        }
+
         return back()->with('success', 'Template & Parameter SPR khusus booking ini berhasil diperbarui.');
     }
 
