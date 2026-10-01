@@ -42,22 +42,30 @@ class ProjectDutySchedule extends Model
      */
     public static function getDutyAgent(int $projectId, ?string $date = null): ?User
     {
-        $targetDate = $date ?: now()->toDateString();
-        $schedule = static::where('project_id', $projectId)
-            ->whereDate('duty_date', $targetDate)
-            ->where('status', 'active')
-            ->latest()
-            ->first();
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('project_duty_schedules')) {
+                $targetDate = $date ?: now()->toDateString();
+                $schedule = static::where('project_id', $projectId)
+                    ->whereDate('duty_date', $targetDate)
+                    ->where('status', 'active')
+                    ->latest()
+                    ->first();
 
-        if ($schedule && $schedule->user) {
-            return $schedule->user;
+                if ($schedule && $schedule->user) {
+                    return $schedule->user;
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Error querying project_duty_schedules in getDutyAgent: ' . $e->getMessage());
         }
 
         // Fallback to setting key if any
-        $settingUserId = Setting::get("duty_agent_{$projectId}");
-        if ($settingUserId) {
-            return User::find($settingUserId);
-        }
+        try {
+            $settingUserId = Setting::get("duty_agent_{$projectId}");
+            if ($settingUserId) {
+                return User::find($settingUserId);
+            }
+        } catch (\Throwable $e) {}
 
         return null;
     }

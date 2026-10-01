@@ -34,7 +34,14 @@ class Lead extends Model
 
     public function getInhousePicUserAttribute(): ?User
     {
-        return $this->inhousePic;
+        try {
+            if (!$this->relationLoaded('inhousePic') && empty($this->attributes['inhouse_pic_id'])) {
+                return null;
+            }
+            return $this->inhousePic;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     protected function casts(): array

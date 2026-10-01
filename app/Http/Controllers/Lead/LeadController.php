@@ -52,16 +52,20 @@ class LeadController extends Controller
 
         $projects = Project::select('id', 'name')->get();
         $dutyAgents = [];
-        foreach ($projects as $proj) {
-            $da = \App\Models\ProjectDutySchedule::getDutyAgent($proj->id);
-            if ($da) {
-                $dutyAgents[$proj->id] = [
-                    'id' => $da->id,
-                    'name' => $da->name,
-                    'phone' => $da->phone,
-                    'agent_type' => $da->agent_type,
-                ];
+        try {
+            foreach ($projects as $proj) {
+                $da = \App\Models\ProjectDutySchedule::getDutyAgent($proj->id);
+                if ($da) {
+                    $dutyAgents[$proj->id] = [
+                        'id' => $da->id,
+                        'name' => $da->name,
+                        'phone' => $da->phone,
+                        'agent_type' => $da->agent_type,
+                    ];
+                }
             }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Error getting duty agents for leads index: ' . $e->getMessage());
         }
 
         return Inertia::render('Leads/Index', [
@@ -160,10 +164,19 @@ class LeadController extends Controller
     public function show(Lead $lead)
     {
         $relations = [
-            'assignedTo.brokerCompany', 'inhousePic', 'project', 'campaign', 'brokerCompany',
+            'assignedTo.brokerCompany', 'project', 'campaign', 'brokerCompany',
             'activities.user', 'reminders', 
-            'bookings.unit.project', 'bookings.unit.unitType', 'bookings.paymentSchedules.transactions', 'bookings.transactions', 'bookings.bookedBy', 'bookings.inhousePic', 'bookings.approvedBy',
+            'bookings.unit.project', 'bookings.unit.unitType', 'bookings.paymentSchedules.transactions', 'bookings.transactions', 'bookings.bookedBy', 'bookings.approvedBy',
         ];
+
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasColumn('leads', 'inhouse_pic_id')) {
+                $relations[] = 'inhousePic';
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'inhouse_pic_id')) {
+                $relations[] = 'bookings.inhousePic';
+            }
+        } catch (\Throwable $e) {}
 
         if (\Illuminate\Support\Facades\Schema::hasTable('negotiations')) {
             $relations[] = 'negotiations.unit.project';
@@ -187,7 +200,14 @@ class LeadController extends Controller
             ->orderByRaw('CAST(number AS UNSIGNED) ASC')
             ->get();
 
-        $dutyAgent = $lead->project_id ? \App\Models\ProjectDutySchedule::getDutyAgent((int)$lead->project_id) : null;
+        $dutyAgent = null;
+        try {
+            if ($lead->project_id) {
+                $dutyAgent = \App\Models\ProjectDutySchedule::getDutyAgent((int)$lead->project_id);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Error loading duty agent in show: ' . $e->getMessage());
+        }
 
         return Inertia::render('Leads/Show', [
             'lead' => $lead,

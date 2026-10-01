@@ -275,6 +275,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // System Maintenance
+    Route::get('/system/migrate-db', function () {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+            $out = \Illuminate\Support\Facades\Artisan::output();
+            return response()->json([
+                'success' => true,
+                'message' => 'Database migration completed.',
+                'output' => $out,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    })->name('system.migrate-db');
 });
 
 require __DIR__.'/auth.php';
