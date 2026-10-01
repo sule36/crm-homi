@@ -493,6 +493,7 @@ const paymentForm = useForm({
     booking_id: props.booking.id,
     payment_schedule_id: null,
     amount: 0,
+    payment_date: '',
     payment_method: 'transfer',
     bank_name: '',
     reference_number: '',
@@ -503,6 +504,9 @@ function openPaymentModal(schedule) {
     selectedSchedule.value = schedule;
     paymentForm.payment_schedule_id = schedule.id;
     paymentForm.amount = schedule.amount;
+    paymentForm.payment_date = schedule.due_date 
+        ? new Date(schedule.due_date).toISOString().split('T')[0] 
+        : new Date().toISOString().split('T')[0];
     const label = schedule.label || 'Unit Properti';
     paymentForm.notes = label.toLowerCase().startsWith('pembayaran') ? label : `Pembayaran ${label}`;
     showPaymentModal.value = true;
@@ -1212,6 +1216,11 @@ const docTypeLabels = {
             <p class="text-xs text-slate-500 mb-8">{{ selectedSchedule?.label }}</p>
 
             <form @submit.prevent="submitPayment" class="space-y-5">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">Tanggal Pembayaran / Kwitansi</label>
+                    <input v-model="paymentForm.payment_date" type="date" class="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-blue-600/20" />
+                    <p class="text-[10px] text-slate-400 mt-1">Otomatis mengikuti tanggal jatuh tempo jadwal tagihan di sistem.</p>
+                </div>
                 <div>
                     <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">Jumlah Pembayaran (IDR)</label>
                     <input v-model="paymentForm.amount" type="number" class="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-blue-600/20" />
@@ -2089,7 +2098,7 @@ const docTypeLabels = {
                         <div>
                             <div class="font-bold text-slate-900 dark:text-white text-sm">{{ tx.notes || 'Pembayaran Unit Properti' }}</div>
                             <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                <span>🗓️ {{ new Date(tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }}</span>
+                                <span>🗓️ {{ new Date(tx.payment_schedule?.paid_date || tx.payment_schedule?.due_date || tx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) }}</span>
                                 <span>•</span>
                                 <span>💳 {{ tx.payment_method?.toUpperCase() }}</span>
                             </div>

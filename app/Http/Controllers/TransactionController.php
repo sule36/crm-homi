@@ -18,6 +18,7 @@ class TransactionController extends Controller
             'booking_id' => 'required|exists:bookings,id',
             'payment_schedule_id' => 'required|exists:payment_schedules,id',
             'amount' => 'required|numeric|min:1',
+            'payment_date' => 'nullable|date',
             'payment_method' => 'required|in:transfer,cash,cheque',
             'bank_name' => 'nullable|string',
             'reference_number' => 'nullable|string',
@@ -27,21 +28,39 @@ class TransactionController extends Controller
 
         return DB::transaction(function () use ($validated) {
             $schedule = PaymentSchedule::find($validated['payment_schedule_id']);
+            $paymentDate = $validated['payment_date'] ?? $schedule?->due_date ?? now()->toDateString();
+
             if (empty($validated['notes']) && $schedule) {
                 $label = $schedule->label ?: 'Unit Properti';
                 $validated['notes'] = str_starts_with(strtolower($label), 'pembayaran') ? $label : ("Pembayaran " . $label);
             }
 
-            $transaction = Transaction::create([
-                ...$validated,
+            $txData = [
+                'booking_id' => $validated['booking_id'],
+                'payment_schedule_id' => $validated['payment_schedule_id'],
+                'amount' => $validated['amount'],
+                'payment_method' => $validated['payment_method'],
+                'bank_name' => $validated['bank_name'] ?? null,
+                'reference_number' => $validated['reference_number'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
                 'recorded_by' => auth()->id(),
-            ]);
+            ];
 
-            // Update Payment Schedule Status
+            if (!empty($paymentDate)) {
+                $txData['created_at'] = \Carbon\Carbon::parse($paymentDate)->setTimeFrom(now());
+            }
+
+            $transaction = Transaction::create($txData);
+
+            // Update Payment Schedule Status and Paid Date
             $totalPaidForSchedule = Transaction::where('payment_schedule_id', $schedule->id)->sum('amount');
 
             if ($totalPaidForSchedule >= $schedule->amount) {
-                $schedule->update(['status' => 'paid']);
+                $schedule->update([
+                    'status' => 'paid',
+                    'paid_date' => $paymentDate,
+                ]);
             }
 
             // Auto-detect LUNAS: Check if ALL payment schedules for this booking are fully paid
@@ -116,6 +135,14 @@ class TransactionController extends Controller
             'bankAccount',
             'paymentSchedule'
         ]);
+
+        // Auto-heal: Ensure paymentSchedule's paid_date matches system schedule due_date if missing
+        if ($transaction->paymentSchedule && empty($transaction->paymentSchedule->paid_date) && !empty($transaction->paymentSchedule->due_date)) {
+            $transaction->paymentSchedule->update([
+                'paid_date' => $transaction->paymentSchedule->due_date,
+            ]);
+            $transaction->load('paymentSchedule');
+        }
         
         $spelledText = ucwords(trim($this->terbilang($transaction->amount))) . " Rupiah";
         $settingsRaw = \App\Models\Setting::all();

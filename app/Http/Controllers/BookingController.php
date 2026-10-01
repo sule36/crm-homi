@@ -337,6 +337,9 @@ class BookingController extends Controller
 
                 $paidSchedules = $booking->paymentSchedules()->where('status', 'paid')->get();
                 foreach ($paidSchedules as $pSched) {
+                    if (empty($pSched->paid_date) && !empty($pSched->due_date)) {
+                        $pSched->update(['paid_date' => $pSched->due_date]);
+                    }
                     if (!$booking->transactions()->where('payment_schedule_id', $pSched->id)->exists()) {
                         $recordedBy = auth()->id() ?? $booking->booked_by ?? \App\Models\User::first()?->id ?? 1;
                         $label = $pSched->label ?: 'Pembayaran';
@@ -348,6 +351,7 @@ class BookingController extends Controller
                             'payment_method' => 'cash',
                             'notes' => $note,
                             'recorded_by' => $recordedBy,
+                            'created_at' => \Carbon\Carbon::parse($pSched->due_date ?? now())->setTimeFrom(now()),
                         ]);
                     }
                 }
@@ -1046,6 +1050,10 @@ class BookingController extends Controller
         ]);
 
         $paymentSchedule->update($validated);
+
+        if ($validated['status'] === 'paid' && empty($paymentSchedule->paid_date)) {
+            $paymentSchedule->update(['paid_date' => $validated['due_date']]);
+        }
 
         // Auto-detect LUNAS when schedule is manually set to 'paid'
         if ($validated['status'] === 'paid') {

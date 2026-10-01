@@ -14,7 +14,9 @@ const wetForm = useForm({
 
 // Determine Effective Payment Date
 const paymentDateFormatted = computed(() => {
-    const rawDate = props.transaction.payment_schedule?.paid_date || props.transaction.created_at;
+    const rawDate = props.transaction.payment_schedule?.paid_date 
+        || props.transaction.payment_schedule?.due_date 
+        || props.transaction.created_at;
     if (!rawDate) return '-';
     return new Date(rawDate).toLocaleDateString('id-ID', {
         day: 'numeric',
@@ -309,7 +311,7 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
 
                     <!-- Signature Box -->
                     <div class="text-center w-48">
-                        <p class="text-[10px] font-bold text-slate-500">{{ cityName }}, {{ new Date(transaction.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' }) }}</p>
+                        <p class="text-[10px] font-bold text-slate-500">{{ cityName }}, {{ paymentDateFormatted }}</p>
                         <p class="text-[9px] font-black text-slate-400 uppercase tracking-wider mt-0.5">{{ officerTitle }}</p>
                         <div class="h-20 flex items-center justify-center relative my-1">
                             <!-- Digital Signature & Stamp Image if available -->
