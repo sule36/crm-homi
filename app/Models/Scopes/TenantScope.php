@@ -14,6 +14,11 @@ class TenantScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
+        // Jangan pernah terapkan TenantScope pada model User untuk mencegah recursive query saat otentikasi
+        if ($model instanceof \App\Models\User) {
+            return;
+        }
+
         if (!auth()->check()) {
             return;
         }

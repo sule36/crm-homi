@@ -14,11 +14,14 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
+        $currentUser = auth()->user();
         $users = User::with(['roles', 'project', 'brokerCompany', 'masterLead'])
+            ->when($currentUser && $currentUser->company_id, fn($q) => $q->where('company_id', $currentUser->company_id))
             ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
             ->paginate(15);
 
         $masterLeads = User::where('agent_type', 'master_lead')
+            ->when($currentUser && $currentUser->company_id, fn($q) => $q->where('company_id', $currentUser->company_id))
             ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
             ->get(['id', 'name']);
 
@@ -74,6 +77,7 @@ class UserController extends Controller
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
+            'company_id' => auth()->user()?->company_id,
             'status' => 'active',
         ]);
 
