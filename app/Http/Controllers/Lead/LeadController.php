@@ -17,16 +17,23 @@ class LeadController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Lead::with(['assignedTo.brokerCompany', 'project', 'campaign', 'brokerCompany']);
+        $query = Lead::with(['assignedTo.brokerCompany', 'assignedTo.masterLead', 'inhousePic', 'project', 'campaign', 'brokerCompany']);
 
         $isMasterLead = $user->hasRole('master_lead') || $user->agent_type === 'master_lead';
+        $isManagerOrAdmin = $user->hasAnyRole(['super_admin', 'sales_manager', 'project_manager']);
 
-        // Master lead sees their team's leads, sales agents see only own leads
+        // Master lead sees their team's leads, sales agents see own leads or leads where they are inhouse PIC
         if ($isMasterLead) {
             $teamUserIds = User::where('master_lead_id', $user->id)->pluck('id')->push($user->id);
-            $query->whereIn('assigned_to', $teamUserIds);
-        } elseif ($user->hasRole('sales_agent') || $user->hasRole('broker')) {
-            $query->where('assigned_to', $user->id);
+            $query->where(function($q) use ($teamUserIds) {
+                $q->whereIn('assigned_to', $teamUserIds)
+                  ->orWhereIn('inhouse_pic_id', $teamUserIds);
+            });
+        } elseif (!$isManagerOrAdmin && ($user->hasAnyRole(['sales_agent', 'broker']) || in_array($user->agent_type, ['inhouse', 'agency_agent', 'independent']))) {
+            $query->where(function($q) use ($user) {
+                $q->where('assigned_to', $user->id)
+                  ->orWhere('inhouse_pic_id', $user->id);
+            });
         }
 
         $leads = $query
@@ -45,9 +52,17 @@ class LeadController extends Controller
         $pipeline = Lead::query()
             ->when($isMasterLead, function($q) use ($user) {
                 $teamUserIds = User::where('master_lead_id', $user->id)->pluck('id')->push($user->id);
-                $q->whereIn('assigned_to', $teamUserIds);
+                $q->where(function($sub) use ($teamUserIds) {
+                    $sub->whereIn('assigned_to', $teamUserIds)
+                        ->orWhereIn('inhouse_pic_id', $teamUserIds);
+                });
             })
-            ->when($user->hasRole('sales_agent') && !$isMasterLead, fn ($q) => $q->where('assigned_to', $user->id))
+            ->when(!$isMasterLead && !$isManagerOrAdmin && ($user->hasAnyRole(['sales_agent', 'broker']) || in_array($user->agent_type, ['inhouse', 'agency_agent', 'independent'])), function ($q) use ($user) {
+                $q->where(function($sub) use ($user) {
+                    $sub->where('assigned_to', $user->id)
+                        ->orWhere('inhouse_pic_id', $user->id);
+                });
+            })
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -63,6 +78,8 @@ class LeadController extends Controller
                         'name' => $da->name,
                         'phone' => $da->phone,
                         'agent_type' => $da->agent_type,
+                        'master_lead_name' => $da->masterLead?->name,
+                        'broker_company_name' => $da->brokerCompany?->name,
                     ];
                 }
             }
@@ -70,14 +87,50 @@ class LeadController extends Controller
             \Illuminate\Support\Facades\Log::warning('Error getting duty agents for leads index: ' . $e->getMessage());
         }
 
+        $candidateDutyAgents = \App\Http\Controllers\DutyScheduleController::getCandidateAgents($user->company_id);
+
+        $activeProjectId = (int)($request->project_id ?? ($projects->first()?->id ?? 0));
+        $upcomingDutySchedules = [];
+        if ($activeProjectId) {
+            $upcomingDutySchedules = \App\Models\ProjectDutySchedule::with(['user.brokerCompany', 'user.masterLead'])
+                ->where('project_id', $activeProjectId)
+                ->whereDate('duty_date', '>=', now()->subDays(2)->toDateString())
+                ->whereDate('duty_date', '<=', now()->addDays(35)->toDateString())
+                ->orderBy('duty_date')
+                ->get()
+                ->map(function($s) {
+                    return [
+                        'id' => $s->id,
+                        'project_id' => $s->project_id,
+                        'user_id' => $s->user_id,
+                        'duty_date' => $s->duty_date->format('Y-m-d'),
+                        'day_name' => $s->duty_date->locale('id')->isoFormat('dddd'),
+                        'date_formatted' => $s->duty_date->locale('id')->isoFormat('D MMM Y'),
+                        'shift' => $s->shift,
+                        'shift_label' => match($s->shift) {
+                            'pagi' => 'Shift 1 (Pagi - Siang)',
+                            'siang' => 'Shift 2 (Siang - Malam)',
+                            default => 'Full Day',
+                        },
+                        'notes' => $s->notes,
+                        'user_name' => $s->user?->name ?? 'Belum Ditentukan',
+                        'user_category' => $s->user?->master_lead_id ? 'Sub-Agent Master Lead' : ($s->user?->broker_company_id ? 'Mitra Agency' : 'In-House'),
+                        'master_lead_name' => $s->user?->masterLead?->name,
+                        'is_today' => $s->duty_date->isToday(),
+                    ];
+                });
+        }
+
         return Inertia::render('Leads/Index', [
             'leads' => $leads,
             'pipeline' => $pipeline,
             'filters' => $request->only(['search', 'status', 'project_id', 'source', 'assigned_to']),
             'projects' => $projects,
-            'agents' => User::with('brokerCompany:id,name,code')->select('id', 'name', 'agent_type', 'broker_company_id', 'project_id')->get(),
+            'agents' => User::with(['brokerCompany:id,name,code', 'masterLead:id,name'])->select('id', 'name', 'agent_type', 'broker_company_id', 'master_lead_id', 'project_id')->where('status', 'active')->orderBy('name')->get(),
             'broker_companies' => \App\Models\BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->get(),
             'dutyAgents' => $dutyAgents,
+            'candidateDutyAgents' => $candidateDutyAgents,
+            'upcomingDutySchedules' => $upcomingDutySchedules,
         ]);
     }
 
@@ -216,8 +269,9 @@ class LeadController extends Controller
             'units' => $units,
             'projects' => \App\Models\Project::select('id', 'name', 'code')->get(),
             'bankAccounts' => \App\Models\BankAccount::where('is_active', true)->select('id', 'name', 'account_number', 'bank_name', 'current_balance')->get(),
-            'agents' => User::with('brokerCompany:id,name,code')
-                ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id', 'project_id')
+            'agents' => User::with(['brokerCompany:id,name,code', 'masterLead:id,name'])
+                ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id', 'master_lead_id', 'project_id')
+                ->where('status', 'active')
                 ->orderBy('name')
                 ->get(),
             'brokerCompanies' => \App\Models\BrokerCompany::when(\Illuminate\Support\Facades\Schema::hasColumn('broker_companies', 'status'), fn ($q) => $q->where('status', 'active'))

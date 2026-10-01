@@ -498,7 +498,7 @@ function openSprPreview() {
 
 // Agent filtering computed properties
 const inhouseAgents = computed(() => {
-    return (props.agents || []).filter(a => !a.broker_company_id || ['inhouse', 'inhouse_developer'].includes(a.agent_type));
+    return (props.agents || []).filter(a => !a.broker_company_id || ['inhouse', 'inhouse_developer'].includes(a.agent_type) || Boolean(a.master_lead_id));
 });
 
 const brokerAgents = computed(() => {
@@ -1860,10 +1860,19 @@ function submitChangeResUnit() {
                         </div>
 
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">Sales In-House yang Jaga Hari Ini <span class="text-rose-500">*</span></label>
+                            <label class="block font-bold text-slate-700 mb-1">Petugas Jaga (In-House / Sub-Agent ML) <span class="text-rose-500">*</span></label>
                             <select v-model="setDutyForm.user_id" required class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
                                 <option value="">-- Pilih Petugas Jaga --</option>
-                                <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">🏠 {{ a.name }}</option>
+                                <optgroup label="🏠 Sales In-House Developer">
+                                    <option v-for="a in inhouseAgents.filter(a => !a.master_lead_id)" :key="a.id" :value="a.id">
+                                        🏠 {{ a.name }}
+                                    </option>
+                                </optgroup>
+                                <optgroup label="👑 Sub-Agent Master Lead">
+                                    <option v-for="a in inhouseAgents.filter(a => a.master_lead_id)" :key="a.id" :value="a.id">
+                                        👑 {{ a.name }} (ML: {{ a.master_lead?.name || 'Master Lead' }})
+                                    </option>
+                                </optgroup>
                             </select>
                         </div>
 

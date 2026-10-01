@@ -51,6 +51,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/leads/{lead}/activity', [LeadController::class, 'addActivity'])->name('leads.activity');
     Route::post('/leads/{lead}/reminder', [LeadController::class, 'addReminder'])->name('leads.reminder');
     Route::post('/reminders/{reminder}/complete', [LeadController::class, 'completeReminder'])->name('reminders.complete');
+    // Duty Schedules Management (In-House & Master Lead Duty Agents)
+    Route::get('/duty-schedules', [\App\Http\Controllers\DutyScheduleController::class, 'index'])->name('duty-schedules.index');
+    Route::post('/duty-schedules/set-daily', [\App\Http\Controllers\DutyScheduleController::class, 'setDailyDuty'])->name('duty-schedules.set-daily');
+    Route::post('/duty-schedules/set-weekly', [\App\Http\Controllers\DutyScheduleController::class, 'setWeeklyDuty'])->name('duty-schedules.set-weekly');
+    Route::post('/duty-schedules/set-monthly', [\App\Http\Controllers\DutyScheduleController::class, 'setMonthlyDuty'])->name('duty-schedules.set-monthly');
+    Route::delete('/duty-schedules/{dutySchedule}', [\App\Http\Controllers\DutyScheduleController::class, 'destroy'])->name('duty-schedules.destroy');
     Route::post('/duty-schedules/set-today', [\App\Http\Controllers\DutyScheduleController::class, 'setTodayDuty'])->name('duty-schedules.set-today');
     Route::post('/leads/{lead}/assign-duty-agent', [\App\Http\Controllers\DutyScheduleController::class, 'assignDutyAgentToLead'])->name('leads.assign-duty-agent');
 

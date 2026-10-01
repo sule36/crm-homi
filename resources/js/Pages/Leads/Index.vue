@@ -13,6 +13,14 @@ const props = defineProps({
     dutyAgents: {
         type: Object,
         default: () => ({})
+    },
+    candidateDutyAgents: {
+        type: Array,
+        default: () => []
+    },
+    upcomingDutySchedules: {
+        type: Array,
+        default: () => []
     }
 });
 
@@ -84,23 +92,80 @@ const currentDutyAgent = computed(() => {
     return null;
 });
 
+// Candidate pool for duty agents (including Master Lead sub-agents)
+const candidateDutyAgentsList = computed(() => {
+    if (props.candidateDutyAgents && props.candidateDutyAgents.length > 0) {
+        return props.candidateDutyAgents;
+    }
+    return (props.agents || []).map(a => {
+        const isMl = Boolean(a.master_lead_id);
+        const isInhouse = !a.broker_company_id && !a.master_lead_id;
+        return {
+            id: a.id,
+            name: a.name,
+            agent_type: a.agent_type,
+            category: isInhouse ? 'inhouse' : (isMl ? 'master_lead_sub_agent' : 'agency'),
+            category_label: isInhouse ? 'Sales In-House Developer' : (isMl ? `Sub-Agent ML (${a.master_lead?.name || 'Master Lead'})` : 'Mitra Agency'),
+            master_lead_name: a.master_lead?.name,
+            broker_company_name: a.broker_company?.name,
+        };
+    });
+});
+
 const showSetDutyModal = ref(false);
+const setDutyTab = ref('daily'); // 'daily' | 'weekly' | 'upcoming'
 const setDutyForm = useForm({
     project_id: '',
+    duty_date: new Date().toISOString().split('T')[0],
     user_id: '',
     shift: 'full_day',
     notes: 'Jaga Kantor Pemasaran',
 });
 
+const setWeeklyForm = useForm({
+    project_id: '',
+    mode: 'single',
+    user_id: '',
+    start_date: '',
+    end_date: '',
+    shift: 'full_day',
+    notes: 'Jadwal Mingguan',
+});
+
 function openSetDutyModal(projectId) {
     const targetPid = projectId || activeProjectId.value || (props.projects?.[0]?.id || '');
     setDutyForm.project_id = targetPid;
-    setDutyForm.user_id = props.dutyAgents?.[targetPid]?.id || (inhouseAgents.value[0]?.id || '');
+    setDutyForm.duty_date = new Date().toISOString().split('T')[0];
+    setDutyForm.user_id = props.dutyAgents?.[targetPid]?.id || (candidateDutyAgentsList.value[0]?.id || '');
+
+    // Setup weekly default dates (Monday to Sunday)
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMon = now.getDate() - day + (day === 0 ? -6 : 1);
+    const mon = new Date(now.setDate(diffToMon));
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+
+    setWeeklyForm.project_id = targetPid;
+    setWeeklyForm.user_id = setDutyForm.user_id;
+    setWeeklyForm.start_date = mon.toISOString().split('T')[0];
+    setWeeklyForm.end_date = sun.toISOString().split('T')[0];
+
     showSetDutyModal.value = true;
 }
 
-function submitSetDuty() {
-    setDutyForm.post('/duty-schedules/set-today', {
+function submitSetDailyDuty() {
+    setDutyForm.post('/duty-schedules/set-daily', {
+        preserveScroll: true,
+        onSuccess: () => {
+            showSetDutyModal.value = false;
+        }
+    });
+}
+
+function submitSetWeeklyDuty() {
+    setWeeklyForm.project_id = setDutyForm.project_id;
+    setWeeklyForm.post('/duty-schedules/set-weekly', {
         preserveScroll: true,
         onSuccess: () => {
             showSetDutyModal.value = false;
@@ -123,7 +188,7 @@ const addForm = useForm({
 });
 
 const inhouseAgents = computed(() => {
-    return (props.agents || []).filter(a => !a.broker_company_id || ['inhouse', 'inhouse_developer'].includes(a.agent_type));
+    return candidateDutyAgentsList.value.filter(a => a.category === 'inhouse' || a.category === 'master_lead_sub_agent');
 });
 
 const brokerAgents = computed(() => {
@@ -285,12 +350,18 @@ function scoreColor(score) {
                     <span class="text-sm">🛡️</span>
                     <span class="text-[11px] text-emerald-700">Jaga Hari Ini:</span>
                     <span class="font-black text-emerald-950 underline decoration-emerald-400 decoration-2">{{ currentDutyAgent.name }}</span>
+                    <span v-if="currentDutyAgent.master_lead_name" class="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-black">👑 {{ currentDutyAgent.master_lead_name }}</span>
                     <button @click="openSetDutyModal(activeProjectId)" class="text-[10px] text-blue-600 hover:text-blue-800 font-black ml-1 hover:underline cursor-pointer">Ganti</button>
                 </div>
                 <button v-else-if="activeProjectId" @click="openSetDutyModal(activeProjectId)" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-dashed border-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer">
                     <span>📅</span>
                     <span>Set Agen Jaga Hari Ini</span>
                 </button>
+
+                <Link :href="`/duty-schedules?project_id=${activeProjectId}`" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all" title="Atur Jadwal Harian / Mingguan / Bulanan">
+                    <span>🗓️</span>
+                    <span>Jadwal Piket</span>
+                </Link>
 
                 <!-- View Toggle -->
                 <div class="flex bg-slate-100 rounded-xl p-0.5">
@@ -581,53 +652,194 @@ function scoreColor(score) {
         <teleport to="body">
             <div v-if="showSetDutyModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
                 <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showSetDutyModal = false"></div>
-                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                         <div>
                             <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
                                 <span>📅</span> Jadwal Jaga Kantor Pemasaran
                             </h2>
-                            <p class="text-xs text-slate-400 mt-0.5">Tentukan Sales In-House yang bertugas piket hari ini</p>
+                            <p class="text-xs text-slate-400 mt-0.5">Tentukan Sales In-House atau Sub-Agent Master Lead yang bertugas piket</p>
                         </div>
                         <button @click="showSetDutyModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">✕</button>
                     </div>
 
-                    <form @submit.prevent="submitSetDuty" class="space-y-4 text-xs">
+                    <!-- TAB SELECTOR IN MODAL -->
+                    <div class="flex bg-slate-100 p-1 rounded-xl mb-4">
+                        <button 
+                            type="button"
+                            @click="setDutyTab = 'daily'" 
+                            :class="[setDutyTab === 'daily' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500', 'flex-1 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer']">
+                            📆 Harian
+                        </button>
+                        <button 
+                            type="button"
+                            @click="setDutyTab = 'weekly'" 
+                            :class="[setDutyTab === 'weekly' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500', 'flex-1 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer']">
+                            🗓️ Mingguan (Seminggu)
+                        </button>
+                        <button 
+                            type="button"
+                            @click="setDutyTab = 'upcoming'" 
+                            :class="[setDutyTab === 'upcoming' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500', 'flex-1 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer']">
+                            📋 Terjadwal ({{ upcomingDutySchedules?.length || 0 }})
+                        </button>
+                    </div>
+
+                    <!-- TAB 1: HARIAN -->
+                    <form v-if="setDutyTab === 'daily'" @submit.prevent="submitSetDailyDuty" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Tanggal Piket <span class="text-rose-500">*</span></label>
+                            <div class="flex items-center gap-2">
+                                <input type="date" v-model="setDutyForm.duty_date" required class="flex-1 px-3 py-2 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800" />
+                                <button type="button" @click="setDutyForm.duty_date = new Date().toISOString().split('T')[0]" class="px-2.5 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl font-black">
+                                    Hari Ini
+                                </button>
+                            </div>
+                        </div>
+
                         <div>
                             <label class="block font-bold text-slate-700 mb-1">Proyek Perumahan <span class="text-rose-500">*</span></label>
-                            <select v-model="setDutyForm.project_id" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
+                            <select v-model="setDutyForm.project_id" class="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
                                 <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">Sales In-House yang Jaga Hari Ini <span class="text-rose-500">*</span></label>
+                            <label class="block font-bold text-slate-700 mb-1">Petugas Jaga (In-House / Sub-Agent ML) <span class="text-rose-500">*</span></label>
                             <select v-model="setDutyForm.user_id" required class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
                                 <option value="">-- Pilih Petugas Jaga --</option>
-                                <option v-for="a in inhouseAgents" :key="a.id" :value="a.id">🏠 {{ a.name }}</option>
+                                <optgroup label="🏠 Sales In-House Developer">
+                                    <option v-for="a in candidateDutyAgentsList.filter(a => a.category === 'inhouse')" :key="a.id" :value="a.id">
+                                        🏠 {{ a.name }}
+                                    </option>
+                                </optgroup>
+                                <optgroup label="👑 Sub-Agent & Tim Master Lead">
+                                    <option v-for="a in candidateDutyAgentsList.filter(a => a.category === 'master_lead_sub_agent')" :key="a.id" :value="a.id">
+                                        👑 {{ a.name }} (ML: {{ a.master_lead_name || 'Master Lead' }})
+                                    </option>
+                                </optgroup>
+                                <optgroup label="💼 Mitra Agency / Freelance">
+                                    <option v-for="a in candidateDutyAgentsList.filter(a => a.category === 'agency')" :key="a.id" :value="a.id">
+                                        💼 {{ a.name }} ({{ a.broker_company_name || 'Agency' }})
+                                    </option>
+                                </optgroup>
                             </select>
                         </div>
 
                         <div>
                             <label class="block font-bold text-slate-700 mb-1">Shift / Jam Jaga</label>
-                            <select v-model="setDutyForm.shift" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-medium bg-slate-50 focus:bg-white text-slate-800">
+                            <select v-model="setDutyForm.shift" class="w-full px-3 py-2 border border-slate-200 rounded-xl font-medium bg-slate-50 focus:bg-white text-slate-800">
                                 <option value="full_day">Full Day (Pagi - Sore / Tutup Kantor)</option>
-                                <option value="pagi">Shift 1 (Pagi - Siang)</option>
-                                <option value="siang">Shift 2 (Siang - Sore / Malam)</option>
+                                <option value="pagi">Shift 1 (Pagi - Siang: 08:30 - 13:00)</option>
+                                <option value="siang">Shift 2 (Siang - Sore: 13:00 - 18:00)</option>
                             </select>
                         </div>
 
                         <div class="p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-[11px] text-emerald-800 leading-relaxed">
-                            🛡️ <strong>Otomatisasi Walk-In:</strong> Setiap tamu Walk-In baru yang masuk hari ini akan otomatis diarahkan ke Petugas Jaga yang dipilih di sini.
+                            🛡️ <strong>Otomatisasi Walk-In:</strong> Setiap tamu Walk-In baru yang masuk pada tanggal ini akan otomatis diarahkan ke Petugas Jaga yang dipilih di sini.
                         </div>
 
-                        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                            <button type="button" @click="showSetDutyModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
-                            <button type="submit" :disabled="setDutyForm.processing" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black shadow-md shadow-emerald-500/20 disabled:opacity-50">
-                                {{ setDutyForm.processing ? 'Menyimpan...' : 'Tetapkan Agen Jaga' }}
-                            </button>
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                            <Link :href="`/duty-schedules?project_id=${setDutyForm.project_id}`" class="text-blue-600 hover:underline font-bold text-[11px]">
+                                📅 Buka Kalender & Rotasi Bulanan →
+                            </Link>
+                            <div class="flex gap-2">
+                                <button type="button" @click="showSetDutyModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
+                                <button type="submit" :disabled="setDutyForm.processing" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black shadow-md shadow-emerald-500/20 disabled:opacity-50">
+                                    {{ setDutyForm.processing ? 'Menyimpan...' : 'Tetapkan Agen Jaga' }}
+                                </button>
+                            </div>
                         </div>
                     </form>
+
+                    <!-- TAB 2: MINGGUAN -->
+                    <form v-if="setDutyTab === 'weekly'" @submit.prevent="submitSetWeeklyDuty" class="space-y-4 text-xs">
+                        <div class="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-[11px] text-blue-900 leading-relaxed">
+                            🗓️ <strong>Jadwal Mingguan:</strong> Tentukan 1 agen yang bertugas penuh selama 1 minggu (Senin s/d Minggu).
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Tanggal Mulai (Senin) *</label>
+                                <input type="date" v-model="setWeeklyForm.start_date" required class="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold bg-slate-50" />
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Tanggal Selesai (Minggu) *</label>
+                                <input type="date" v-model="setWeeklyForm.end_date" required class="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold bg-slate-50" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Petugas Jaga Seminggu *</label>
+                            <select v-model="setWeeklyForm.user_id" required class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
+                                <option value="">-- Pilih Petugas Jaga --</option>
+                                <optgroup label="🏠 Sales In-House Developer">
+                                    <option v-for="a in candidateDutyAgentsList.filter(a => a.category === 'inhouse')" :key="a.id" :value="a.id">
+                                        🏠 {{ a.name }}
+                                    </option>
+                                </optgroup>
+                                <optgroup label="👑 Sub-Agent & Tim Master Lead">
+                                    <option v-for="a in candidateDutyAgentsList.filter(a => a.category === 'master_lead_sub_agent')" :key="a.id" :value="a.id">
+                                        👑 {{ a.name }} (ML: {{ a.master_lead_name || 'Master Lead' }})
+                                    </option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Shift</label>
+                            <select v-model="setWeeklyForm.shift" class="w-full px-3 py-2 border border-slate-200 rounded-xl font-medium bg-slate-50">
+                                <option value="full_day">Full Day (Pagi - Sore)</option>
+                                <option value="pagi">Shift 1 (Pagi - Siang)</option>
+                                <option value="siang">Shift 2 (Siang - Malam)</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                            <Link :href="`/duty-schedules?project_id=${setDutyForm.project_id}`" class="text-blue-600 hover:underline font-bold text-[11px]">
+                                📅 Atur Roster Per Hari / Bulanan →
+                            </Link>
+                            <div class="flex gap-2">
+                                <button type="button" @click="showSetDutyModal = false" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">Batal</button>
+                                <button type="submit" :disabled="setWeeklyForm.processing" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-md disabled:opacity-50">
+                                    {{ setWeeklyForm.processing ? 'Menyimpan...' : 'Simpan 1 Minggu' }}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- TAB 3: UPCOMING ROSTER LIST -->
+                    <div v-if="setDutyTab === 'upcoming'" class="space-y-3 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-700">Jadwal Terdaftar Proyek Ini</span>
+                            <Link :href="`/duty-schedules?project_id=${activeProjectId}`" class="text-blue-600 font-bold hover:underline text-[11px]">
+                                Buka Kalender Lengkap →
+                            </Link>
+                        </div>
+
+                        <div class="max-h-64 overflow-y-auto space-y-2 pr-1">
+                            <div 
+                                v-for="item in upcomingDutySchedules" 
+                                :key="item.id" 
+                                :class="[item.is_today ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-400' : 'bg-slate-50 border-slate-200', 'p-3 rounded-2xl border flex items-center justify-between']">
+                                <div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="font-black text-slate-900">{{ item.day_name }}, {{ item.date_formatted }}</span>
+                                        <span v-if="item.is_today" class="px-1.5 py-0.2 bg-emerald-600 text-white text-[9px] font-black rounded">HARI INI</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-600 font-bold mt-0.5">
+                                        {{ item.user_name }}
+                                        <span class="text-[10px] text-slate-400 font-normal">({{ item.user_category }})</span>
+                                    </p>
+                                </div>
+                                <span class="text-[10px] text-slate-500 font-medium">{{ item.shift_label }}</span>
+                            </div>
+
+                            <div v-if="!upcomingDutySchedules || upcomingDutySchedules.length === 0" class="text-center py-8 text-slate-400">
+                                Belum ada jadwal terdaftar untuk beberapa hari ke depan.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </teleport>
