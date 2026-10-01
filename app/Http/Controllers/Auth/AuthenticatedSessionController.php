@@ -16,11 +16,31 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): Response
+    public function create(Request $request): Response
+    {
+        $portal = $request->query('portal', 'developer');
+        if (in_array($portal, ['owner', 'saas', 'admin', 'super-admin'])) {
+            $portal = 'owner';
+        } else {
+            $portal = 'developer';
+        }
+
+        return Inertia::render('Auth/Login', [
+            'canResetPassword' => Route::has('password.request'),
+            'status' => session('status'),
+            'initialPortal' => $portal,
+        ]);
+    }
+
+    /**
+     * Display the Super Admin / SaaS Owner login view.
+     */
+    public function createSuperAdmin(): Response
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
+            'initialPortal' => 'owner',
         ]);
     }
 
@@ -32,6 +52,13 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         $request->session()->regenerate();
+
+        $user = Auth::user();
+
+        // Redirect Super Admin / Pemilik Platform SaaS langsung ke Control Tower
+        if ($user && ($user->hasRole('super_admin') || ($user->email === 'admin@homi.id' && !$user->company_id))) {
+            return redirect()->intended(route('super-admin.companies.index'));
+        }
 
         return redirect()->intended(route('dashboard', absolute: false));
     }

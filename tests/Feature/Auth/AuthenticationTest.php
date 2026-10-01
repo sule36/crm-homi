@@ -17,6 +17,13 @@ class AuthenticationTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_super_admin_login_screen_can_be_rendered(): void
+    {
+        $response = $this->get('/super-admin/login');
+
+        $response->assertStatus(200);
+    }
+
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
         $user = User::factory()->create();
