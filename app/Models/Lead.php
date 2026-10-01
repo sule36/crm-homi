@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\BelongsToTenant;
 
 class Lead extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     protected $fillable = [
-        'project_id', 'assigned_to', 'name', 'phone', 'email',
+        'company_id', 'project_id', 'assigned_to', 'name', 'phone', 'email',
         'identity_number', 'npwp', 'address', 'job', 'source', 'campaign_id', 'utm_campaign', 'broker_company_id',
         'status', 'score', 'lost_reason', 'notes', 'preferences',
         'last_contacted_at',

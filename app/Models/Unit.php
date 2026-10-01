@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\BelongsToTenant;
 
 class Unit extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     protected $fillable = [
-        'project_id', 'unit_type_id', 'block', 'number', 'floor',
+        'company_id', 'project_id', 'unit_type_id', 'block', 'number', 'floor',
         'status', 'facing_direction', 'premium_charge', 'final_price',
         'promo', 'discount_amount', 'carport', 'net_price', 'commission_notes',
         'management_notes', 'siteplan_coordinates',

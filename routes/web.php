@@ -238,11 +238,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'update'])->name('settings.roles.update');
     Route::delete('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'destroy'])->name('settings.roles.destroy');
 
-    // SaaS Platform Control Tower (Super Admin)
-    Route::get('/super-admin/companies', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'index'])->name('super-admin.companies.index');
-    Route::post('/super-admin/companies', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'store'])->name('super-admin.companies.store');
-    Route::put('/super-admin/companies/{company}', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'update'])->name('super-admin.companies.update');
-    Route::delete('/super-admin/companies/{company}', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'destroy'])->name('super-admin.companies.destroy');
+    // SaaS Platform Control Tower & Billing (Super Admin Khusus Pemilik SaaS)
+    Route::middleware([\App\Http\Middleware\EnsureSuperAdmin::class])->group(function () {
+        Route::get('/super-admin/companies', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'index'])->name('super-admin.companies.index');
+        Route::post('/super-admin/companies', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'store'])->name('super-admin.companies.store');
+        Route::put('/super-admin/companies/{company}', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'update'])->name('super-admin.companies.update');
+        Route::delete('/super-admin/companies/{company}', [\App\Http\Controllers\SuperAdmin\CompanyController::class, 'destroy'])->name('super-admin.companies.destroy');
+
+        Route::get('/super-admin/invoices', [\App\Http\Controllers\SuperAdmin\SaaSInvoiceController::class, 'index'])->name('super-admin.invoices.index');
+        Route::post('/super-admin/invoices', [\App\Http\Controllers\SuperAdmin\SaaSInvoiceController::class, 'store'])->name('super-admin.invoices.store');
+        Route::post('/super-admin/invoices/{invoice}/mark-paid', [\App\Http\Controllers\SuperAdmin\SaaSInvoiceController::class, 'markPaid'])->name('super-admin.invoices.mark-paid');
+        Route::delete('/super-admin/invoices/{invoice}', [\App\Http\Controllers\SuperAdmin\SaaSInvoiceController::class, 'destroy'])->name('super-admin.invoices.destroy');
+    });
+
+    // Tenant Developer Subscription & Billing (Halaman Khusus Developer)
+    Route::get('/subscription', [\App\Http\Controllers\TenantSubscriptionController::class, 'index'])->name('subscription.index');
+    Route::post('/subscription/invoices/{invoice}/proof', [\App\Http\Controllers\TenantSubscriptionController::class, 'uploadPaymentProof'])->name('subscription.upload-proof');
+
     Route::post('/settings/partner-banks', [\App\Http\Controllers\PartnerBankController::class, 'store'])->name('settings.partnerBanks.store');
     Route::put('/settings/partner-banks/{partnerBank}', [\App\Http\Controllers\PartnerBankController::class, 'update'])->name('settings.partnerBanks.update');
     Route::delete('/settings/partner-banks/{partnerBank}', [\App\Http\Controllers\PartnerBankController::class, 'destroy'])->name('settings.partnerBanks.destroy');

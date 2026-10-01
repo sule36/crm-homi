@@ -565,14 +565,21 @@ class ReservationController extends Controller
             ]);
         }
 
-        // Record activity if linked to lead
+        // Record activity and restore lead status to negotiation
         if ($reservation->lead_id) {
-            LeadActivity::create([
-                'lead_id' => $reservation->lead_id,
-                'user_id' => auth()->id(),
-                'type' => 'note',
-                'description' => "🔄 Reservasi No: {$reservation->reservation_number} DIBATALKAN & DI-REFUND 100% (Rp " . number_format($reservation->amount, 0, ',', '.') . "). Unit {$reservation->unit?->label} telah kembali siap dipesan (available).",
-            ]);
+            $lead = Lead::find($reservation->lead_id);
+            if ($lead) {
+                if ($lead->status === 'reservation') {
+                    $lead->update(['status' => 'negotiation']);
+                    $lead->recalculateScore();
+                }
+                LeadActivity::create([
+                    'lead_id' => $lead->id,
+                    'user_id' => auth()->id(),
+                    'type' => 'note',
+                    'description' => "🔄 Reservasi No: {$reservation->reservation_number} DIBATALKAN & DI-REFUND 100% (Rp " . number_format($reservation->amount, 0, ',', '.') . "). Unit {$reservation->unit?->label} telah kembali siap dipesan (available).",
+                ]);
+            }
         }
 
         AuditLog::record('reservation_refunded', $reservation, ['status' => $oldStatus], $validated);
@@ -629,12 +636,18 @@ class ReservationController extends Controller
      */
     public function destroy(Reservation $reservation)
     {
-        if ($reservation->status === 'active' && $reservation->unit) {
-            $reservation->unit->update([
-                'status' => 'available',
-                'held_by' => null,
-                'held_until' => null,
-            ]);
+        if ($reservation->status === 'active') {
+            if ($reservation->unit) {
+                $reservation->unit->update([
+                    'status' => 'available',
+                    'held_by' => null,
+                    'held_until' => null,
+                ]);
+            }
+            if ($reservation->lead && $reservation->lead->status === 'reservation') {
+                $reservation->lead->update(['status' => 'negotiation']);
+                $reservation->lead->recalculateScore();
+            }
         }
 
         $reservation->delete();

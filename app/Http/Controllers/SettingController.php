@@ -83,7 +83,7 @@ class SettingController extends Controller
                     'Free Biaya Notaris',
                     'Extra Cashback 50 Juta',
                 ],
-                'promo_valid_until' => '30 September 2024',
+                'promo_valid_until' => 'Hubungi Marketing',
             ];
         }
 

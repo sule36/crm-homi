@@ -11,13 +11,14 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use App\Traits\BelongsToTenant;
 
 #[Fillable(['name', 'email', 'password', 'phone', 'avatar', 'company_id', 'project_id', 'broker_company_id', 'master_lead_id', 'agent_type', 'status', 'is_accepting_leads', 'lead_capacity', 'settings', 'last_login_at', 'commission_rate', 'custom_bonus', 'bank_name', 'bank_account_number', 'bank_account_name'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens, HasRoles, SoftDeletes;
+    use HasFactory, Notifiable, HasApiTokens, HasRoles, SoftDeletes, BelongsToTenant;
 
     protected function casts(): array
     {

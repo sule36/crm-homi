@@ -69,57 +69,86 @@ const sitePlanUrl = computed(() => {
     return `/projects/${activeProject.value?.id || 1}/site-plan`;
 });
 
-const navigationGroups = computed(() => [
-    {
-        title: 'Utama',
-        items: [
-            { name: 'Dashboard', href: '/dashboard', icon: '📊', active: route().current('dashboard') },
-        ]
-    },
-    {
-        title: 'CRM & Penjualan',
-        items: [
-            { name: 'Lead & Pipeline Workspace', href: '/leads', icon: '⚡', active: route().current('leads.*') },
-            { name: 'Transaksi Penjualan (SPR & UTJ)', href: '/bookings', icon: '📝', active: route().current('bookings.*') || route().current('reservations.*') || route().current('negotiations.*') || route().current('commissions.*') },
-            { name: 'Omnichannel Chat', href: '/whatsapp/inbox', icon: '💬', active: route().current('whatsapp.*') },
-            { name: 'Jaringan & Komisi Agen', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') || route().current('agent-monitoring.*') },
-            { name: 'Target & Laporan Sales', href: '/reports', icon: '📈', active: route().current('reports.*') || route().current('kpi.*') || route().current('campaigns.*') },
-        ]
-    },
-    {
-        title: 'Properti & Inventori',
-        items: [
-            { name: 'Interactive Site Plan', href: sitePlanUrl.value, icon: '🗺️', active: route().current('projects.siteplan') },
-            { name: 'Inventory Unit Kavling', href: '/units', icon: '🏠', active: route().current('units.*') },
-            { name: 'Master Proyek Kawasan', href: '/projects', icon: '🏗️', active: route().current('projects.index') || route().current('projects.show') || route().current('projects.edit') },
-            { name: 'Simulasi KPR & Neraca', href: '/kpr-scoring', icon: '🧮', active: route().current('kpr.scoring') || route().current('client-balance-sheets.*') || route().current('kpr.calculator') },
-        ]
-    },
-    {
-        title: 'Keuangan & Kasir',
-        items: [
-            { name: 'Kas & Pembayaran Masuk', href: '/finance', icon: '💳', active: route().current('finance.index') || route().current('transactions.*') },
-            { name: 'Pengeluaran Operasional', href: '/finance/expenses', icon: '💸', active: route().current('finance.expenses.*') },
-            { name: 'Penggajian Staff (Payroll)', href: '/finance/payroll', icon: '💼', active: route().current('finance.payroll.*') },
-            { name: 'Laporan Keuangan', href: '/finance/reports', icon: '📊', active: route().current('finance.reports.*') },
-        ]
-    },
-    {
-        title: 'Proyek & Konstruksi',
-        items: [
-            { name: 'RAB Bangunan & Realisasi', href: '/finance/rab', icon: '🏗️', active: route().current('finance.rab.*') },
-            { name: 'Kontrak Subkontraktor', href: '/finance/contracts', icon: '🤝', active: route().current('finance.contracts.*') },
-        ]
-    }
-]);
+const isSuperAdmin = computed(() => {
+    return page.props.auth?.is_super_admin || page.props.auth?.user?.email === 'admin@homi.id';
+});
 
-const bottomNav = [
-    { name: 'Staff / Pengguna', href: '/users', icon: '👔', active: route().current('users.*') },
-    { name: 'Hak Akses (RBAC)', href: '/settings/roles', icon: '🔐', active: route().current('settings.roles.*') },
-    { name: 'Audit Log', href: '/settings/audit-logs', icon: '🕵️', active: route().current('settings.auditLogs') },
-    { name: 'Panduan Penggunaan', href: '/guide', icon: '📖', active: route().current('guide.index') },
-    { name: 'Pengaturan Sistem', href: '/settings', icon: '⚙️', active: route().current('settings.index') },
-];
+const navigationGroups = computed(() => {
+    if (isSuperAdmin.value) {
+        return [
+            {
+                title: 'SaaS Platform Control',
+                items: [
+                    { name: 'Developer (Tenants)', href: '/super-admin/companies', icon: '🏢', active: route().current('super-admin.companies.*') },
+                    { name: 'Tagihan & Pembayaran SaaS', href: '/super-admin/invoices', icon: '💳', active: route().current('super-admin.invoices.*') },
+                ]
+            }
+        ];
+    }
+
+    return [
+        {
+            title: 'Utama',
+            items: [
+                { name: 'Dashboard', href: '/dashboard', icon: '📊', active: route().current('dashboard') },
+            ]
+        },
+        {
+            title: 'CRM & Penjualan',
+            items: [
+                { name: 'Lead & Pipeline Workspace', href: '/leads', icon: '⚡', active: route().current('leads.*') },
+                { name: 'Transaksi Penjualan (SPR & UTJ)', href: '/bookings', icon: '📝', active: route().current('bookings.*') || route().current('reservations.*') || route().current('negotiations.*') || route().current('commissions.*') },
+                { name: 'Omnichannel Chat', href: '/whatsapp/inbox', icon: '💬', active: route().current('whatsapp.*') },
+                { name: 'Jaringan & Komisi Agen', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') || route().current('agent-monitoring.*') },
+                { name: 'Target & Laporan Sales', href: '/reports', icon: '📈', active: route().current('reports.*') || route().current('kpi.*') || route().current('campaigns.*') },
+            ]
+        },
+        {
+            title: 'Properti & Inventori',
+            items: [
+                { name: 'Interactive Site Plan', href: sitePlanUrl.value, icon: '🗺️', active: route().current('projects.siteplan') },
+                { name: 'Inventory Unit Kavling', href: '/units', icon: '🏠', active: route().current('units.*') },
+                { name: 'Master Proyek Kawasan', href: '/projects', icon: '🏗️', active: route().current('projects.index') || route().current('projects.show') || route().current('projects.edit') },
+                { name: 'Simulasi KPR & Neraca', href: '/kpr-scoring', icon: '🧮', active: route().current('kpr.scoring') || route().current('client-balance-sheets.*') || route().current('kpr.calculator') },
+            ]
+        },
+        {
+            title: 'Keuangan & Kasir',
+            items: [
+                { name: 'Kas & Pembayaran Masuk', href: '/finance', icon: '💳', active: route().current('finance.index') || route().current('transactions.*') },
+                { name: 'Pengeluaran Operasional', href: '/finance/expenses', icon: '💸', active: route().current('finance.expenses.*') },
+                { name: 'Penggajian Staff (Payroll)', href: '/finance/payroll', icon: '💼', active: route().current('finance.payroll.*') },
+                { name: 'Laporan Keuangan', href: '/finance/reports', icon: '📊', active: route().current('finance.reports.*') },
+            ]
+        },
+        {
+            title: 'Proyek & Konstruksi',
+            items: [
+                { name: 'RAB Bangunan & Realisasi', href: '/finance/rab', icon: '🏗️', active: route().current('finance.rab.*') },
+                { name: 'Kontrak Subkontraktor', href: '/finance/contracts', icon: '🤝', active: route().current('finance.contracts.*') },
+            ]
+        }
+    ];
+});
+
+const bottomNav = computed(() => {
+    if (isSuperAdmin.value) {
+        return [
+            { name: 'Hak Akses Global (RBAC)', href: '/settings/roles', icon: '🔐', active: route().current('settings.roles.*') },
+            { name: 'Audit Log Platform', href: '/settings/audit-logs', icon: '🕵️', active: route().current('settings.auditLogs') },
+            { name: 'Panduan Penggunaan', href: '/guide', icon: '📖', active: route().current('guide.index') },
+        ];
+    }
+
+    return [
+        { name: 'Langganan SaaS & Kuota', href: '/subscription', icon: '🏢', active: route().current('subscription.*') },
+        { name: 'Staff / Pengguna', href: '/users', icon: '👔', active: route().current('users.*') },
+        { name: 'Hak Akses (RBAC)', href: '/settings/roles', icon: '🔐', active: route().current('settings.roles.*') },
+        { name: 'Audit Log', href: '/settings/audit-logs', icon: '🕵️', active: route().current('settings.auditLogs') },
+        { name: 'Panduan Penggunaan', href: '/guide', icon: '📖', active: route().current('guide.index') },
+        { name: 'Pengaturan Sistem', href: '/settings', icon: '⚙️', active: route().current('settings.index') },
+    ];
+});
 
 </script>
 
@@ -216,16 +245,17 @@ const bottomNav = [
                     <span v-if="sidebarOpen" class="truncate">{{ item.name }}</span>
                 </Link>
 
-                <!-- User Avatar -->
-                <div class="flex items-center gap-3 px-3 py-3 mt-2 rounded-xl bg-white/5">
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white text-xs font-black shrink-0 shadow-lg">
+                <!-- User Avatar (Click to Profile & Change Password) -->
+                <Link href="/profile" title="Edit Profil & Ganti Password"
+                    class="flex items-center gap-3 px-3 py-3 mt-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group cursor-pointer border border-transparent hover:border-white/10">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white text-xs font-black shrink-0 shadow-lg group-hover:scale-105 transition-transform">
                         {{ user?.name?.charAt(0) || 'U' }}
                     </div>
-                    <div v-if="sidebarOpen" class="min-w-0">
-                        <p class="text-white text-xs font-bold truncate">{{ user?.name }}</p>
-                        <p class="text-slate-500 text-[10px] font-medium truncate">{{ user?.email }}</p>
+                    <div v-if="sidebarOpen" class="min-w-0 flex-1">
+                        <p class="text-white text-xs font-bold truncate group-hover:text-blue-400 transition-colors">{{ user?.name }}</p>
+                        <p class="text-slate-400 text-[10px] font-medium truncate">{{ user?.email }}</p>
                     </div>
-                </div>
+                </Link>
             </div>
 
             <!-- COLLAPSE BUTTON -->
@@ -254,13 +284,20 @@ const bottomNav = [
                         </span>
                     </div>
 
-                    <!-- Developer & Project Logo Header -->
-                    <div v-if="activeProject" class="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                    <!-- Super Admin SaaS Badge or Developer & Project Logo Header -->
+                    <div v-if="isSuperAdmin" class="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                        <span class="text-base">👑</span>
+                        <div class="text-left leading-tight">
+                            <p class="text-xs font-black text-indigo-900">SaaS Platform Owner</p>
+                            <p class="text-[9px] font-bold text-indigo-600 uppercase tracking-wider">Control Tower Platform</p>
+                        </div>
+                    </div>
+                    <div v-else-if="activeProject" class="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                         <img v-if="activeProject.logo" :src="'/storage/' + activeProject.logo" :alt="activeProject.name" class="h-6 max-w-[100px] object-contain" />
                         <span v-else class="text-base">🏛️</span>
                         <div class="text-left leading-tight">
                             <p class="text-xs font-black text-amber-900">{{ activeProject.name }}</p>
-                            <p class="text-[9px] font-bold text-amber-700 uppercase tracking-wider">PT. SERANGKAI RODEN DEVELOPMENT</p>
+                            <p class="text-[9px] font-bold text-amber-700 uppercase tracking-wider">DEVELOPER WORKSPACE</p>
                         </div>
                     </div>
                 </div>
@@ -309,8 +346,13 @@ const bottomNav = [
                         </div>
                     </div>
 
+                    <!-- Profile & Password -->
+                    <Link href="/profile" title="Profil & Ganti Password" class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-700">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    </Link>
+
                     <!-- Logout -->
-                    <Link href="/logout" method="post" as="button" class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-red-50 transition-colors text-gray-400 hover:text-red-500">
+                    <Link href="/logout" method="post" as="button" title="Keluar / Logout" class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-red-50 transition-colors text-gray-400 hover:text-red-500">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     </Link>
                 </div>

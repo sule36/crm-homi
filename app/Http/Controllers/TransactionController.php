@@ -44,6 +44,39 @@ class TransactionController extends Controller
                 $schedule->update(['status' => 'paid']);
             }
 
+            // Auto-detect LUNAS: Check if ALL payment schedules for this booking are fully paid
+            $booking = Booking::find($validated['booking_id']);
+            if ($booking && $booking->status === 'approved') {
+                $allSchedules = $booking->paymentSchedules()->get();
+                $allPaid = $allSchedules->count() > 0 && $allSchedules->every(fn ($s) => $s->status === 'paid');
+
+                if ($allPaid) {
+                    // Booking sudah LUNAS — update status ke completed
+                    $booking->update(['status' => 'completed']);
+
+                    // Unit menjadi SOLD (terjual)
+                    if ($booking->unit) {
+                        $booking->unit->update([
+                            'status' => 'sold',
+                            'held_by' => null,
+                            'held_until' => null,
+                        ]);
+                    }
+
+                    AuditLog::record('booking_completed', $booking, null, [
+                        'total_paid' => $booking->total_paid,
+                        'final_price' => $booking->final_price,
+                        'completed_at' => now()->toDateTimeString(),
+                    ]);
+
+                    // Lead berubah menjadi WON (transaksi lunas selesai)
+                    if ($booking->lead) {
+                        $booking->lead->update(['status' => 'won']);
+                        $booking->lead->recalculateScore();
+                    }
+                }
+            }
+
             AuditLog::record('payment_recorded', $transaction, null, $transaction->toArray());
 
             return back()->with('success', 'Pembayaran berhasil dicatat.');

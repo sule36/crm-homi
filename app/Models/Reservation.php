@@ -135,7 +135,7 @@ class Reservation extends Model
         $monthRoman = $romanMonths[$monthNum] ?? 'IX';
 
         $format = Setting::get('reservation_number_format');
-        if (empty($format) || !str_contains($format, '{month_roman}')) {
+        if (empty($format)) {
             $format = '{seq}/RSV-{code}/{month_roman}/{year}';
         }
 

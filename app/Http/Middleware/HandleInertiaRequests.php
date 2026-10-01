@@ -67,7 +67,9 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $user,
+                'user' => $user ? $user->loadMissing('roles') : null,
+                'is_super_admin' => $user ? ($user->hasRole('super_admin') || $user->email === 'admin@homi.id') : false,
+                'roles' => $user ? $user->getRoleNames() : [],
                 'reminders' => $reminders,
             ],
             'flash' => [

@@ -151,9 +151,6 @@ class Negotiation extends Model
     public static function generateNegotiationNumber($projectId = null): string
     {
         $year = date('Y');
-        $countThisYear = static::whereYear('created_at', $year)->count();
-        $nextSeq3 = sprintf('%03d', $countThisYear + 1);
-        $nextSeq2 = sprintf('%02d', $countThisYear + 1);
 
         $projectCode = 'ALC';
         $project = null;
@@ -181,15 +178,31 @@ class Negotiation extends Model
         $monthRoman = $romanMonths[$monthNum] ?? 'IX';
 
         $format = Setting::get('negotiation_number_format');
-        if (empty($format) || !str_contains($format, '{month_roman}')) {
+        if (empty($format)) {
             $format = '{seq}/NG-{code}/{month_roman}/{year}';
         }
 
-        return str_replace(
-            ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
-            [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
-            $format
-        );
+        $seq = max(1, static::withTrashed()->whereYear('created_at', $year)->count() + 1);
+        $attempts = 0;
+        do {
+            $nextSeq3 = sprintf('%03d', $seq);
+            $nextSeq2 = sprintf('%02d', $seq);
+
+            $candidate = str_replace(
+                ['{seq2}', '{seq}', '{code}', '{year}', '{month_roman}', '{month}'],
+                [$nextSeq2, $nextSeq3, $projectCode, $year, $monthRoman, sprintf('%02d', $monthNum)],
+                $format
+            );
+
+            $exists = static::withTrashed()->where('negotiation_number', $candidate)->exists();
+            if (!$exists) {
+                return $candidate;
+            }
+            $seq++;
+            $attempts++;
+        } while ($attempts < 1000);
+
+        return sprintf('%s-%d', $candidate, time());
     }
 
     public function getFormattedNumber(): string
@@ -227,16 +240,16 @@ class Negotiation extends Model
         $createdDate = $this->created_at ?? now();
         $dateFormatted = $createdDate->format('d') . ' ' . $this->getIndonesianMonth($createdDate->format('n')) . ' ' . $createdDate->format('Y');
 
-        $projectName = $this->project->name ?? 'Alonica Hills';
-        $projectAddress = $this->project->address ?? 'Jl. Bhakti, RT.002/RW.007, Cilandak Tim, Ps Minggu, Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta. 12560';
-        $kavling = $this->unit ? ('Blok ' . ($this->unit->block ?? 'A3') . ($this->unit->number ? ' ' . $this->unit->number : '')) : 'Blok A3';
-        $unitType = $this->unit->unitType->name ?? 'Badan';
-        $luasTanah = $this->unit?->unitType?->land_area ?? '105';
-        $luasBangunan = $this->unit?->unitType?->building_area ?? '198';
+        $projectName = $this->project?->name ?? 'Proyek Perumahan';
+        $projectAddress = $this->project?->address ?? '';
+        $kavling = $this->unit ? ('Blok ' . ($this->unit->block ?? '') . ($this->unit->number ? ' ' . $this->unit->number : '')) : '-';
+        $unitType = $this->unit?->unitType?->name ?? '-';
+        $luasTanah = $this->unit?->unitType?->land_area ?? ($this->unit?->land_area ?? '-');
+        $luasBangunan = $this->unit?->unitType?->building_area ?? ($this->unit?->building_area ?? '-');
 
-        $priceListVal = $this->unit_listed_price ? number_format($this->unit_listed_price, 0, ',', '.') . ',-' : '3,840,921,600,-';
-        $offeredPriceVal = $this->offered_price ? number_format($this->offered_price, 0, ',', '.') . ',-' : '3,550,921,600,-';
-        $counterPriceVal = $this->counter_price ? number_format($this->counter_price, 0, ',', '.') . ',-' : '3,700,000,000,-';
+        $priceListVal = $this->unit_listed_price ? number_format($this->unit_listed_price, 0, ',', '.') . ',-' : ($this->unit?->final_price ? number_format($this->unit->final_price, 0, ',', '.') . ',-' : '-');
+        $offeredPriceVal = $this->offered_price ? number_format($this->offered_price, 0, ',', '.') . ',-' : '-';
+        $counterPriceVal = $this->counter_price ? number_format($this->counter_price, 0, ',', '.') . ',-' : '-';
 
         $defaultPengajuanNotes = [
             "Harga yang diajukan sudah termasuk PPN, AJB, BPHTB, dan biaya balik nama SHM atas nama pembeli. Ketentuan ini berlaku tanpa dipengaruhi status insentif PPN DTP pemerintah pada saat serah terima",
@@ -261,9 +274,9 @@ class Negotiation extends Model
         }
 
         return [
-            'kepada' => $saved['kepada'] ?? ("PT. Serangkai Roden Development – " . $projectName),
-            'dari' => $saved['dari'] ?? ($this->client_name ?: 'Eko Sukaryanto'),
-            'cc' => $saved['cc'] ?? 'KanaHomi – Agent Coordinator',
+            'kepada' => $saved['kepada'] ?? ("PT. Developer Properti – " . $projectName),
+            'dari' => $saved['dari'] ?? ($this->client_name ?: ($this->lead?->name ?? 'Calon Pembeli')),
+            'cc' => $saved['cc'] ?? 'Agent Coordinator',
             'tanggal' => $saved['tanggal'] ?? $dateFormatted,
 
             'project_name' => $saved['project_name'] ?? $projectName,
@@ -315,9 +328,9 @@ class Negotiation extends Model
                 'pelunasan_date' => '25 Des 2027',
                 'notes' => $defaultJawabanNotes,
                 'sig_city_date' => 'Jakarta, ' . $dateFormatted,
-                'sig_pengaju_name' => $this->client_name ?: 'Eko Sukaryanto',
-                'sig_mengetahui_name' => 'Maulizar',
-                'sig_menyetujui_name' => 'Ch. Bramantyo P.',
+                'sig_pengaju_name' => $this->client_name ?: ($this->lead?->name ?? 'Calon Pembeli'),
+                'sig_mengetahui_name' => 'Agent Coordinator',
+                'sig_menyetujui_name' => 'Developer Management',
             ], $saved['jawaban'] ?? []),
         ];
     }

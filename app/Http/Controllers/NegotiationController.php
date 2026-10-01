@@ -424,13 +424,19 @@ class NegotiationController extends Controller
             return back()->with('error', 'Hanya negosiasi yang disetujui yang bisa dikonversi ke booking.');
         }
 
-        // Redirect to booking create with pre-filled data
+        $schemeMap = [
+            'cash_keras' => 'cash',
+            'cash_bertahap' => 'cash_installment',
+            'kpr' => 'kpr',
+        ];
+        $paymentScheme = $schemeMap[$negotiation->payment_scheme] ?? ($negotiation->payment_scheme ?? 'kpr');
+
         $params = [
             'unit_id' => $negotiation->unit_id,
             'lead_id' => $negotiation->lead_id,
             'negotiation_id' => $negotiation->id,
-            'final_price' => $negotiation->status === 'approved' ? $negotiation->offered_price : $negotiation->counter_price,
-            'payment_scheme' => $negotiation->payment_scheme ?? 'kpr',
+            'final_price' => $negotiation->counter_price ?: $negotiation->offered_price,
+            'payment_scheme' => $paymentScheme,
             'dp_amount' => $negotiation->dp_amount,
             'special_bonus_items' => $negotiation->special_bonus_items,
         ];

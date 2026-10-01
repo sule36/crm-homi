@@ -39,4 +39,5 @@ class Company extends Model
     public function leads() { return $this->hasMany(Lead::class); }
     public function bookings() { return $this->hasMany(Booking::class); }
     public function expenses() { return $this->hasMany(Expense::class); }
+    public function invoices() { return $this->hasMany(CompanyInvoice::class); }
 }

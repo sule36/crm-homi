@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\BelongsToTenant;
 
 class Booking extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     protected static function boot()
     {
@@ -19,7 +20,7 @@ class Booking extends Model
     }
 
     protected $fillable = [
-        'spk_number', 'lead_id', 'unit_id', 'project_id',
+        'company_id', 'spk_number', 'lead_id', 'unit_id', 'project_id',
         'booked_by', 'approved_by', 'booking_fee', 'unit_price',
         'discount_amount', 'discount_reason', 'final_price',
         'booking_date', 'payment_scheme', 'bank_name',
@@ -122,7 +123,7 @@ class Booking extends Model
         }
 
         $format = Setting::get('spr_number_format');
-        if (empty($format) || !str_contains($format, '{month_roman}')) {
+        if (empty($format)) {
             $format = '{seq}/SPR-{code}/{month_roman}/{year}';
         }
 
@@ -172,7 +173,7 @@ class Booking extends Model
         $monthRoman = $romanMonths[$monthNum] ?? 'IX';
 
         $format = Setting::get('spr_number_format');
-        if (empty($format) || !str_contains($format, '{month_roman}')) {
+        if (empty($format)) {
             $format = '{seq}/SPR-{code}/{month_roman}/{year}';
         }
 

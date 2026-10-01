@@ -53,7 +53,7 @@ const form = useForm({
     ajb_bbn_amount: 0,
     other_legal_fees: 0,
     final_price: initialBasePrice,
-    payment_scheme: props.negotiation?.payment_scheme || 'kpr',
+    payment_scheme: mapNegoSchemeToBooking(props.negotiation?.payment_scheme) || 'kpr',
     dp_amount: initialDpAmount,
     dp_installment_months: 3,
     installment_months: initialInstallmentMonths,
@@ -161,6 +161,15 @@ const setStandardTaxes = () => {
     calculateTaxes();
 };
 
+// Map negotiation payment_scheme values to booking-compatible values
+// Negotiation uses: cash_keras, cash_bertahap, kpr
+// Booking expects:  cash, cash_installment, kpr
+function mapNegoSchemeToBooking(scheme) {
+    if (!scheme) return null;
+    const map = { cash_keras: 'cash', cash_bertahap: 'cash_installment', kpr: 'kpr' };
+    return map[scheme] || scheme;
+}
+
 // Apply a selected negotiation document deal
 const applyNegotiation = (nego) => {
     if (!nego) return;
@@ -170,7 +179,7 @@ const applyNegotiation = (nego) => {
     if (agreedPrice) {
         form.base_price = agreedPrice;
     }
-    if (nego.payment_scheme) form.payment_scheme = nego.payment_scheme;
+    if (nego.payment_scheme) form.payment_scheme = mapNegoSchemeToBooking(nego.payment_scheme);
     if (nego.dp_amount) form.dp_amount = nego.dp_amount;
     if (nego.installment_months) {
         form.installment_months = nego.installment_months;

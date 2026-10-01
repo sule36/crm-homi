@@ -19,7 +19,10 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        // 1. Stats Overview
+        // Pemilik Platform SaaS (Super Admin) diarahkan ke SaaS Control Tower untuk mengelola developer & billing
+        if ($user && ($user->hasRole('super_admin') || ($user->email === 'admin@homi.id' && !$user->company_id))) {
+            return redirect()->route('super-admin.companies.index');
+        }
         $stats = [
             'total_projects' => 0,
             'total_units' => 0,

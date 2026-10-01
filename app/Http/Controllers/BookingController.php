@@ -284,8 +284,12 @@ class BookingController extends Controller
                     $booking->update([
                         'status' => 'approved',
                         'approved_by' => auth()->id(),
+                        'approved_at' => now(),
                     ]);
+                    $unit->update(['status' => 'booked']);
+                    $booking->lead?->recalculateScore();
                     $this->generateSchedules($booking);
+                    AuditLog::record('booking_approved', $booking);
                 }
 
                 if ($request->input('redirect_to') === 'lead' && $booking->lead_id) {
@@ -826,8 +830,11 @@ class BookingController extends Controller
             $booking->update(['commission_amount' => $totalCommission]);
 
             $booking->unit->update(['status' => 'booked']);
-            $booking->lead->update(['status' => 'won']);
-            $booking->lead->recalculateScore();
+            // Lead tetap status 'booking' — akan berubah ke 'won' otomatis saat pembayaran lunas
+            if ($booking->lead && $booking->lead->status !== 'won') {
+                $booking->lead->update(['status' => 'booking']);
+            }
+            $booking->lead?->recalculateScore();
 
             // GENERATE PAYMENT SCHEDULE
             $this->generateSchedules($booking);
@@ -1017,6 +1024,30 @@ class BookingController extends Controller
         ]);
 
         $paymentSchedule->update($validated);
+
+        // Auto-detect LUNAS when schedule is manually set to 'paid'
+        if ($validated['status'] === 'paid') {
+            $booking = $paymentSchedule->booking;
+            if ($booking && $booking->status === 'approved') {
+                $allSchedules = $booking->paymentSchedules()->get();
+                $allPaid = $allSchedules->count() > 0 && $allSchedules->every(fn ($s) => $s->status === 'paid');
+
+                if ($allPaid) {
+                    $booking->update(['status' => 'completed']);
+                    if ($booking->unit) {
+                        $booking->unit->update(['status' => 'sold', 'held_by' => null, 'held_until' => null]);
+                    }
+                    if ($booking->lead) {
+                        $booking->lead->update(['status' => 'won']);
+                        $booking->lead->recalculateScore();
+                    }
+                    AuditLog::record('booking_completed', $booking, null, [
+                        'total_paid' => $booking->total_paid,
+                        'completed_at' => now()->toDateTimeString(),
+                    ]);
+                }
+            }
+        }
 
         return back()->with('success', 'Rincian tagihan berhasil diperbarui.');
     }

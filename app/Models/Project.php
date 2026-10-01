@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\BelongsToTenant;
 
 class Project extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     protected $fillable = [
-        'name', 'code', 'description', 'location', 'address',
+        'company_id', 'name', 'code', 'description', 'location', 'address',
         'latitude', 'longitude', 'total_units', 'sold_units',
         'booked_units', 'available_units', 'price_range_min',
         'price_range_max', 'master_plan_image', 'siteplan_image', 'siteplan_config', 'brochure_file',
