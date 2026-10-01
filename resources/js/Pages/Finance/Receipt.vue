@@ -106,7 +106,7 @@ const sendWaReceipt = () => {
     const phone = rawPhone.replace(/\D/g, '').replace(/^0/, '62');
     const receiptUrl = `${window.location.origin}/finance/transactions/${props.transaction.id}/receipt`;
 
-    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan ${projStr}*`;
+    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* (No. Kwitansi: *${receiptNumber.value}*) telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan ${projStr}*`;
 
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 };
@@ -128,16 +128,98 @@ const projectCode = props.transaction.booking?.unit?.project?.code || 'ALN';
 const txYear = new Date(props.transaction.created_at).getFullYear();
 const paddedId = String(props.transaction.id).padStart(4, '0');
 
-let receiptNumber = props.transaction.receipt_number;
-if (!receiptNumber) {
-    if (bookingReceiptSettings.receipt_number_custom) {
-        receiptNumber = bookingReceiptSettings.receipt_number_custom;
-    } else if (bookingReceiptSettings.receipt_number_prefix) {
-        receiptNumber = `${bookingReceiptSettings.receipt_number_prefix}/${txYear}/${paddedId}`;
-    } else {
-        receiptNumber = `KW/${projectCode.toUpperCase()}/${txYear}/${paddedId}`;
+// Dynamic schedule tag detection (UTJ, DP1, DP2, CICILAN-1, CICILAN-2, PELUNASAN, etc.)
+const getScheduleCode = () => {
+    const sched = props.transaction.payment_schedule;
+    const label = (sched?.label || props.transaction.notes || '').trim();
+    if (!label) return 'TRX';
+
+    // 1. UTJ / Booking Fee
+    if (/utj|booking/i.test(label)) {
+        return 'UTJ';
     }
-}
+
+    // 2. DP / Down Payment (DP 1, DP 2, Down Payment 1, etc.)
+    const dpMatch = label.match(/(?:dp|down\s*payment)\s*(\d+)?/i);
+    if (dpMatch) {
+        return `DP${dpMatch[1] || '1'}`;
+    }
+
+    // 3. Cicilan / Angsuran (Cicilan Ke-1, Cicilan 1, Angsuran 1, etc.)
+    const cicilMatch = label.match(/(?:cicilan|angsuran)\s*(?:ke-?)?\s*(\d+)/i);
+    if (cicilMatch) {
+        return `CICILAN-${cicilMatch[1]}`;
+    }
+
+    // 4. Pelunasan
+    if (/lunas|pelunasan/i.test(label)) {
+        return 'PELUNASAN';
+    }
+
+    // 5. KPR
+    if (/kpr/i.test(label)) {
+        return 'KPR';
+    }
+
+    // 6. Pajak / Biaya Legal
+    if (/pajak|ppn|bphtb|ajb|legal/i.test(label)) {
+        return 'LEGAL';
+    }
+
+    return 'TRX';
+};
+
+const resolveInitialReceiptNumber = () => {
+    const scheduleCode = getScheduleCode();
+    const tokenRegex = /(?:DP\s*\d+|CICILAN-\d+|CICIL-\d+|UTJ|PELUNASAN|KPR|LEGAL)/i;
+    
+    // Fallback ID/Number (Padded to 3 digits like 003 to match system standards)
+    const rawNumberId = props.transaction.booking?.id || props.transaction.id || 1;
+    const paddedId = String(rawNumberId).padStart(3, '0');
+    const proj = (projectCode || 'ALN').toUpperCase();
+
+    // 1. Explicit transaction receipt_number
+    if (props.transaction.receipt_number) {
+        let num = props.transaction.receipt_number;
+        if (tokenRegex.test(num)) {
+            return num.replace(tokenRegex, scheduleCode);
+        }
+        return num;
+    }
+
+    // 2. Custom receipt number override from booking receipt settings
+    if (bookingReceiptSettings.receipt_number_custom) {
+        let customNum = bookingReceiptSettings.receipt_number_custom.trim();
+        // If custom number contains a schedule token (like DP1), dynamically adapt it to the current schedule (e.g. CICILAN-1)
+        if (tokenRegex.test(customNum)) {
+            return customNum.replace(tokenRegex, scheduleCode);
+        }
+        return customNum;
+    }
+
+    // 3. Prefix from booking receipt settings
+    if (bookingReceiptSettings.receipt_number_prefix) {
+        let prefix = bookingReceiptSettings.receipt_number_prefix.trim().replace(/\/+$/, '');
+        
+        // If prefix already has full format with number at the end like KW/ALC/DP1/003
+        if (/\/\d+$/.test(prefix) && tokenRegex.test(prefix)) {
+            return prefix.replace(tokenRegex, scheduleCode);
+        }
+
+        // If prefix ends with a schedule token like KW/ALC/DP1
+        const endsWithToken = prefix.match(/^(.*?)\/?(?:DP\s*\d+|CICILAN-\d+|CICIL-\d+|UTJ|PELUNASAN|KPR|LEGAL)$/i);
+        if (endsWithToken) {
+            prefix = endsWithToken[1] || prefix;
+        }
+
+        return `${prefix}/${scheduleCode}/${paddedId}`;
+    }
+
+    // 4. Default automatic generation: KW/{PROJECT_CODE}/{SCHEDULE_CODE}/{PADDED_ID}
+    return `KW/${proj}/${scheduleCode}/${paddedId}`;
+};
+
+const receiptNumber = ref(resolveInitialReceiptNumber());
 
 const slotKey = bookingReceiptSettings.receipt_sig_slot || 'sig1';
 
@@ -237,7 +319,15 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
                 </div>
                 <div class="text-right sm:text-right">
                     <h1 class="text-xl font-black text-slate-800 uppercase tracking-widest">Kwitansi</h1>
-                    <p class="text-xs text-slate-500 font-black mt-1">No: {{ receiptNumber }}</p>
+                    <div class="flex items-center justify-end gap-1.5 mt-1">
+                        <span class="text-xs text-slate-500 font-black">No:</span>
+                        <input 
+                            v-model="receiptNumber" 
+                            type="text" 
+                            class="text-xs text-slate-800 font-mono font-black border-b border-dashed border-slate-300 hover:border-slate-500 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 text-right w-56 print:border-none print:p-0 print:w-auto" 
+                            title="Klik untuk mengubah nomor kwitansi manual jika diperlukan"
+                        />
+                    </div>
                 </div>
             </div>
 

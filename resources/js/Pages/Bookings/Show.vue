@@ -1878,13 +1878,13 @@ const docTypeLabels = {
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Prefix / Awalan Format No. Kwitansi</label>
-                                    <input v-model="sprTemplateForm.receipt_settings.receipt_number_prefix" type="text" placeholder="Contoh: KW/ALN atau KW/PROJECT" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
-                                    <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor otomatis menjadi: Prefix/Tahun/ID (Contoh: KW/ALN/2026/0001)</p>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_number_prefix" type="text" placeholder="Contoh: KW/ALC atau KW/ALN" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                    <p class="text-[10px] text-slate-400 mt-1">Cukup isi kode proyek (contoh: <b>KW/ALC</b>). Sistem otomatis menambahkan kode jadwal tagihan (<b>UTJ</b>, <b>DP1</b>, <b>CICILAN-1</b>, dst.) & nomor unit/booking.</p>
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Nomor Kwitansi Override Manual (Opsional)</label>
                                     <input v-model="sprTemplateForm.receipt_settings.receipt_number_custom" type="text" placeholder="Contoh: KW-SPECIAL-001" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
-                                    <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor ini meng-override seluruh nomor kwitansi otomatis pada unit ini.</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor ini meng-override seluruh nomor kwitansi otomatis pada unit ini (bagian kode DP/Cicilan tetap otomatis menyesuaikan).</p>
                                 </div>
                             </div>
 
@@ -1929,10 +1929,16 @@ const docTypeLabels = {
                                         <span class="font-bold text-slate-600">Sub-Judul:</span>
                                         <span class="font-black text-slate-800">{{ sprTemplateForm.receipt_settings.receipt_header_title || 'Bukti Pembayaran Resmi' }}</span>
                                     </div>
-                                    <div class="flex justify-between border-b border-slate-200 pb-1">
-                                        <span class="font-bold text-slate-600">No. Kwitansi Sample:</span>
-                                        <span class="font-mono font-bold text-emerald-700">
-                                            {{ sprTemplateForm.receipt_settings.receipt_number_custom || ((sprTemplateForm.receipt_settings.receipt_number_prefix || ('KW/' + (booking.unit?.project?.code || 'ALN'))) + '/2026/0001') }}
+                                    <div class="flex flex-col sm:flex-row sm:justify-between border-b border-slate-200 pb-1 gap-1">
+                                        <span class="font-bold text-slate-600 shrink-0">Sample No. Kwitansi:</span>
+                                        <span class="font-mono font-bold text-emerald-700 text-[11px] sm:text-right">
+                                            <template v-if="sprTemplateForm.receipt_settings.receipt_number_custom">
+                                                {{ sprTemplateForm.receipt_settings.receipt_number_custom }}
+                                            </template>
+                                            <template v-else>
+                                                {{ (sprTemplateForm.receipt_settings.receipt_number_prefix || ('KW/' + (booking.unit?.project?.code || 'ALN'))).replace(/\/+$/, '') }}/CICILAN-1/{{ String(booking.id || 1).padStart(3, '0') }}
+                                                <span class="text-slate-400 font-sans font-normal ml-1">(Otomatis Cicilan 1)</span>
+                                            </template>
                                         </span>
                                     </div>
                                     <div class="flex justify-between border-b border-slate-200 pb-1">
