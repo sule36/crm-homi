@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class GeneralLedger extends Model
 {
+    use BelongsToTenant;
     protected $table = 'general_ledger';
 
     protected $fillable = [
-        'date', 'type', 'category', 'reference_type', 'reference_id',
+        'company_id', 'date', 'type', 'category', 'reference_type', 'reference_id',
         'project_id', 'bank_account_id', 'description', 'debit', 'credit', 'recorded_by',
     ];
 

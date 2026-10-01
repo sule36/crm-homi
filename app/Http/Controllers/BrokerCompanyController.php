@@ -22,7 +22,9 @@ class BrokerCompanyController extends Controller
             ->with(['agents' => fn($q) => $q->withSum('commissions', 'amount')])
             ->when($isMasterLead, fn($q) => $q->where('master_lead_id', $user->id))
             ->when($request->master_lead_id, fn($q, $ml) => $q->where('master_lead_id', $ml))
-            ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('code', 'like', "%{$s}%"))
+            ->when($request->search, fn($q, $s) => $q->where(function ($sub) use ($s) {
+                $sub->where('name', 'like', "%{$s}%")->orWhere('code', 'like', "%{$s}%");
+            }))
             ->when($request->status, fn($q, $st) => $q->where('status', $st))
             ->latest()
             ->paginate(15);
@@ -31,7 +33,9 @@ class BrokerCompanyController extends Controller
             ->when($isMasterLead, fn($q) => $q->where('master_lead_id', $user->id))
             ->when($request->master_lead_id, fn($q, $ml) => $q->where('master_lead_id', $ml))
             ->when($request->agent_type, fn($q, $type) => $q->where('agent_type', $type))
-            ->when($request->search_agent, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
+            ->when($request->search_agent, fn($q, $s) => $q->where(function ($sub) use ($s) {
+                $sub->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%");
+            }))
             ->where(function ($q) {
                 $q->whereNotNull('agent_type')
                   ->orWhereHas('roles', fn($rq) => $rq->whereIn('name', ['sales_agent', 'broker', 'sales_manager', 'agent', 'master_lead']));
@@ -39,8 +43,10 @@ class BrokerCompanyController extends Controller
             ->latest()
             ->paginate(20, ['*'], 'agents_page');
 
-        $masterLeads = User::whereHas('roles', fn($q) => $q->where('name', 'master_lead'))
-            ->orWhere('agent_type', 'master_lead')
+        $masterLeads = User::where(function ($q) {
+                $q->where('agent_type', 'master_lead')
+                  ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+            })
             ->select('id', 'name', 'phone')
             ->get();
 

@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class PartnerBank extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
+        'company_id',
         'name',
         'logo',
         'interest_rate_fixed',

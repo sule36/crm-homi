@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class FollowUpReminder extends Model
 {
-    protected $fillable = ['lead_id', 'user_id', 'remind_at', 'message', 'status'];
+    use BelongsToTenant;
+
+    protected $fillable = ['company_id', 'lead_id', 'user_id', 'remind_at', 'message', 'status'];
 
     protected function casts(): array
     {

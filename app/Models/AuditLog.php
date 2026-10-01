@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class AuditLog extends Model
 {
+    use BelongsToTenant;
+
     const UPDATED_AT = null; // Only created_at, no updated_at
 
     protected $fillable = [
+        'company_id',
         'user_id', 'action', 'description', 'auditable_type', 'auditable_id',
         'old_values', 'new_values', 'ip_address', 'user_agent',
     ];

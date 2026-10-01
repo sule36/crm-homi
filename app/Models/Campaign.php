@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class Campaign extends Model
 {
+    use BelongsToTenant;
     protected $fillable = [
         'project_id', 'name', 'platform', 'budget',
         'start_date', 'end_date', 'utm_source', 'utm_medium',

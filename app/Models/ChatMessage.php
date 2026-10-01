@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class ChatMessage extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'lead_id', 'phone', 'direction', 'message', 'type', 'status', 'platform',
+        'company_id', 'lead_id', 'phone', 'direction', 'message', 'type', 'status', 'platform',
     ];
 
     // Relationships

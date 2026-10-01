@@ -112,7 +112,10 @@ class NegotiationController extends Controller
             'stats' => $stats,
             'filters' => $request->only(['status', 'project_id', 'created_by', 'search']),
             'projects' => Project::select('id', 'name')->get(),
-            'agents' => User::select('id', 'name')->whereIn('agent_type', ['inhouse', 'freelance', 'master_lead'])->orWhereHas('roles', fn ($q) => $q->whereIn('name', ['sales_agent', 'master_lead', 'broker']))->get(),
+            'agents' => User::select('id', 'name')->where(function ($q) {
+                $q->whereIn('agent_type', ['inhouse', 'freelance', 'master_lead'])
+                  ->orWhereHas('roles', fn ($rq) => $rq->whereIn('name', ['sales_agent', 'master_lead', 'broker']));
+            })->get(),
             'units' => $units,
             'leads' => $leads,
         ]);

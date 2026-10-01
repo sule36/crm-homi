@@ -2,17 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class UnitProgress extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToTenant;
 
     protected $table = 'unit_progress';
 
     protected $fillable = [
-        'unit_id', 'progress_percentage', 'description', 'notes',
+        'company_id', 'unit_id', 'progress_percentage', 'description', 'notes',
         'recorded_date', 'recorded_by',
     ];
 

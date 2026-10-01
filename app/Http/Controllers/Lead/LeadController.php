@@ -30,7 +30,9 @@ class LeadController extends Controller
         }
 
         $leads = $query
-            ->when($request->search, fn ($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%"))
+            ->when($request->search, fn ($q, $s) => $q->where(function ($sub) use ($s) {
+                $sub->where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%");
+            }))
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when($request->project_id, fn ($q, $p) => $q->where('project_id', $p))
             ->when($request->source, fn ($q, $s) => $q->where('source', $s))

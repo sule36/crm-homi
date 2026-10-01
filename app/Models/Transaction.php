@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class Transaction extends Model
 {
+    use BelongsToTenant;
     protected static function booted()
     {
         static::created(function ($transaction) {
@@ -32,7 +34,7 @@ class Transaction extends Model
     }
 
     protected $fillable = [
-        'booking_id', 'payment_schedule_id', 'amount',
+        'company_id', 'booking_id', 'payment_schedule_id', 'amount',
         'payment_method', 'bank_name', 'reference_number',
         'receipt_file', 'wet_receipt_file', 'notes', 'recorded_by', 'bank_account_id',
     ];

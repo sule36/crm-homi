@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class LeadActivity extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'lead_id', 'user_id', 'type', 'description',
+        'company_id', 'lead_id', 'user_id', 'type', 'description',
         'attachments', 'old_status', 'new_status',
         'scheduled_at', 'completed_at',
     ];

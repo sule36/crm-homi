@@ -154,8 +154,10 @@ class ReservationController extends Controller
             ->get();
 
         $coordinators = User::select('id', 'name', 'agent_type')
-            ->whereIn('agent_type', ['master_lead', 'inhouse', 'freelance'])
-            ->orWhereHas('roles', fn ($q) => $q->whereIn('name', ['super_admin', 'admin', 'developer', 'master_lead', 'sales_agent']))
+            ->where(function ($q) {
+                $q->whereIn('agent_type', ['master_lead', 'inhouse', 'freelance'])
+                  ->orWhereHas('roles', fn ($rq) => $rq->whereIn('name', ['super_admin', 'admin', 'developer', 'master_lead', 'sales_agent']));
+            })
             ->get();
 
         $selectedNego = $selectedNegoId ? Negotiation::with(['unit', 'lead'])->find($selectedNegoId) : null;

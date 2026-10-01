@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class UnitType extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     protected $fillable = [
-        'project_id', 'name', 'code', 'building_area', 'land_area',
+        'company_id', 'project_id', 'name', 'code', 'building_area', 'land_area',
         'bedrooms', 'bathrooms', 'floors', 'base_price', 'current_price',
         'floor_plan_image', 'specs', 'description',
     ];

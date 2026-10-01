@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class RabRealization extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'rab_item_id', 'expense_id', 'amount', 'realization_date',
+        'company_id', 'rab_item_id', 'expense_id', 'amount', 'realization_date',
         'vendor_name', 'notes', 'recorded_by',
     ];
 

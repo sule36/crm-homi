@@ -244,11 +244,35 @@
             'sig3_title' => 'Pembeli',
         ];
 
-        $bankInfo = $settings['spr_bank_info'] ?? [
-            'bank_name' => 'BCA / BSI',
-            'account_number' => '542-539-2929 / 732-694-3422',
-            'account_holder' => 'PT. Serangkai Roden Development',
-        ];
+        $tenantCompanyName = $booking->company?->name ?? $booking->unit?->project?->company?->name ?? 'Developer';
+        $fallbackBank = \App\Models\BankAccount::where('is_active', true)->first();
+
+        // 1. Prioritize booking's explicit spr_bank_info
+        $bankInfo = (!empty($booking->spr_bank_info) && is_array($booking->spr_bank_info)) 
+            ? $booking->spr_bank_info 
+            : ($settings['spr_bank_info'] ?? []);
+
+        // 2. If booking has a relational bank account, use it
+        if ($booking->bankAccount) {
+            $bankInfo['bank_name'] = $booking->bankAccount->bank_name;
+            $bankInfo['account_number'] = $booking->bankAccount->account_number;
+            $bankInfo['account_holder'] = $booking->bankAccount->account_holder;
+        } elseif (empty($bankInfo['bank_name']) && $fallbackBank) {
+            // 3. Fallback to tenant's active BankAccount model
+            $bankInfo['bank_name'] = $fallbackBank->bank_name;
+            $bankInfo['account_number'] = $fallbackBank->account_number;
+            $bankInfo['account_holder'] = $fallbackBank->account_holder;
+        }
+
+        // 4. Fallback defaults if still empty
+        if (empty($bankInfo['bank_name'])) {
+            $bankInfo['bank_name'] = 'Bank Resmi Developer';
+            $bankInfo['account_number'] = '-';
+            $bankInfo['account_holder'] = $tenantCompanyName;
+        }
+        if (empty($bankInfo['account_holder'])) {
+            $bankInfo['account_holder'] = $tenantCompanyName;
+        }
 
         // Prepare Base64 Signature Images if available
         $sig1ImageData = null;
@@ -363,8 +387,8 @@
             @php
                 $dpAmount = $booking->dp_amount > 0 ? $booking->dp_amount : ($booking->final_price * 0.10);
                 $kprAmount = $booking->final_price - $booking->booking_fee - $dpAmount;
-                $formattedBank = ($bankInfo['bank_name'] ?? 'BCA/BSI') . ' ' . ($bankInfo['account_number'] ?? '542-539-2929');
-                $accHolder = $bankInfo['account_holder'] ?? 'PT. Serangkai Roden Development';
+                $formattedBank = ($bankInfo['bank_name'] ?? 'Bank Resmi Developer') . ' ' . ($bankInfo['account_number'] ?? '-');
+                $accHolder = $bankInfo['account_holder'] ?? $tenantCompanyName;
             @endphp
             <tr>
                 <td>Uang Tanda Jadi (UTJ)</td>

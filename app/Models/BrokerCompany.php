@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class BrokerCompany extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'master_lead_id', 'name', 'code', 'contact_person', 'phone', 'email', 'address',
+        'company_id', 'master_lead_id', 'name', 'code', 'contact_person', 'phone', 'email', 'address',
         'commission_rate', 'status', 'bank_name', 'bank_account_number',
         'bank_account_name', 'notes'
     ];

@@ -78,8 +78,10 @@ class CommissionController extends Controller
             'enable_inhouse_master_lead' => true,
         ]);
 
-        $masterLeads = User::whereHas('roles', fn($q) => $q->where('name', 'master_lead'))
-            ->orWhere('agent_type', 'master_lead')
+        $masterLeads = User::where(function ($q) {
+                $q->where('agent_type', 'master_lead')
+                  ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+            })
             ->select('id', 'name', 'phone')
             ->get();
 
@@ -138,9 +140,10 @@ class CommissionController extends Controller
         ]);
 
         // Sync Master Lead Users commission_rate & recalculate pending ML overriding commissions
-        User::where('agent_type', 'master_lead')
-            ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
-            ->update(['commission_rate' => $newMasterRate]);
+        User::where(function ($q) {
+            $q->where('agent_type', 'master_lead')
+              ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+        })->update(['commission_rate' => $newMasterRate]);
 
         $pendingMlCommissions = Commission::with(['booking.bookedBy'])
             ->where('payout_recipient', 'master_lead')
@@ -223,9 +226,10 @@ class CommissionController extends Controller
 
                 $masterLead = $agent->masterLead ?? $agent->brokerCompany?->masterLead;
                 if (!$masterLead && Setting::get('commission_schema_config.enable_master_lead', true)) {
-                    $masterLead = User::where('agent_type', 'master_lead')
-                        ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
-                        ->first();
+                    $masterLead = User::where(function ($q) {
+                        $q->where('agent_type', 'master_lead')
+                          ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+                    })->first();
                 }
 
                 if ($masterLead && $masterLead->id !== $agent->id) {

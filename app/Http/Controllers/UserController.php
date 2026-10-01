@@ -20,9 +20,11 @@ class UserController extends Controller
             ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
             ->paginate(15);
 
-        $masterLeads = User::where('agent_type', 'master_lead')
+        $masterLeads = User::where(function ($q) {
+                $q->where('agent_type', 'master_lead')
+                  ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+            })
             ->when($currentUser && $currentUser->company_id, fn($q) => $q->where('company_id', $currentUser->company_id))
-            ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
             ->get(['id', 'name']);
 
         return Inertia::render('Users/Index', [

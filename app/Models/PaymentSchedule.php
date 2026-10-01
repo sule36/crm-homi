@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class PaymentSchedule extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'booking_id', 'installment_number', 'label', 'amount',
+        'company_id', 'booking_id', 'installment_number', 'label', 'amount',
         'due_date', 'paid_date', 'status', 'payment_proof',
         'verified_by', 'verified_at', 'notes',
     ];

@@ -307,15 +307,34 @@
             'sig3_title' => 'Pembeli Utama',
         ];
 
-        $bankInfo = $settings['spr_bank_info'] ?? [
-            'bank_name' => 'MANDIRI',
-            'account_number' => '1200008089893',
-            'account_holder' => 'PT. Serangkai Roden Development',
-        ];
-        if ($booking->bankAccount && !isset($bankInfo['utj']) && !isset($bankInfo['dp'])) {
+        $tenantCompanyName = $booking->company?->name ?? $booking->unit?->project?->company?->name ?? 'Developer';
+        $fallbackBank = \App\Models\BankAccount::where('is_active', true)->first();
+
+        // 1. Prioritize booking's explicit spr_bank_info
+        $bankInfo = (!empty($booking->spr_bank_info) && is_array($booking->spr_bank_info)) 
+            ? $booking->spr_bank_info 
+            : ($settings['spr_bank_info'] ?? []);
+
+        // 2. If booking has a relational bank account, use it
+        if ($booking->bankAccount) {
             $bankInfo['bank_name'] = $booking->bankAccount->bank_name;
             $bankInfo['account_number'] = $booking->bankAccount->account_number;
             $bankInfo['account_holder'] = $booking->bankAccount->account_holder;
+        } elseif (empty($bankInfo['bank_name']) && $fallbackBank) {
+            // 3. Fallback to tenant's active BankAccount model
+            $bankInfo['bank_name'] = $fallbackBank->bank_name;
+            $bankInfo['account_number'] = $fallbackBank->account_number;
+            $bankInfo['account_holder'] = $fallbackBank->account_holder;
+        }
+
+        // 4. Fallback defaults if still empty
+        if (empty($bankInfo['bank_name'])) {
+            $bankInfo['bank_name'] = 'Bank Resmi Developer';
+            $bankInfo['account_number'] = '-';
+            $bankInfo['account_holder'] = $tenantCompanyName;
+        }
+        if (empty($bankInfo['account_holder'])) {
+            $bankInfo['account_holder'] = $tenantCompanyName;
         }
 
         // Special Offer & Benefit (prioritize per-booking overrides)
@@ -515,9 +534,9 @@
         </thead>
         <tbody>
             @php
-                $defaultBankName = $bankInfo['bank_name'] ?? 'Mandiri';
-                $defaultAccNo = $bankInfo['account_number'] ?? '1200008089893';
-                $defaultAccHolder = $bankInfo['account_holder'] ?? 'PT. Serangkai Roden Development';
+                $defaultBankName = $bankInfo['bank_name'] ?? 'Bank Resmi Developer';
+                $defaultAccNo = $bankInfo['account_number'] ?? '-';
+                $defaultAccHolder = $bankInfo['account_holder'] ?? $tenantCompanyName;
 
                 $getBankForRow = function($type) use ($bankInfo, $defaultBankName, $defaultAccNo, $defaultAccHolder) {
                     if (isset($bankInfo[$type]) && is_array($bankInfo[$type]) && !empty($bankInfo[$type]['bank_name'])) {

@@ -12,11 +12,11 @@ const wetForm = useForm({
     wet_receipt_file: null,
 });
 
-// Determine Effective Payment Date
+// Determine Effective Payment Date (prioritize actual system recorded transaction date)
 const paymentDateFormatted = computed(() => {
-    const rawDate = props.transaction.payment_schedule?.paid_date 
-        || props.transaction.payment_schedule?.due_date 
-        || props.transaction.created_at;
+    const rawDate = props.transaction.created_at 
+        || props.transaction.payment_schedule?.paid_date 
+        || props.transaction.payment_schedule?.due_date;
     if (!rawDate) return '-';
     return new Date(rawDate).toLocaleDateString('id-ID', {
         day: 'numeric',
@@ -94,7 +94,12 @@ const computeEffectiveBankAccount = () => {
         return `${props.transaction.bank_name}${refStr}`;
     }
 
-    // 6. Global Company Settings fallback
+    // 6. Global Company Settings fallback (spr_bank_info or company_bank_name)
+    if (props.settings?.spr_bank_info?.bank_name && props.settings?.spr_bank_info?.account_number) {
+        const sb = props.settings.spr_bank_info;
+        return `${sb.bank_name} - ${sb.account_number}${getHolder(sb)}`;
+    }
+
     if (props.settings?.company_bank_name && props.settings?.company_bank_account) {
         const holder = props.settings.company_bank_holder || companyName;
         return `${props.settings.company_bank_name} - ${props.settings.company_bank_account}${holder ? (' a.n. ' + holder) : ''}`;
@@ -151,39 +156,58 @@ const paddedId = String(props.transaction.id).padStart(4, '0');
 // Dynamic schedule tag detection (UTJ, DP1, DP2, CICILAN-1, CICILAN-2, PELUNASAN, etc.)
 const getScheduleCode = () => {
     const sched = props.transaction.payment_schedule;
-    const label = (sched?.label || props.transaction.notes || '').trim();
-    if (!label) return 'TRX';
+    const schedLabel = (sched?.label || '').trim();
+    const notesLabel = (props.transaction.notes || '').trim();
 
-    // 1. UTJ / Booking Fee
-    if (/utj|booking/i.test(label)) {
-        return 'UTJ';
+    // 1. Check schedule label first if available
+    if (schedLabel) {
+        // Cicilan / Angsuran (Cicilan Ke-1, Cicilan 1, Angsuran 1, etc.)
+        const cicilMatch = schedLabel.match(/(?:cicilan|angsuran)\s*(?:ke-?)?\s*(\d+)/i);
+        if (cicilMatch) {
+            return `CICILAN-${cicilMatch[1]}`;
+        }
+
+        // DP / Down Payment (DP 1, DP 2, Down Payment 1, etc.)
+        const dpMatch = schedLabel.match(/(?:dp|down\s*payment)\s*(\d+)?/i);
+        if (dpMatch) {
+            return `DP${dpMatch[1] || '1'}`;
+        }
+
+        // UTJ / Booking Fee
+        if (/utj|booking/i.test(schedLabel)) {
+            return 'UTJ';
+        }
+
+        // Pelunasan
+        if (/lunas|pelunasan/i.test(schedLabel)) {
+            return 'PELUNASAN';
+        }
+
+        // KPR
+        if (/kpr/i.test(schedLabel)) {
+            return 'KPR';
+        }
     }
 
-    // 2. DP / Down Payment (DP 1, DP 2, Down Payment 1, etc.)
-    const dpMatch = label.match(/(?:dp|down\s*payment)\s*(\d+)?/i);
-    if (dpMatch) {
-        return `DP${dpMatch[1] || '1'}`;
-    }
+    // 2. Check notes fallback
+    if (notesLabel) {
+        const cicilMatchNotes = notesLabel.match(/(?:cicilan|angsuran)\s*(?:ke-?)?\s*(\d+)/i);
+        if (cicilMatchNotes) {
+            return `CICILAN-${cicilMatchNotes[1]}`;
+        }
 
-    // 3. Cicilan / Angsuran (Cicilan Ke-1, Cicilan 1, Angsuran 1, etc.)
-    const cicilMatch = label.match(/(?:cicilan|angsuran)\s*(?:ke-?)?\s*(\d+)/i);
-    if (cicilMatch) {
-        return `CICILAN-${cicilMatch[1]}`;
-    }
+        const dpMatchNotes = notesLabel.match(/(?:dp|down\s*payment)\s*(\d+)?/i);
+        if (dpMatchNotes) {
+            return `DP${dpMatchNotes[1] || '1'}`;
+        }
 
-    // 4. Pelunasan
-    if (/lunas|pelunasan/i.test(label)) {
-        return 'PELUNASAN';
-    }
+        if (/utj|booking/i.test(notesLabel)) {
+            return 'UTJ';
+        }
 
-    // 5. KPR
-    if (/kpr/i.test(label)) {
-        return 'KPR';
-    }
-
-    // 6. Pajak / Biaya Legal
-    if (/pajak|ppn|bphtb|ajb|legal/i.test(label)) {
-        return 'LEGAL';
+        if (/lunas|pelunasan/i.test(notesLabel)) {
+            return 'PELUNASAN';
+        }
     }
 
     return 'TRX';
@@ -191,7 +215,7 @@ const getScheduleCode = () => {
 
 const resolveInitialReceiptNumber = () => {
     const scheduleCode = getScheduleCode();
-    const tokenRegex = /(?:DP\s*\d+|CICILAN-\d+|CICIL-\d+|UTJ|PELUNASAN|KPR|LEGAL)/i;
+    const tokenRegex = /(?:DP\s*\d+|CICILAN-\d+|CICIL-\d+|CICILAN\s*\d+|UTJ|PELUNASAN|KPR|LEGAL)/i;
     
     // Fallback ID/Number (Padded to 3 digits like 003 to match system standards)
     const rawNumberId = props.transaction.booking?.id || props.transaction.id || 1;
@@ -372,7 +396,7 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
                     <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Untuk Pembayaran</span>
                     <div class="flex-1">
                         <p class="text-sm font-black text-slate-800">
-                            {{ transaction.notes || 'Cicilan / Pembayaran Unit' }}
+                            {{ transaction.payment_schedule?.label ? (transaction.payment_schedule.label.toLowerCase().startsWith('pembayaran') ? transaction.payment_schedule.label : 'Pembayaran ' + transaction.payment_schedule.label) : (transaction.notes || 'Cicilan / Pembayaran Unit') }}
                         </p>
                         <p v-if="transaction.booking?.unit" class="text-[10px] text-slate-500 font-medium mt-1">
                             Unit Kavling: Blok {{ transaction.booking?.unit?.block }} No. {{ transaction.booking?.unit?.number }} 

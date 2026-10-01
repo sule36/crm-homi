@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class ContractorContract extends Model
 {
+    use BelongsToTenant;
     protected $fillable = [
         'project_id', 'contractor_name', 'contract_number',
         'description', 'total_amount', 'status',

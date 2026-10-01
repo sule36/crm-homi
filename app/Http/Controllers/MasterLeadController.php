@@ -31,9 +31,10 @@ class MasterLeadController extends Controller
 
             $masterLead = $agent->masterLead ?? $agent->brokerCompany?->masterLead;
             if (!$masterLead && \App\Models\Setting::get('commission_schema_config.enable_master_lead', true)) {
-                $masterLead = User::where('agent_type', 'master_lead')
-                    ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
-                    ->first();
+                $masterLead = User::where(function ($q) {
+                    $q->where('agent_type', 'master_lead')
+                      ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+                })->first();
             }
 
             if ($masterLead && $masterLead->id !== $agent->id) {
@@ -102,7 +103,11 @@ class MasterLeadController extends Controller
         }
 
         $masterLeads = $mlQuery
-            ->when($request->search, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%"))
+            ->when($request->search, fn($q, $s) => $q->where(function ($sub) use ($s) {
+                $sub->where('name', 'like', "%{$s}%")
+                    ->orWhere('email', 'like', "%{$s}%")
+                    ->orWhere('phone', 'like', "%{$s}%");
+            }))
             ->latest()
             ->paginate(15, ['*'], 'ml_page')
             ->through(function ($ml) {
@@ -176,7 +181,10 @@ class MasterLeadController extends Controller
         }
 
         $brokers = $brokerQuery
-            ->when($request->search_agency, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('code', 'like', "%{$s}%"))
+            ->when($request->search_agency, fn($q, $s) => $q->where(function ($sub) use ($s) {
+                $sub->where('name', 'like', "%{$s}%")
+                    ->orWhere('code', 'like', "%{$s}%");
+            }))
             ->latest()
             ->paginate(15, ['*'], 'brokers_page');
 
@@ -192,7 +200,10 @@ class MasterLeadController extends Controller
         }
 
         $allAgents = $agentsQuery
-            ->when($request->search_agent, fn($q, $s) => $q->where('name', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%"))
+            ->when($request->search_agent, fn($q, $s) => $q->where(function ($sub) use ($s) {
+                $sub->where('name', 'like', "%{$s}%")
+                    ->orWhere('email', 'like', "%{$s}%");
+            }))
             ->latest()
             ->paginate(20, ['*'], 'agents_page');
 
@@ -208,9 +219,11 @@ class MasterLeadController extends Controller
 
         $subAgentCommissions = (clone $ledgerQuery)
             ->when($request->search_ledger, function ($q, $s) {
-                $q->whereHas('user', fn($uq) => $uq->where('name', 'like', "%{$s}%"))
-                  ->orWhereHas('booking.lead', fn($lq) => $lq->where('name', 'like', "%{$s}%"))
-                  ->orWhere('ml_receipt_number', 'like', "%{$s}%");
+                $q->where(function ($sub) use ($s) {
+                    $sub->whereHas('user', fn($uq) => $uq->where('name', 'like', "%{$s}%"))
+                        ->orWhereHas('booking.lead', fn($lq) => $lq->where('name', 'like', "%{$s}%"))
+                        ->orWhere('ml_receipt_number', 'like', "%{$s}%");
+                });
             })
             ->latest()
             ->paginate(15, ['*'], 'ledger_page');
@@ -225,10 +238,16 @@ class MasterLeadController extends Controller
         $subAgentPendingOutflow = (clone $ledgerQuery)->where(fn($q) => $q->where('ml_payout_status', 'unpaid')->orWhereNull('ml_payout_status'))->sum('amount');
 
         // Stats summary
-        $totalMasterLeads = User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->count();
+        $totalMasterLeads = User::where(function ($q) {
+            $q->where('agent_type', 'master_lead')
+              ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+        })->count();
         $totalSubAgents = User::whereNotNull('master_lead_id')->count();
         $totalBrokers = BrokerCompany::count();
-        $totalMasterLeadRevenue = Booking::whereHas('bookedBy', fn($q) => $q->whereNotNull('master_lead_id')->orWhere('agent_type', 'master_lead'))
+        $totalMasterLeadRevenue = Booking::whereHas('bookedBy', fn($q) => $q->where(function ($sub) {
+                $sub->whereNotNull('master_lead_id')
+                    ->orWhere('agent_type', 'master_lead');
+            }))
             ->whereIn('status', ['approved', 'completed', 'booked'])
             ->sum('final_price');
 
@@ -251,6 +270,11 @@ class MasterLeadController extends Controller
                 ->get()
             : collect([]);
 
+        $masterLeadList = User::where(function ($q) {
+            $q->where('agent_type', 'master_lead')
+              ->orWhereHas('roles', fn($rq) => $rq->where('name', 'master_lead'));
+        })->select('id', 'name', 'phone')->get();
+
         return Inertia::render('MasterLeads/Index', [
             'masterLeads' => $masterLeads,
             'brokers' => $brokers,
@@ -259,7 +283,7 @@ class MasterLeadController extends Controller
             'mlOverridingCommissions' => $mlOverridingCommissions,
             'masterLeadInvoices' => $masterLeadInvoices,
             'brokerList' => BrokerCompany::where('status', 'active')->select('id', 'name', 'code', 'commission_rate')->get(),
-            'masterLeadList' => User::where('agent_type', 'master_lead')->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))->select('id', 'name', 'phone')->get(),
+            'masterLeadList' => $masterLeadList,
             'stats' => [
                 'total_master_leads' => $totalMasterLeads,
                 'total_sub_agents' => $totalSubAgents,

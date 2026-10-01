@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class EmployeeSalary extends Model
 {
+    use BelongsToTenant;
     protected $fillable = [
         'user_id', 'basic_salary', 'transport_allowance', 'meal_allowance',
         'position_allowance', 'other_allowance', 'effective_date', 'notes',

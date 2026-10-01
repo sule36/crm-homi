@@ -136,10 +136,10 @@ class TransactionController extends Controller
             'paymentSchedule'
         ]);
 
-        // Auto-heal: Ensure paymentSchedule's paid_date matches system schedule due_date if missing
-        if ($transaction->paymentSchedule && empty($transaction->paymentSchedule->paid_date) && !empty($transaction->paymentSchedule->due_date)) {
+        // Auto-heal: Ensure paymentSchedule's paid_date matches transaction created_at date if missing
+        if ($transaction->paymentSchedule && empty($transaction->paymentSchedule->paid_date)) {
             $transaction->paymentSchedule->update([
-                'paid_date' => $transaction->paymentSchedule->due_date,
+                'paid_date' => $transaction->created_at ? $transaction->created_at->format('Y-m-d') : now()->format('Y-m-d'),
             ]);
             $transaction->load('paymentSchedule');
         }

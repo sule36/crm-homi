@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class RabItem extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'project_id', 'category', 'sub_category', 'description',
+        'company_id', 'project_id', 'category', 'sub_category', 'description',
         'unit', 'volume', 'unit_price', 'total_price', 'notes', 'sort_order',
     ];
 
