@@ -101,6 +101,7 @@ class LeadController extends Controller
 
         $validated['status'] = 'new';
         $validated['score'] = 5;
+        $validated['company_id'] = auth()->user()?->company_id ?? 1;
 
         // Smart Auto-Assign: Consider capacity and workload
         if (empty($validated['assigned_to'])) {

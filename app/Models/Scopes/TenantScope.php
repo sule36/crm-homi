@@ -28,8 +28,15 @@ class TenantScope implements Scope
 
         // 1. Jika user terafiliasi dengan developer (memiliki company_id)
         if ($user->company_id) {
-            // Isolasi data: hanya tampilkan data milik developer yang bersangkutan
-            $builder->where($table . '.company_id', $user->company_id);
+            // Isolasi data: tampilkan data milik developer yang bersangkutan.
+            // Untuk developer utama/default (company_id == 1), sertakan juga data legacy (company_id IS NULL)
+            // agar data existing tidak hilang.
+            $builder->where(function ($query) use ($table, $user) {
+                $query->where($table . '.company_id', $user->company_id);
+                if ($user->company_id == 1) {
+                    $query->orWhereNull($table . '.company_id');
+                }
+            });
             return;
         }
 
