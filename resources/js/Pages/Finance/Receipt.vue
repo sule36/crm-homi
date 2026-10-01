@@ -26,64 +26,84 @@ const paymentDateFormatted = computed(() => {
 });
 
 // Determine Effective Destination Bank Account
-const effectiveBankAccount = computed(() => {
+const computeEffectiveBankAccount = () => {
     const getHolder = (ba) => {
         if (!ba) return '';
         const h = ba.account_holder || ba.account_name || ba.holder_name || '';
         return h ? ` a.n. ${h}` : '';
     };
 
-    // 1. Direct transaction bank account
+    const bk = props.transaction.booking;
+    const label = (props.transaction.payment_schedule?.label || props.transaction.notes || '').toLowerCase();
+    const receiptSettings = bk?.receipt_settings || {};
+
+    // 1. Explicit Receipt Settings Bank Custom Override
+    if (receiptSettings.receipt_bank_custom) {
+        return receiptSettings.receipt_bank_custom;
+    }
+
+    // 2. Direct transaction relational bank account (if cashier selected a registered bank account)
     if (props.transaction.bank_account) {
         const ba = props.transaction.bank_account;
         const bName = ba.bank_name || ba.name || 'Bank';
         return `${bName} - ${ba.account_number || '-'}${getHolder(ba)}`;
     }
+
+    // 3. Per-booking spr_bank_info (Configured in SPR & Kwitansi Parameters)
+    if (bk?.spr_bank_info && typeof bk.spr_bank_info === 'object') {
+        const info = bk.spr_bank_info;
+
+        // A. If payment is for UTJ / Booking Fee
+        if (label.includes('utj') || label.includes('booking')) {
+            if (info.utj && info.utj.bank_name && info.utj.account_number) {
+                return `${info.utj.bank_name} - ${info.utj.account_number}${getHolder(info.utj)}`;
+            }
+        }
+
+        // B. If payment is for DP / Down Payment
+        if (label.includes('dp') || label.includes('down payment')) {
+            if (info.dp && info.dp.bank_name && info.dp.account_number) {
+                return `${info.dp.bank_name} - ${info.dp.account_number}${getHolder(info.dp)}`;
+            }
+        }
+
+        // C. If payment is for Cicilan / Angsuran
+        if (label.includes('cicilan') || label.includes('angsuran')) {
+            if (info.installment && info.installment.bank_name && info.installment.account_number) {
+                return `${info.installment.bank_name} - ${info.installment.account_number}${getHolder(info.installment)}`;
+            }
+        }
+
+        // D. Main / Default Bank from spr_bank_info
+        const mainBank = info.main || info;
+        if (mainBank.bank_name && mainBank.account_number) {
+            return `${mainBank.bank_name} - ${mainBank.account_number}${getHolder(mainBank)}`;
+        }
+    }
+
+    // 4. Booking Eloquent bankAccount relation
+    if (bk?.bank_account || bk?.bankAccount) {
+        const acc = bk.bank_account || bk.bankAccount;
+        const bName = acc.bank_name || acc.name || 'Bank';
+        return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
+    }
+
+    // 5. Direct transaction text bank_name (if typed manually by cashier during payment)
     if (props.transaction.bank_name) {
         const refStr = props.transaction.reference_number ? ` (Ref: ${props.transaction.reference_number})` : '';
         return `${props.transaction.bank_name}${refStr}`;
     }
 
-    // 2. Booking Bank Account matching label (UTJ, DP, Installment)
-    const bk = props.transaction.booking;
-    const label = (props.transaction.payment_schedule?.label || props.transaction.notes || '').toLowerCase();
-    if (bk) {
-        if (label.includes('utj') || label.includes('booking')) {
-            const acc = bk.bank_account_utj || bk.bank_account;
-            if (acc) {
-                const bName = acc.bank_name || acc.name || 'Bank';
-                return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
-            }
-        }
-        if (label.includes('dp') || label.includes('down payment')) {
-            const acc = bk.bank_account_dp || bk.bank_account;
-            if (acc) {
-                const bName = acc.bank_name || acc.name || 'Bank';
-                return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
-            }
-        }
-        if (label.includes('cicilan') || label.includes('angsuran')) {
-            const acc = bk.bank_account_installment || bk.bank_account;
-            if (acc) {
-                const bName = acc.bank_name || acc.name || 'Bank';
-                return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
-            }
-        }
-        if (bk.bank_account) {
-            const acc = bk.bank_account;
-            const bName = acc.bank_name || acc.name || 'Bank';
-            return `${bName} - ${acc.account_number || '-'}${getHolder(acc)}`;
-        }
-    }
-
-    // 3. Setting / Company fallback
+    // 6. Global Company Settings fallback
     if (props.settings?.company_bank_name && props.settings?.company_bank_account) {
         const holder = props.settings.company_bank_holder || companyName;
         return `${props.settings.company_bank_name} - ${props.settings.company_bank_account}${holder ? (' a.n. ' + holder) : ''}`;
     }
 
     return null;
-});
+};
+
+const effectiveBankAccount = ref(computeEffectiveBankAccount());
 
 const handleWetUpload = (e) => {
     wetForm.wet_receipt_file = e.target.files[0];
@@ -372,11 +392,17 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
                 <!-- Row 5: Metode & Rekening Tujuan -->
                 <div class="flex flex-col sm:flex-row border-b border-slate-100 pb-3">
                     <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Metode & Rekening Tujuan</span>
-                    <div class="text-xs font-bold text-slate-800">
-                        <span class="uppercase font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 mr-2">{{ transaction.payment_method?.toUpperCase() || 'TRANSFER' }}</span>
-                        <span v-if="effectiveBankAccount" class="text-slate-900 font-black">
-                            💳 {{ effectiveBankAccount }}
-                        </span>
+                    <div class="text-xs font-bold text-slate-800 flex flex-wrap items-center gap-2">
+                        <span class="uppercase font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 mr-2 shrink-0">{{ transaction.payment_method?.toUpperCase() || 'TRANSFER' }}</span>
+                        <div v-if="effectiveBankAccount" class="inline-flex items-center gap-1.5 flex-1 min-w-[240px]">
+                            <span class="shrink-0 text-sm">💳</span>
+                            <input 
+                                v-model="effectiveBankAccount" 
+                                type="text" 
+                                class="text-xs font-black text-slate-900 border-b border-dashed border-slate-300 hover:border-slate-500 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 w-full max-w-md print:border-none print:p-0 print:w-auto" 
+                                title="Klik untuk mengubah rekening tujuan kwitansi jika diperlukan"
+                            />
+                        </div>
                         <span v-else class="text-slate-500 italic">
                             (Pembayaran Tunai Kasir)
                         </span>

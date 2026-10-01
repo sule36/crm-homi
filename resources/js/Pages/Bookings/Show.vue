@@ -269,6 +269,7 @@ const sprTemplateForm = useForm({
             receipt_sig_slot: props.booking.receipt_settings.receipt_sig_slot || 'sig1',
             receipt_number_prefix: props.booking.receipt_settings.receipt_number_prefix || '',
             receipt_number_custom: props.booking.receipt_settings.receipt_number_custom || '',
+            receipt_bank_custom: props.booking.receipt_settings.receipt_bank_custom || '',
             receipt_city: props.booking.receipt_settings.receipt_city || props.booking.sigs_city || 'Jakarta Selatan',
             receipt_sig_title: props.booking.receipt_settings.receipt_sig_title || props.booking.sig1_title || 'Kasir & Keuangan',
             receipt_sig_name: props.booking.receipt_settings.receipt_sig_name || props.booking.sig1_name || '',
@@ -279,6 +280,7 @@ const sprTemplateForm = useForm({
             receipt_sig_slot: 'sig1',
             receipt_number_prefix: '',
             receipt_number_custom: '',
+            receipt_bank_custom: '',
             receipt_city: props.booking.sigs_city || 'Jakarta Selatan',
             receipt_sig_title: props.booking.sig1_title || 'Kasir & Keuangan',
             receipt_sig_name: props.booking.sig1_name || '',
@@ -509,6 +511,28 @@ function openPaymentModal(schedule) {
         : new Date().toISOString().split('T')[0];
     const label = schedule.label || 'Unit Properti';
     paymentForm.notes = label.toLowerCase().startsWith('pembayaran') ? label : `Pembayaran ${label}`;
+
+    // Auto-fill target bank from booking's spr_bank_info
+    const bInfo = props.booking.spr_bank_info || {};
+    const schedLabel = (schedule.label || '').toLowerCase();
+    let detectedBank = bInfo.main || bInfo;
+    if ((schedLabel.includes('utj') || schedLabel.includes('booking')) && bInfo.utj?.bank_name) {
+        detectedBank = bInfo.utj;
+    } else if ((schedLabel.includes('dp') || schedLabel.includes('down payment')) && bInfo.dp?.bank_name) {
+        detectedBank = bInfo.dp;
+    } else if ((schedLabel.includes('cicilan') || schedLabel.includes('angsuran')) && bInfo.installment?.bank_name) {
+        detectedBank = bInfo.installment;
+    }
+
+    if (detectedBank?.bank_name) {
+        paymentForm.bank_name = detectedBank.account_number 
+            ? `${detectedBank.bank_name} - ${detectedBank.account_number}` 
+            : detectedBank.bank_name;
+    } else {
+        paymentForm.bank_name = '';
+    }
+    paymentForm.bank_account_id = props.booking.bank_account_id || null;
+
     showPaymentModal.value = true;
 }
 
@@ -1886,6 +1910,13 @@ const docTypeLabels = {
                                     <input v-model="sprTemplateForm.receipt_settings.receipt_number_custom" type="text" placeholder="Contoh: KW-SPECIAL-001" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
                                     <p class="text-[10px] text-slate-400 mt-1">Jika diisi, nomor ini meng-override seluruh nomor kwitansi otomatis pada unit ini (bagian kode DP/Cicilan tetap otomatis menyesuaikan).</p>
                                 </div>
+
+                                <!-- Rekening Tujuan Kwitansi -->
+                                <div class="col-span-1 md:col-span-2">
+                                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Rekening Tujuan Khusus Kwitansi (Opsional Override)</label>
+                                    <input v-model="sprTemplateForm.receipt_settings.receipt_bank_custom" type="text" placeholder="Kosongkan jika ingin otomatis mengikuti Bank Developer di tab Bank Developer (Contoh: BRI - 012001004640307)" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500" />
+                                    <p class="text-[10px] text-slate-400 mt-1">Secara default, kwitansi otomatis membaca rekening dari tab <b>Bank Developer (Per-Baris LOV)</b>.</p>
+                                </div>
                             </div>
 
                             <!-- Header Label & Kota -->
@@ -1944,6 +1975,12 @@ const docTypeLabels = {
                                     <div class="flex justify-between border-b border-slate-200 pb-1">
                                         <span class="font-bold text-slate-600">TTD Oleh:</span>
                                         <span class="font-bold text-slate-800">{{ sprTemplateForm.receipt_settings.receipt_city || 'Jakarta' }}, {{ sprTemplateForm.receipt_settings.receipt_sig_name || 'Keuangan' }} ({{ sprTemplateForm.receipt_settings.receipt_sig_title || 'Kasir & Keuangan' }})</span>
+                                    </div>
+                                    <div class="flex justify-between border-b border-slate-200 pb-1">
+                                        <span class="font-bold text-slate-600">Rekening Tujuan Kwitansi:</span>
+                                        <span class="font-bold text-blue-700 text-xs text-right">
+                                            💳 {{ sprTemplateForm.receipt_settings.receipt_bank_custom || (sprTemplateForm.spr_bank_info?.bank_name ? (sprTemplateForm.spr_bank_info.bank_name + ' - ' + (sprTemplateForm.spr_bank_info.account_number || '') + (sprTemplateForm.spr_bank_info.account_holder ? ' a.n ' + sprTemplateForm.spr_bank_info.account_holder : '')) : 'Mengikuti Bank Developer') }}
+                                        </span>
                                     </div>
                                     <div v-if="sprTemplateForm.receipt_settings.receipt_notes" class="pt-1">
                                         <span class="font-bold text-slate-600 block">Catatan:</span>
