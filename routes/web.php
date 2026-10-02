@@ -57,8 +57,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/duty-schedules/set-weekly', [\App\Http\Controllers\DutyScheduleController::class, 'setWeeklyDuty'])->name('duty-schedules.set-weekly');
     Route::post('/duty-schedules/set-monthly', [\App\Http\Controllers\DutyScheduleController::class, 'setMonthlyDuty'])->name('duty-schedules.set-monthly');
     Route::delete('/duty-schedules/{dutySchedule}', [\App\Http\Controllers\DutyScheduleController::class, 'destroy'])->name('duty-schedules.destroy');
-    Route::post('/duty-schedules/set-today', [\App\Http\Controllers\DutyScheduleController::class, 'setTodayDuty'])->name('duty-schedules.set-today');
     Route::post('/leads/{lead}/assign-duty-agent', [\App\Http\Controllers\DutyScheduleController::class, 'assignDutyAgentToLead'])->name('leads.assign-duty-agent');
+    
+    // Pencatatan Kedatangan & Trafik Agen di Lokasi (Buku Tamu PK & Konten)
+    Route::post('/agent-visits', [\App\Http\Controllers\AgentVisitController::class, 'store'])->name('agent-visits.store');
+    Route::put('/agent-visits/{agentVisit}', [\App\Http\Controllers\AgentVisitController::class, 'update'])->name('agent-visits.update');
+    Route::delete('/agent-visits/{agentVisit}', [\App\Http\Controllers\AgentVisitController::class, 'destroy'])->name('agent-visits.destroy');
+    Route::get('/agent-visits/report', [\App\Http\Controllers\AgentVisitController::class, 'report'])->name('agent-visits.report');
 
     // Units / Inventory
     Route::get('/units', [UnitController::class, 'index'])->name('units.index');

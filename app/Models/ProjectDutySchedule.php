@@ -37,6 +37,11 @@ class ProjectDutySchedule extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function visits()
+    {
+        return $this->hasMany(AgentSiteVisit::class, 'duty_schedule_id');
+    }
+
     /**
      * Get the duty agent for a specific project and date (default today).
      */

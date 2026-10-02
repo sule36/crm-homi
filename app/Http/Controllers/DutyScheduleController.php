@@ -9,6 +9,7 @@ use App\Models\ProjectDutySchedule;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\BrokerCompany;
+use App\Models\AgentSiteVisit;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
@@ -147,12 +148,78 @@ class DutyScheduleController extends Controller
         }
 
         $candidateAgents = static::getCandidateAgents();
+        $brokerCompanies = BrokerCompany::where('status', 'active')->select('id', 'name', 'code')->orderBy('name')->get();
+
+        // 1. Fetch Agent Site Visits (Buku Tamu Kedatangan Agen untuk PK & Konten)
+        $periodFilter = $request->input('visit_period', 'month'); // 'today', 'week', 'month', 'all'
+        $visitsQuery = AgentSiteVisit::with([
+            'recordedBy:id,name',
+            'agent:id,name,phone,email,agent_type,broker_company_id,master_lead_id',
+            'brokerCompany:id,name',
+            'dutySchedule'
+        ])
+        ->when($selectedProjectId, fn($q) => $q->where('project_id', $selectedProjectId));
+
+        if ($periodFilter === 'today') {
+            $visitsQuery->whereDate('visit_date', now()->toDateString());
+        } elseif ($periodFilter === 'week') {
+            $visitsQuery->whereBetween('visit_date', [
+                now()->startOfWeek(Carbon::MONDAY)->toDateString(),
+                now()->endOfWeek(Carbon::SUNDAY)->toDateString()
+            ]);
+        } elseif ($periodFilter === 'month') {
+            $visitsQuery->whereYear('visit_date', $selectedYear)->whereMonth('visit_date', $selectedMonth);
+        }
+
+        if ($request->filled('purpose') && $request->purpose !== 'all') {
+            $visitsQuery->where('purpose', $request->purpose);
+        }
+
+        $agentVisits = $visitsQuery->orderByDesc('visit_date')->orderByDesc('visit_time')->orderByDesc('id')->get()->map(function ($v) {
+            $meta = $v->getPurposeMeta();
+            return [
+                'id' => $v->id,
+                'project_id' => $v->project_id,
+                'duty_schedule_id' => $v->duty_schedule_id,
+                'agent_id' => $v->agent_id,
+                'agent_name' => $v->agent_name,
+                'agent_phone' => $v->agent_phone,
+                'agency_name' => $v->agency_name ?: 'Mitra Freelance',
+                'agent_type' => $v->agent_type,
+                'visit_date' => $v->visit_date->format('Y-m-d'),
+                'visit_date_formatted' => $v->visit_date->locale('id')->isoFormat('D MMM Y'),
+                'day_name' => $v->visit_date->locale('id')->isoFormat('dddd'),
+                'visit_time' => $v->visit_time ? substr($v->visit_time, 0, 5) : '-',
+                'purpose' => $v->purpose,
+                'purpose_label' => $meta['label'],
+                'purpose_short' => $meta['short_label'],
+                'purpose_icon' => $meta['icon'],
+                'purpose_color' => $meta['color'],
+                'purpose_badge_class' => $meta['badge_class'],
+                'visitor_count' => $v->visitor_count,
+                'notes' => $v->notes,
+                'documentation_url' => $v->documentation_url,
+                'status' => $v->status,
+                'recorded_by_name' => $v->recordedBy?->name ?? 'Petugas In-House',
+                'is_today' => $v->visit_date->isToday(),
+            ];
+        });
+
+        // 2. Traffic Analytics
+        $trafficAnalytics = AgentVisitController::getTrafficAnalytics(
+            $selectedProjectId,
+            $selectedMonth,
+            $selectedYear
+        );
 
         if ($request->wantsJson()) {
             return response()->json([
                 'schedules' => $schedules,
                 'todayAgents' => $todayAgents,
                 'candidateAgents' => $candidateAgents,
+                'brokerCompanies' => $brokerCompanies,
+                'agentVisits' => $agentVisits,
+                'trafficAnalytics' => $trafficAnalytics,
             ]);
         }
 
@@ -164,6 +231,16 @@ class DutyScheduleController extends Controller
             'schedules' => $schedules,
             'todayAgents' => $todayAgents,
             'candidateAgents' => $candidateAgents,
+            'brokerCompanies' => $brokerCompanies,
+            'agentVisits' => $agentVisits,
+            'trafficAnalytics' => $trafficAnalytics,
+            'visitPeriodFilter' => $periodFilter,
+            'currentUser' => [
+                'id' => auth()->id(),
+                'name' => auth()->user()?->name,
+                'agent_type' => auth()->user()?->agent_type,
+                'is_duty_today' => !empty($todayAgents[$selectedProjectId]) && $todayAgents[$selectedProjectId]['id'] === auth()->id(),
+            ],
         ]);
     }
 
