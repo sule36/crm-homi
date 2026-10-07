@@ -329,6 +329,81 @@ function scoreColor(score) {
     if (score >= 5) return 'text-amber-600 bg-amber-50';
     return 'text-rose-600 bg-rose-50';
 }
+
+// FOLLOW-UP MONITORING & QUICK ACTION HELPERS
+const activityIcons = {
+    call: '📞',
+    whatsapp: '💬',
+    email: '✉️',
+    visit: '🏠',
+    meeting: '🤝',
+    note: '📝',
+    status_change: '🔄',
+};
+
+const activityLabels = {
+    call: 'Telepon',
+    whatsapp: 'WhatsApp',
+    email: 'Email',
+    visit: 'Visit Lokasi',
+    meeting: 'Pertemuan',
+    note: 'Catatan',
+    status_change: 'Ganti Status',
+};
+
+function formatFollowUpTime(dateStr) {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Baru saja';
+    if (diffMins < 60) return `${diffMins} mnt lalu`;
+    if (diffHours < 24) return `${diffHours} jam lalu`;
+    if (diffDays === 1) return 'Kemarin';
+    if (diffDays < 7) return `${diffDays} hr lalu`;
+    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+}
+
+function getFollowUpFreshness(dateStr) {
+    if (!dateStr) return 'stale'; // Belum pernah follow-up
+    const diffDays = Math.floor((new Date() - new Date(dateStr)) / 86400000);
+    if (diffDays <= 2) return 'active'; // 🟢 Hijau (<= 2 hari)
+    if (diffDays <= 6) return 'warning'; // 🟡 Kuning (3-6 hari)
+    return 'stale'; // 🔴 Merah (>= 7 hari)
+}
+
+// QUICK FOLLOW-UP MODAL STATE
+const showQuickFollowUpModal = ref(false);
+const selectedLeadForFollowUp = ref(null);
+const quickFollowUpForm = useForm({
+    type: 'whatsapp',
+    status: '',
+    description: '',
+});
+
+function openQuickFollowUp(lead) {
+    selectedLeadForFollowUp.value = lead;
+    quickFollowUpForm.type = 'whatsapp';
+    quickFollowUpForm.status = lead.status;
+    quickFollowUpForm.description = '';
+    showQuickFollowUpModal.value = true;
+}
+
+function submitQuickFollowUp() {
+    if (!selectedLeadForFollowUp.value) return;
+    quickFollowUpForm.post(`/leads/${selectedLeadForFollowUp.value.id}/activity`, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            showQuickFollowUpModal.value = false;
+            quickFollowUpForm.reset();
+        }
+    });
+}
 </script>
 
 <template>
@@ -358,9 +433,10 @@ function scoreColor(score) {
                     <span>Set Agen Jaga Hari Ini</span>
                 </button>
 
-                <Link :href="`/duty-schedules?project_id=${activeProjectId}&tab=visits`" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-xs" title="Buku Tamu Kedatangan Agen (PK & Konten)">
+                <Link :href="`/agent-visits?project_id=${activeProjectId}`" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition-all shadow-xs" title="Buku Tamu & Monitoring Trafik Kedatangan Agen (PK & Konten)">
                     <span>📍</span>
-                    <span>Buku Tamu Agen</span>
+                    <span>Trafik & Buku Tamu Agen</span>
+                    <span class="px-1.5 py-0.2 bg-purple-200/80 text-purple-800 text-[9px] font-black rounded-full">PK & Konten</span>
                 </Link>
 
                 <Link :href="`/duty-schedules?project_id=${activeProjectId}`" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all" title="Atur Jadwal Harian / Mingguan / Bulanan">
@@ -415,6 +491,7 @@ function scoreColor(score) {
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Lead</th>
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Proyek</th>
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Status</th>
+                            <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider min-w-[240px]">Follow-Up Terakhir</th>
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider hidden lg:table-cell">Sumber</th>
                             <th class="text-left px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider hidden lg:table-cell">Agen</th>
                             <th class="text-center px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-wider">Skor</th>
@@ -447,6 +524,52 @@ function scoreColor(score) {
                                     <option v-for="col in kanbanColumns" :key="col.key" :value="col.key">{{ col.label }}</option>
                                 </select>
                             </td>
+
+                            <!-- FOLLOW-UP TERAKHIR -->
+                            <td class="px-4 py-3 min-w-[240px]">
+                                <div v-if="lead.latest_activity" class="space-y-1">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700">
+                                            <span>{{ activityIcons[lead.latest_activity.type] || '📝' }}</span>
+                                            <span>{{ activityLabels[lead.latest_activity.type] || lead.latest_activity.type }}</span>
+                                        </span>
+                                        
+                                        <span class="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                            :class="{
+                                                'text-emerald-700 bg-emerald-50 border border-emerald-200': getFollowUpFreshness(lead.latest_activity.created_at) === 'active',
+                                                'text-amber-700 bg-amber-50 border border-amber-200': getFollowUpFreshness(lead.latest_activity.created_at) === 'warning',
+                                                'text-rose-700 bg-rose-50 border border-rose-200': getFollowUpFreshness(lead.latest_activity.created_at) === 'stale',
+                                            }">
+                                            <span class="w-1.5 h-1.5 rounded-full"
+                                                :class="{
+                                                    'bg-emerald-500': getFollowUpFreshness(lead.latest_activity.created_at) === 'active',
+                                                    'bg-amber-500': getFollowUpFreshness(lead.latest_activity.created_at) === 'warning',
+                                                    'bg-rose-500': getFollowUpFreshness(lead.latest_activity.created_at) === 'stale',
+                                                }"></span>
+                                            {{ formatFollowUpTime(lead.latest_activity.created_at) }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-slate-700 line-clamp-1 italic cursor-help" :title="lead.latest_activity.description">
+                                        "{{ lead.latest_activity.description }}"
+                                    </p>
+                                    <div class="flex items-center justify-between text-[10px] text-slate-400">
+                                        <span>Oleh: <strong class="text-slate-600">{{ lead.latest_activity.user?.name || 'In-House' }}</strong></span>
+                                        <button @click="openQuickFollowUp(lead)" class="text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer">
+                                            + Update
+                                        </button>
+                                    </div>
+                                </div>
+                                <div v-else class="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-amber-50/70 border border-amber-200/60">
+                                    <div class="flex items-center gap-1.5 text-[11px] text-amber-800 font-medium">
+                                        <span class="text-xs">⚠️</span>
+                                        <span>Belum ada follow-up</span>
+                                    </div>
+                                    <button @click="openQuickFollowUp(lead)" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded shadow-xs cursor-pointer">
+                                        + Follow-up
+                                    </button>
+                                </div>
+                            </td>
+
                             <td class="px-4 py-3 hidden lg:table-cell">
                                 <span :class="sourceColors[lead.source]" class="text-[10px] font-bold px-2.5 py-1 rounded-full border">
                                     {{ formatSourceLabel(lead) }}
@@ -460,6 +583,10 @@ function scoreColor(score) {
                             </td>
                             <td class="px-4 py-3 text-right">
                                 <div class="flex items-center justify-end gap-1.5">
+                                    <button @click="openQuickFollowUp(lead)" title="Catat Follow-up Cepat" class="px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-all flex items-center gap-1 cursor-pointer">
+                                        <span>💬</span>
+                                        <span class="hidden xl:inline">Follow-up</span>
+                                    </button>
                                     <Link :href="`/leads/${lead.id}`" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all">
                                         <span>⚡ Workspace</span>
                                     </Link>
@@ -498,16 +625,45 @@ function scoreColor(score) {
                     <div v-for="lead in kanbanLeads[col.key]" :key="lead.id"
                         class="bg-white rounded-xl p-3 border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer"
                         @click="$inertia.visit(`/leads/${lead.id}`)">
-                        <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-start justify-between mb-1.5">
                             <p class="text-sm font-bold text-slate-900 leading-tight">{{ lead.name }}</p>
                             <span :class="scoreColor(lead.score)" class="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black shrink-0">{{ lead.score }}</span>
                         </div>
                         <p class="text-xs text-slate-500 mb-2">{{ lead.phone }}</p>
-                        <div class="flex items-center justify-between">
-                            <span :class="sourceColors[lead.source]" class="text-[9px] font-bold px-1.5 py-0.5 rounded border">
+
+                        <!-- Follow-up snippet in Kanban card -->
+                        <div v-if="lead.latest_activity" class="bg-slate-50/90 rounded-xl p-2 mb-2 text-[11px] border border-slate-100 space-y-1">
+                            <div class="flex items-center justify-between text-[10px]">
+                                <span class="font-bold text-slate-700 flex items-center gap-1">
+                                    <span>{{ activityIcons[lead.latest_activity.type] || '📝' }}</span>
+                                    <span>{{ activityLabels[lead.latest_activity.type] || lead.latest_activity.type }}</span>
+                                </span>
+                                <span class="font-bold text-[10px]" :class="{
+                                    'text-emerald-600': getFollowUpFreshness(lead.latest_activity.created_at) === 'active',
+                                    'text-amber-600': getFollowUpFreshness(lead.latest_activity.created_at) === 'warning',
+                                    'text-rose-600': getFollowUpFreshness(lead.latest_activity.created_at) === 'stale',
+                                }">
+                                    {{ formatFollowUpTime(lead.latest_activity.created_at) }}
+                                </span>
+                            </div>
+                            <p class="text-slate-600 line-clamp-2 italic">"{{ lead.latest_activity.description }}"</p>
+                        </div>
+                        <div v-else class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200/60 rounded-xl px-2 py-1 mb-2 font-medium flex items-center justify-between">
+                            <span>⚠️ Belum follow-up</span>
+                            <button @click.stop="openQuickFollowUp(lead)" class="text-blue-600 font-bold hover:underline cursor-pointer">
+                                + Catat
+                            </button>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-1 pt-1 border-t border-slate-50">
+                            <span :class="sourceColors[lead.source]" class="text-[9px] font-bold px-1.5 py-0.5 rounded border truncate max-w-[110px]">
                                 {{ formatSourceLabel(lead) }}
                             </span>
-                            <span class="text-[10px] text-slate-600 font-medium">{{ formatAgentLabel(lead) }}</span>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button @click.stop="openQuickFollowUp(lead)" class="px-2 py-0.5 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded text-[10px] font-bold transition-all cursor-pointer">
+                                    + Follow-up
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -845,6 +1001,90 @@ function scoreColor(score) {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </teleport>
+
+        <!-- QUICK FOLLOW-UP MODAL (PENCATATAN & MONITORING UPDATE FOLLOW-UP) -->
+        <teleport to="body">
+            <div v-if="showQuickFollowUpModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showQuickFollowUpModal = false"></div>
+                <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div>
+                            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                                <span>⚡</span> Catat Follow-Up Prospek
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                {{ selectedLeadForFollowUp?.name }} • {{ selectedLeadForFollowUp?.phone }}
+                            </p>
+                        </div>
+                        <button @click="showQuickFollowUpModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">✕</button>
+                    </div>
+
+                    <form @submit.prevent="submitQuickFollowUp" class="space-y-4 text-xs">
+                        <!-- Lead Card Info & Direct WhatsApp -->
+                        <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-black text-slate-900">{{ selectedLeadForFollowUp?.name }}</p>
+                                <p class="text-xs text-slate-500 mt-0.5">
+                                    Proyek: <strong>{{ selectedLeadForFollowUp?.project?.name || 'Semua Proyek' }}</strong> • 
+                                    Status Saat Ini: <span class="font-bold capitalize">{{ selectedLeadForFollowUp?.status }}</span>
+                                </p>
+                            </div>
+                            <a v-if="selectedLeadForFollowUp?.phone"
+                                :href="`https://wa.me/${selectedLeadForFollowUp.phone.replace(/^0/, '62').replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Halo Bpk/Ibu ' + selectedLeadForFollowUp.name + ', perkenalkan saya dari Tim Developer ' + (selectedLeadForFollowUp.project?.name || 'Homi') + '...')}`"
+                                target="_blank"
+                                class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition-all shrink-0">
+                                <span>💬</span>
+                                <span>Chat WA</span>
+                            </a>
+                        </div>
+
+                        <!-- Interaction Media Type -->
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1.5">Jenis Aktivitas Kontak <span class="text-rose-500">*</span></label>
+                            <div class="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                                <button v-for="t in ['whatsapp', 'call', 'visit', 'meeting', 'note']" :key="t"
+                                    type="button"
+                                    @click="quickFollowUpForm.type = t"
+                                    :class="quickFollowUpForm.type === t ? 'bg-blue-600 text-white font-black shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold'"
+                                    class="py-2.5 px-2 rounded-xl text-center text-xs transition-all capitalize cursor-pointer flex flex-col items-center gap-1">
+                                    <span class="text-base">{{ activityIcons[t] }}</span>
+                                    <span>{{ activityLabels[t] }}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Update Status (Optional) -->
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Update Status Prospek (Opsional)</label>
+                            <select v-model="quickFollowUpForm.status" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-bold bg-slate-50 focus:bg-white text-slate-800">
+                                <option v-for="col in kanbanColumns" :key="col.key" :value="col.key">
+                                    {{ col.icon }} {{ col.label }} {{ col.key === selectedLeadForFollowUp?.status ? '(Status Saat Ini)' : '' }}
+                                </option>
+                            </select>
+                            <p class="text-[10px] text-slate-400 mt-1">Status tahapan prospek akan otomatis diperbarui dan tercatat pada linimasa aktivitas.</p>
+                        </div>
+
+                        <!-- Description Notes -->
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Catatan & Hasil Komunikasi Follow-Up <span class="text-rose-500">*</span></label>
+                            <textarea v-model="quickFollowUpForm.description" rows="3" required
+                                placeholder="Contoh: Konsumen tertarik tipe 36 Hook, sudah dikirim price list dan simulasi KPR. Rencana survey lokasi hari Sabtu jam 10..."
+                                class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"></textarea>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                            <button type="button" @click="showQuickFollowUpModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-colors">
+                                Batal
+                            </button>
+                            <button type="submit" :disabled="quickFollowUpForm.processing"
+                                class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all disabled:opacity-50 cursor-pointer">
+                                {{ quickFollowUpForm.processing ? 'Menyimpan...' : 'Simpan Follow-Up' }}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </teleport>

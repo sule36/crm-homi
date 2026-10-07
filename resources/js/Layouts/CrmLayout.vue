@@ -97,7 +97,8 @@ const navigationGroups = computed(() => {
             title: 'CRM & Penjualan',
             items: [
                 { name: 'Lead & Pipeline Workspace', href: '/leads', icon: '⚡', active: route().current('leads.*') },
-                { name: 'Jadwal & Kunjungan Agen', href: '/duty-schedules', icon: '📅', active: route().current('duty-schedules.*') || route().current('agent-visits.*') },
+                { name: 'Trafik & Kunjungan Agen', href: '/agent-visits', icon: '📍', active: route().current('agent-visits.*') },
+                { name: 'Jadwal & Piket In-House', href: '/duty-schedules', icon: '📅', active: route().current('duty-schedules.*') && !route().current('agent-visits.*') },
                 { name: 'Transaksi Penjualan (SPR & UTJ)', href: '/bookings', icon: '📝', active: route().current('bookings.*') || route().current('reservations.*') || route().current('negotiations.*') || route().current('commissions.*') },
                 { name: 'Omnichannel Chat', href: '/whatsapp/inbox', icon: '💬', active: route().current('whatsapp.*') },
                 { name: 'Jaringan & Komisi Agen', href: '/master-leads', icon: '👑', active: route().current('master-leads.*') || route().current('agents.*') || route().current('agent-monitoring.*') },

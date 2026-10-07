@@ -17,7 +17,7 @@ class LeadController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Lead::with(['assignedTo.brokerCompany', 'assignedTo.masterLead', 'inhousePic', 'project', 'campaign', 'brokerCompany']);
+        $query = Lead::with(['assignedTo.brokerCompany', 'assignedTo.masterLead', 'inhousePic', 'project', 'campaign', 'brokerCompany', 'latestActivity.user']);
 
         $isMasterLead = $user->hasRole('master_lead') || $user->agent_type === 'master_lead';
         $isManagerOrAdmin = $user->hasAnyRole(['super_admin', 'sales_manager', 'project_manager']);
@@ -414,6 +414,7 @@ class LeadController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:call,whatsapp,email,visit,meeting,note',
             'description' => 'required|string|max:1000',
+            'status' => 'nullable|in:new,contacted,visited,negotiation,reservation,booking,won,lost',
         ]);
 
         $activity = LeadActivity::create([
@@ -424,10 +425,24 @@ class LeadController extends Controller
             'completed_at' => now(),
         ]);
 
-        $lead->update(['last_contacted_at' => now()]);
+        $updateData = ['last_contacted_at' => now()];
+        if (!empty($validated['status']) && $validated['status'] !== $lead->status) {
+            $oldStatus = $lead->status;
+            $updateData['status'] = $validated['status'];
+            LeadActivity::create([
+                'lead_id' => $lead->id,
+                'user_id' => auth()->id(),
+                'type' => 'status_change',
+                'description' => "Status berubah dari {$oldStatus} ke {$validated['status']}",
+                'old_status' => $oldStatus,
+                'new_status' => $validated['status'],
+            ]);
+        }
+
+        $lead->update($updateData);
         $lead->recalculateScore();
 
-        return back()->with('success', 'Aktivitas dicatat.');
+        return back()->with('success', 'Aktivitas follow-up berhasil dicatat.');
     }
 
     // Set follow-up reminder

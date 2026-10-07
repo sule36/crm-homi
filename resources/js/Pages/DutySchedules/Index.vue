@@ -28,7 +28,8 @@ const getQueryParam = (param) => {
     if (typeof window === 'undefined') return null;
     return new URLSearchParams(window.location.search).get(param);
 };
-const initialTab = getQueryParam('tab');
+const isAgentVisitsRoute = typeof window !== 'undefined' && window.location.pathname.includes('agent-visits');
+const initialTab = getQueryParam('tab') || (isAgentVisitsRoute ? 'visits' : 'daily');
 const activeTab = ref(['daily', 'weekly', 'monthly', 'roster', 'visits'].includes(initialTab) ? initialTab : 'daily');
 
 // Watch project or month change to reload data

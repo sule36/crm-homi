@@ -82,6 +82,11 @@ class Lead extends Model
         return $this->hasMany(LeadActivity::class)->latest();
     }
 
+    public function latestActivity()
+    {
+        return $this->hasOne(LeadActivity::class)->latestOfMany();
+    }
+
     public function reminders()
     {
         return $this->hasMany(FollowUpReminder::class);

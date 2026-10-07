@@ -60,6 +60,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/leads/{lead}/assign-duty-agent', [\App\Http\Controllers\DutyScheduleController::class, 'assignDutyAgentToLead'])->name('leads.assign-duty-agent');
     
     // Pencatatan Kedatangan & Trafik Agen di Lokasi (Buku Tamu PK & Konten)
+    Route::get('/agent-visits', function (\Illuminate\Http\Request $request) {
+        $request->merge(['tab' => 'visits']);
+        return app(\App\Http\Controllers\DutyScheduleController::class)->index($request);
+    })->name('agent-visits.index');
     Route::post('/agent-visits', [\App\Http\Controllers\AgentVisitController::class, 'store'])->name('agent-visits.store');
     Route::put('/agent-visits/{agentVisit}', [\App\Http\Controllers\AgentVisitController::class, 'update'])->name('agent-visits.update');
     Route::delete('/agent-visits/{agentVisit}', [\App\Http\Controllers\AgentVisitController::class, 'destroy'])->name('agent-visits.destroy');
