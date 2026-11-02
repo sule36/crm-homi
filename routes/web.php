@@ -131,6 +131,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Finance - Kas & Pembayaran
     Route::get('/finance', [\App\Http\Controllers\FinanceController::class, 'index'])->name('finance.index');
     Route::post('/transactions', [\App\Http\Controllers\TransactionController::class, 'store'])->name('transactions.store');
+    Route::put('/transactions/{transaction}', [\App\Http\Controllers\TransactionController::class, 'update'])->name('transactions.update');
     Route::delete('/transactions/{transaction}', [\App\Http\Controllers\TransactionController::class, 'destroy'])->name('transactions.destroy');
     Route::get('/finance/export', [\App\Http\Controllers\FinanceController::class, 'exportCsv'])->name('finance.export');
     Route::get('/finance/create', [\App\Http\Controllers\FinanceController::class, 'create'])->name('finance.create');
@@ -173,6 +174,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Finance - Kwitansi & Bukti Pembayaran
     Route::get('/finance/transactions/{transaction}/receipt', [\App\Http\Controllers\TransactionController::class, 'receipt'])->name('finance.transactions.receipt');
+    Route::put('/finance/transactions/{transaction}', [\App\Http\Controllers\TransactionController::class, 'update'])->name('finance.transactions.update');
     Route::post('/finance/transactions/{transaction}/wet-receipt', [\App\Http\Controllers\TransactionController::class, 'uploadWetReceipt'])->name('finance.transactions.wet_receipt');
 
 

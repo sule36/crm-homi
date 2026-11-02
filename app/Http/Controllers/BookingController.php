@@ -344,15 +344,16 @@ class BookingController extends Controller
                         $recordedBy = auth()->id() ?? $booking->booked_by ?? \App\Models\User::first()?->id ?? 1;
                         $label = $pSched->label ?: 'Pembayaran';
                         $note = str_starts_with(strtolower($label), 'pembayaran') ? $label : ("Pembayaran " . $label);
-                        \App\Models\Transaction::create([
+                        $tx = new \App\Models\Transaction([
                             'booking_id' => $booking->id,
                             'payment_schedule_id' => $pSched->id,
                             'amount' => $pSched->amount,
-                            'payment_method' => 'cash',
+                            'payment_method' => 'transfer',
                             'notes' => $note,
                             'recorded_by' => $recordedBy,
-                            'created_at' => \Carbon\Carbon::parse($pSched->due_date ?? now())->setTimeFrom(now()),
                         ]);
+                        $tx->created_at = \Carbon\Carbon::parse($pSched->paid_date ?? $pSched->due_date ?? now())->setTimeFrom(now());
+                        $tx->save();
                     }
                 }
             }
@@ -889,14 +890,18 @@ class BookingController extends Controller
             ]);
 
             if (!$booking->transactions()->where('payment_schedule_id', $utjSchedule->id)->exists()) {
-                \App\Models\Transaction::create([
+                $utjTx = new \App\Models\Transaction([
                     'booking_id' => $booking->id,
                     'payment_schedule_id' => $utjSchedule->id,
                     'amount' => $booking->booking_fee,
-                    'payment_method' => 'cash',
-                    'notes' => 'Otomatis dari Booking Fee',
+                    'payment_method' => 'transfer',
+                    'notes' => 'Otomatis dari Booking Fee (UTJ)',
                     'recorded_by' => auth()->id() ?? $booking->booked_by,
                 ]);
+                $utjTx->created_at = $bookingDate->copy()->setTimeFrom(now());
+                $utjTx->save();
+
+                $utjSchedule->update(['paid_date' => $bookingDate->format('Y-m-d')]);
             }
         }
 

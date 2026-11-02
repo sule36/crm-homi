@@ -47,11 +47,11 @@ class TransactionController extends Controller
                 'recorded_by' => auth()->id(),
             ];
 
+            $transaction = new Transaction($txData);
             if (!empty($paymentDate)) {
-                $txData['created_at'] = \Carbon\Carbon::parse($paymentDate)->setTimeFrom(now());
+                $transaction->created_at = \Carbon\Carbon::parse($paymentDate)->setTimeFrom(now());
             }
-
-            $transaction = Transaction::create($txData);
+            $transaction->save();
 
             // Update Payment Schedule Status and Paid Date
             $totalPaidForSchedule = Transaction::where('payment_schedule_id', $schedule->id)->sum('amount');
@@ -122,6 +122,80 @@ class TransactionController extends Controller
             AuditLog::record('payment_deleted', $transaction, $oldData, null);
 
             return back()->with('success', 'Transaksi berhasil dihapus.');
+        });
+    }
+
+    public function update(Request $request, Transaction $transaction)
+    {
+        $validated = $request->validate([
+            'payment_date' => 'nullable|date',
+            'payment_method' => 'nullable|string|in:transfer,cash,cheque',
+            'receipt_number' => 'nullable|string',
+            'bank_name' => 'nullable|string',
+            'reference_number' => 'nullable|string',
+            'bank_account_text' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+        ]);
+
+        return DB::transaction(function () use ($transaction, $validated) {
+            $oldData = $transaction->toArray();
+
+            if (!empty($validated['payment_method'])) {
+                $transaction->payment_method = $validated['payment_method'];
+            }
+
+            if (array_key_exists('bank_name', $validated)) {
+                $transaction->bank_name = $validated['bank_name'];
+            }
+
+            if (array_key_exists('reference_number', $validated)) {
+                $transaction->reference_number = $validated['reference_number'];
+            }
+
+            if (array_key_exists('notes', $validated)) {
+                $transaction->notes = $validated['notes'];
+            }
+
+            if (array_key_exists('bank_account_id', $validated)) {
+                $transaction->bank_account_id = $validated['bank_account_id'];
+            }
+
+            if (array_key_exists('receipt_number', $validated)) {
+                $transaction->receipt_number = $validated['receipt_number'];
+                
+                // Also update booking receipt_settings if present
+                if ($transaction->booking) {
+                    $bSettings = $transaction->booking->receipt_settings ?? [];
+                    if (!is_array($bSettings)) $bSettings = [];
+                    $bSettings['receipt_number_custom'] = $validated['receipt_number'];
+                    $transaction->booking->update(['receipt_settings' => $bSettings]);
+                }
+            }
+
+            if (!empty($validated['bank_account_text']) && $transaction->booking) {
+                $bSettings = $transaction->booking->receipt_settings ?? [];
+                if (!is_array($bSettings)) $bSettings = [];
+                $bSettings['receipt_bank_custom'] = $validated['bank_account_text'];
+                $transaction->booking->update(['receipt_settings' => $bSettings]);
+            }
+
+            if (!empty($validated['payment_date'])) {
+                $parsedDate = \Carbon\Carbon::parse($validated['payment_date'])->setTimeFrom(now());
+                $transaction->created_at = $parsedDate;
+
+                if ($transaction->paymentSchedule) {
+                    $transaction->paymentSchedule->update([
+                        'paid_date' => $validated['payment_date'],
+                    ]);
+                }
+            }
+
+            $transaction->save();
+
+            AuditLog::record('payment_updated', $transaction, $oldData, $transaction->toArray());
+
+            return back()->with('success', 'Data kwitansi pembayaran berhasil disimpan.');
         });
     }
 

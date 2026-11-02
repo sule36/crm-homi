@@ -28,6 +28,25 @@ class Transaction extends Model
             );
         });
 
+        static::updated(function ($transaction) {
+            GeneralLedger::removeForReference($transaction);
+            $booking = $transaction->booking;
+            $projectId = $booking?->project_id;
+            $consumerName = $booking?->lead?->name ?? 'Customer';
+            
+            GeneralLedger::recordEntry(
+                type: 'income',
+                category: 'customer_payment',
+                amount: (int) $transaction->amount,
+                reference: $transaction,
+                projectId: $projectId,
+                description: "Pembayaran dari {$consumerName}",
+                date: $transaction->created_at,
+                recordedBy: $transaction->recorded_by,
+                bankAccountId: $transaction->bank_account_id,
+            );
+        });
+
         static::deleted(function ($transaction) {
             GeneralLedger::removeForReference($transaction);
         });
@@ -36,7 +55,7 @@ class Transaction extends Model
     protected $fillable = [
         'company_id', 'booking_id', 'payment_schedule_id', 'amount',
         'payment_method', 'bank_name', 'reference_number',
-        'receipt_file', 'wet_receipt_file', 'notes', 'recorded_by', 'bank_account_id',
+        'receipt_file', 'wet_receipt_file', 'receipt_number', 'notes', 'recorded_by', 'bank_account_id',
     ];
 
     protected function casts(): array

@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
@@ -12,17 +12,57 @@ const wetForm = useForm({
     wet_receipt_file: null,
 });
 
-// Determine Effective Payment Date (prioritize actual system recorded transaction date)
+// Determine Initial & Effective Payment Date (defaults to schedule paid_date or transaction created_at)
+const getInitialPaymentDate = () => {
+    if (props.transaction.payment_schedule?.paid_date) {
+        return props.transaction.payment_schedule.paid_date.split('T')[0];
+    }
+    if (props.transaction.created_at) {
+        return props.transaction.created_at.split('T')[0];
+    }
+    if (props.transaction.payment_schedule?.due_date) {
+        return props.transaction.payment_schedule.due_date.split('T')[0];
+    }
+    return new Date().toISOString().split('T')[0];
+};
+
+const paymentDate = ref(getInitialPaymentDate());
+
 const paymentDateFormatted = computed(() => {
-    const rawDate = props.transaction.created_at 
-        || props.transaction.payment_schedule?.paid_date 
-        || props.transaction.payment_schedule?.due_date;
-    if (!rawDate) return '-';
-    return new Date(rawDate).toLocaleDateString('id-ID', {
+    if (!paymentDate.value) return '-';
+    const parts = paymentDate.value.split('-');
+    if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return d.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+    return new Date(paymentDate.value).toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
     });
+});
+
+// Payment Method (Transfer, Cash, Cheque)
+const paymentMethod = ref(props.transaction.payment_method || 'transfer');
+
+const paymentMethodLabel = computed(() => {
+    if (paymentMethod.value === 'transfer') return 'TRANSFER BANK';
+    if (paymentMethod.value === 'cash') return 'TUNAI / CASH';
+    if (paymentMethod.value === 'cheque') return 'CEK / GIRO';
+    return (paymentMethod.value || 'TRANSFER').toUpperCase();
+});
+
+// Unit Payment Scheme label from booking (Cash Bertahap, Cash Keras, KPR)
+const bookingPaymentSchemeLabel = computed(() => {
+    const scheme = props.transaction.booking?.payment_scheme;
+    if (scheme === 'cash_installment') return 'Cash Bertahap (In-House)';
+    if (scheme === 'cash') return 'Cash Keras';
+    if (scheme === 'kpr') return 'KPR Bank';
+    return null;
 });
 
 // Determine Effective Destination Bank Account
@@ -131,7 +171,7 @@ const sendWaReceipt = () => {
     const phone = rawPhone.replace(/\D/g, '').replace(/^0/, '62');
     const receiptUrl = `${window.location.origin}/finance/transactions/${props.transaction.id}/receipt`;
 
-    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* (No. Kwitansi: *${receiptNumber.value}*) telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan ${projStr}*`;
+    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* (No. Kwitansi: *${receiptNumber.value}*) pada tanggal *${paymentDateFormatted.value}* via *${paymentMethodLabel.value}* telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan ${projStr}*`;
 
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 };
@@ -161,29 +201,24 @@ const getScheduleCode = () => {
 
     // 1. Check schedule label first if available
     if (schedLabel) {
-        // Cicilan / Angsuran (Cicilan Ke-1, Cicilan 1, Angsuran 1, etc.)
         const cicilMatch = schedLabel.match(/(?:cicilan|angsuran)\s*(?:ke-?)?\s*(\d+)/i);
         if (cicilMatch) {
             return `CICILAN-${cicilMatch[1]}`;
         }
 
-        // DP / Down Payment (DP 1, DP 2, Down Payment 1, etc.)
         const dpMatch = schedLabel.match(/(?:dp|down\s*payment)\s*(\d+)?/i);
         if (dpMatch) {
             return `DP${dpMatch[1] || '1'}`;
         }
 
-        // UTJ / Booking Fee
         if (/utj|booking/i.test(schedLabel)) {
             return 'UTJ';
         }
 
-        // Pelunasan
         if (/lunas|pelunasan/i.test(schedLabel)) {
             return 'PELUNASAN';
         }
 
-        // KPR
         if (/kpr/i.test(schedLabel)) {
             return 'KPR';
         }
@@ -217,7 +252,6 @@ const resolveInitialReceiptNumber = () => {
     const scheduleCode = getScheduleCode();
     const tokenRegex = /(?:DP\s*\d+|CICILAN-\d+|CICIL-\d+|CICILAN\s*\d+|UTJ|PELUNASAN|KPR|LEGAL)/i;
     
-    // Fallback ID/Number (Padded to 3 digits like 003 to match system standards)
     const rawNumberId = props.transaction.booking?.id || props.transaction.id || 1;
     const paddedId = String(rawNumberId).padStart(3, '0');
     const proj = (projectCode || 'ALN').toUpperCase();
@@ -234,7 +268,6 @@ const resolveInitialReceiptNumber = () => {
     // 2. Custom receipt number override from booking receipt settings
     if (bookingReceiptSettings.receipt_number_custom) {
         let customNum = bookingReceiptSettings.receipt_number_custom.trim();
-        // If custom number contains a schedule token (like DP1), dynamically adapt it to the current schedule (e.g. CICILAN-1)
         if (tokenRegex.test(customNum)) {
             return customNum.replace(tokenRegex, scheduleCode);
         }
@@ -245,12 +278,10 @@ const resolveInitialReceiptNumber = () => {
     if (bookingReceiptSettings.receipt_number_prefix) {
         let prefix = bookingReceiptSettings.receipt_number_prefix.trim().replace(/\/+$/, '');
         
-        // If prefix already has full format with number at the end like KW/ALC/DP1/003
         if (/\/\d+$/.test(prefix) && tokenRegex.test(prefix)) {
             return prefix.replace(tokenRegex, scheduleCode);
         }
 
-        // If prefix ends with a schedule token like KW/ALC/DP1
         const endsWithToken = prefix.match(/^(.*?)\/?(?:DP\s*\d+|CICILAN-\d+|CICIL-\d+|UTJ|PELUNASAN|KPR|LEGAL)$/i);
         if (endsWithToken) {
             prefix = endsWithToken[1] || prefix;
@@ -291,26 +322,66 @@ const sigImage = bookingReceiptSettings.receipt_sig_image || defaultSigImage;
 const officerTitle = bookingReceiptSettings.receipt_sig_title || defaultTitle;
 const officerName = bookingReceiptSettings.receipt_sig_name || defaultName;
 const receiptNotes = bookingReceiptSettings.receipt_notes || null;
+
+const isSaving = ref(false);
+const saveSuccessMessage = ref('');
+
+const saveReceiptData = () => {
+    isSaving.value = true;
+    router.put(`/finance/transactions/${props.transaction.id}`, {
+        payment_date: paymentDate.value,
+        payment_method: paymentMethod.value,
+        receipt_number: receiptNumber.value,
+        bank_account_text: effectiveBankAccount.value,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            isSaving.value = false;
+            saveSuccessMessage.value = 'Perubahan data kwitansi berhasil disimpan!';
+            setTimeout(() => {
+                saveSuccessMessage.value = '';
+            }, 4000);
+        },
+        onError: () => {
+            isSaving.value = false;
+            alert('Gagal menyimpan perubahan kwitansi. Silakan periksa kembali.');
+        }
+    });
+};
 </script>
 
 <template>
     <Head title="Kwitansi Pembayaran" />
     <div class="min-h-screen bg-slate-100 py-12 px-4 print:bg-white print:py-0">
         <!-- Actions & Share Toolbar (Hidden during print) -->
-        <div class="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
-            <button onclick="window.history.back()" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm">
+        <div class="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3 mb-4 print:hidden">
+            <button onclick="window.history.back()" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
                 ← Kembali
             </button>
 
             <div class="flex flex-wrap items-center gap-2">
-                <button @click="sendWaReceipt" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5">
+                <button 
+                    @click="saveReceiptData" 
+                    :disabled="isSaving" 
+                    class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    title="Simpan tanggal, metode bayar, nomor kwitansi & rekening ke database"
+                >
+                    <span>💾</span> <span>{{ isSaving ? 'Menyimpan...' : 'Simpan Kwitansi' }}</span>
+                </button>
+
+                <button @click="sendWaReceipt" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
                     <span>💬</span> <span>Kirim Kwitansi WA</span>
                 </button>
 
-                <button @click="printReceipt" class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center gap-1.5">
+                <button @click="printReceipt" class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
                     <span>🖨️</span> <span>Cetak Kwitansi</span>
                 </button>
             </div>
+        </div>
+
+        <!-- Success Toast Alert -->
+        <div v-if="saveSuccessMessage" class="max-w-3xl mx-auto mb-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold flex items-center gap-2 print:hidden shadow-sm">
+            <span>✅</span> <span>{{ saveSuccessMessage }}</span>
         </div>
 
         <!-- UPLOAD KWITANSI BASAH SECTION (PRINT HIDDEN) -->
@@ -334,7 +405,7 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
 
             <form @submit.prevent="submitWetReceipt" class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-3 border-t border-amber-200/60">
                 <input type="file" @change="handleWetUpload" accept="image/*,application/pdf" class="flex-1 text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer" />
-                <button type="submit" :disabled="wetForm.processing" class="px-5 py-2.5 bg-amber-900 text-white text-xs font-black rounded-xl hover:bg-amber-950 transition-all shadow-md disabled:opacity-50">
+                <button type="submit" :disabled="wetForm.processing" class="px-5 py-2.5 bg-amber-900 text-white text-xs font-black rounded-xl hover:bg-amber-950 transition-all shadow-md disabled:opacity-50 cursor-pointer">
                     {{ wetForm.processing ? 'Mengunggah...' : 'Upload Berkas Basah' }}
                 </button>
             </form>
@@ -395,9 +466,15 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
                 <div class="flex flex-col sm:flex-row border-b border-slate-100 pb-3">
                     <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Untuk Pembayaran</span>
                     <div class="flex-1">
-                        <p class="text-sm font-black text-slate-800">
-                            {{ transaction.payment_schedule?.label ? (transaction.payment_schedule.label.toLowerCase().startsWith('pembayaran') ? transaction.payment_schedule.label : 'Pembayaran ' + transaction.payment_schedule.label) : (transaction.notes || 'Cicilan / Pembayaran Unit') }}
-                        </p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="text-sm font-black text-slate-800">
+                                {{ transaction.payment_schedule?.label ? (transaction.payment_schedule.label.toLowerCase().startsWith('pembayaran') ? transaction.payment_schedule.label : 'Pembayaran ' + transaction.payment_schedule.label) : (transaction.notes || 'Cicilan / Pembayaran Unit') }}
+                            </p>
+                            <!-- Badge Skema Pembelian Unit -->
+                            <span v-if="bookingPaymentSchemeLabel" class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                                Skema Unit: {{ bookingPaymentSchemeLabel }}
+                            </span>
+                        </div>
                         <p v-if="transaction.booking?.unit" class="text-[10px] text-slate-500 font-medium mt-1">
                             Unit Kavling: Blok {{ transaction.booking?.unit?.block }} No. {{ transaction.booking?.unit?.number }} 
                             • Proyek: {{ transaction.booking?.unit?.project?.name }}
@@ -405,24 +482,62 @@ const receiptNotes = bookingReceiptSettings.receipt_notes || null;
                     </div>
                 </div>
 
-                <!-- Row 4: Tanggal Pembayaran -->
+                <!-- Row 4: Tanggal Pembayaran (Editable di layar, Teks formal saat print) -->
                 <div class="flex flex-col sm:flex-row border-b border-slate-100 pb-3">
                     <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Tanggal Pembayaran</span>
-                    <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>📅</span> <span>{{ paymentDateFormatted }}</span>
-                    </span>
+                    <div class="text-xs font-bold text-slate-800 flex items-center gap-2">
+                        <span>📅</span>
+                        <!-- Tampilan di layar: Input Tanggal interaktif -->
+                        <div class="print:hidden flex flex-wrap items-center gap-2">
+                            <input 
+                                v-model="paymentDate" 
+                                type="date" 
+                                class="text-xs font-black text-slate-800 border-b border-dashed border-slate-400 hover:border-blue-500 focus:border-blue-600 focus:outline-none bg-slate-50 px-2 py-1 rounded cursor-pointer transition-colors"
+                                title="Klik untuk mengubah tanggal kwitansi"
+                            />
+                            <span class="text-xs font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                {{ paymentDateFormatted }}
+                            </span>
+                            <span class="text-[10px] text-slate-400 italic font-medium">
+                                (Dapat diubah bebas sebelum cetak)
+                            </span>
+                        </div>
+                        <!-- Tampilan saat cetak: Teks rapi format Indonesia -->
+                        <span class="hidden print:inline text-xs font-bold text-slate-800">
+                            {{ paymentDateFormatted }}
+                        </span>
+                    </div>
                 </div>
 
-                <!-- Row 5: Metode & Rekening Tujuan -->
+                <!-- Row 5: Metode & Rekening Tujuan (Editable di layar, Teks formal saat print) -->
                 <div class="flex flex-col sm:flex-row border-b border-slate-100 pb-3">
                     <span class="w-48 text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">Metode & Rekening Tujuan</span>
-                    <div class="text-xs font-bold text-slate-800 flex flex-wrap items-center gap-2">
-                        <span class="uppercase font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 mr-2 shrink-0">{{ transaction.payment_method?.toUpperCase() || 'TRANSFER' }}</span>
-                        <div v-if="effectiveBankAccount" class="inline-flex items-center gap-1.5 flex-1 min-w-[240px]">
+                    <div class="text-xs font-bold text-slate-800 flex flex-wrap items-center gap-2 flex-1">
+                        <!-- Pilihan Metode (Screen) -->
+                        <div class="print:hidden flex items-center gap-1.5">
+                            <select 
+                                v-model="paymentMethod" 
+                                class="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer uppercase"
+                                title="Klik untuk mengubah metode pembayaran kwitansi"
+                            >
+                                <option value="transfer">TRANSFER BANK</option>
+                                <option value="cash">TUNAI / CASH</option>
+                                <option value="cheque">CEK / GIRO</option>
+                            </select>
+                        </div>
+
+                        <!-- Tampilan Print -->
+                        <span class="hidden print:inline uppercase font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 mr-2 shrink-0">
+                            {{ paymentMethodLabel }}
+                        </span>
+
+                        <!-- Rekening Tujuan jika Transfer atau ada isian rekening -->
+                        <div v-if="paymentMethod === 'transfer' || effectiveBankAccount" class="inline-flex items-center gap-1.5 flex-1 min-w-[240px]">
                             <span class="shrink-0 text-sm">💳</span>
                             <input 
                                 v-model="effectiveBankAccount" 
                                 type="text" 
+                                placeholder="Contoh: BRI - 012001004640307 a.n. PT Developer"
                                 class="text-xs font-black text-slate-900 border-b border-dashed border-slate-300 hover:border-slate-500 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 w-full max-w-md print:border-none print:p-0 print:w-auto" 
                                 title="Klik untuk mengubah rekening tujuan kwitansi jika diperlukan"
                             />
