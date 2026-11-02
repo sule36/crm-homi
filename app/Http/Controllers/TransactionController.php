@@ -184,9 +184,44 @@ class TransactionController extends Controller
                 $parsedDate = \Carbon\Carbon::parse($validated['payment_date'])->setTimeFrom(now());
                 $transaction->created_at = $parsedDate;
 
-                if ($transaction->paymentSchedule) {
-                    $transaction->paymentSchedule->update([
+                $schedule = $transaction->paymentSchedule ?? ($transaction->payment_schedule_id ? \App\Models\PaymentSchedule::find($transaction->payment_schedule_id) : null);
+                
+                // If not directly linked, search intelligently in booking payment schedules
+                if (!$schedule && $transaction->booking) {
+                    $notes = $transaction->notes ?? '';
+                    
+                    // 1. Match by installment number if noted e.g. "Cicilan Ke-2" or "Cicilan 2"
+                    if (preg_match('/(?:cicilan|angsuran)\s*(?:ke-?)?\s*(\d+)/i', $notes, $m)) {
+                        $schedule = $transaction->booking->paymentSchedules()
+                            ->where('installment_number', (int) $m[1])
+                            ->first();
+                    } elseif (preg_match('/(?:dp|down\s*payment)\s*(\d+)?/i', $notes, $m)) {
+                        $dpNum = !empty($m[1]) ? (int) $m[1] : 1;
+                        $schedule = $transaction->booking->paymentSchedules()
+                            ->where('label', 'like', "%DP%{$dpNum}%")
+                            ->first();
+                    } elseif (preg_match('/utj|booking/i', $notes)) {
+                        $schedule = $transaction->booking->paymentSchedules()
+                            ->where('installment_number', 0)
+                            ->first();
+                    }
+
+                    // 2. Fallback by matching amount
+                    if (!$schedule) {
+                        $schedule = $transaction->booking->paymentSchedules()
+                            ->where('amount', $transaction->amount)
+                            ->first();
+                    }
+
+                    if ($schedule) {
+                        $transaction->payment_schedule_id = $schedule->id;
+                    }
+                }
+
+                if ($schedule) {
+                    $schedule->update([
                         'paid_date' => $validated['payment_date'],
+                        'status' => 'paid',
                     ]);
                 }
             }
@@ -210,10 +245,41 @@ class TransactionController extends Controller
             'paymentSchedule'
         ]);
 
+        // Auto-heal: Match schedule if missing
+        if (!$transaction->payment_schedule_id && $transaction->booking) {
+            $notes = $transaction->notes ?? '';
+            $matched = null;
+            if (preg_match('/(?:cicilan|angsuran)\s*(?:ke-?)?\s*(\d+)/i', $notes, $m)) {
+                $matched = $transaction->booking->paymentSchedules()
+                    ->where('installment_number', (int) $m[1])
+                    ->first();
+            } elseif (preg_match('/(?:dp|down\s*payment)\s*(\d+)?/i', $notes, $m)) {
+                $dpNum = !empty($m[1]) ? (int) $m[1] : 1;
+                $matched = $transaction->booking->paymentSchedules()
+                    ->where('label', 'like', "%DP%{$dpNum}%")
+                    ->first();
+            } elseif (preg_match('/utj|booking/i', $notes)) {
+                $matched = $transaction->booking->paymentSchedules()
+                    ->where('installment_number', 0)
+                    ->first();
+            }
+            if (!$matched) {
+                $matched = $transaction->booking->paymentSchedules()
+                    ->where('amount', $transaction->amount)
+                    ->first();
+            }
+            if ($matched) {
+                $transaction->payment_schedule_id = $matched->id;
+                $transaction->save();
+                $transaction->load('paymentSchedule');
+            }
+        }
+
         // Auto-heal: Ensure paymentSchedule's paid_date matches transaction created_at date if missing
         if ($transaction->paymentSchedule && empty($transaction->paymentSchedule->paid_date)) {
             $transaction->paymentSchedule->update([
                 'paid_date' => $transaction->created_at ? $transaction->created_at->format('Y-m-d') : now()->format('Y-m-d'),
+                'status' => 'paid',
             ]);
             $transaction->load('paymentSchedule');
         }

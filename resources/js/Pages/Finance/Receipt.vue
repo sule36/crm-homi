@@ -15,13 +15,13 @@ const wetForm = useForm({
 // Determine Initial & Effective Payment Date (defaults to schedule paid_date or transaction created_at)
 const getInitialPaymentDate = () => {
     if (props.transaction.payment_schedule?.paid_date) {
-        return props.transaction.payment_schedule.paid_date.split('T')[0];
+        return String(props.transaction.payment_schedule.paid_date).split('T')[0];
     }
     if (props.transaction.created_at) {
-        return props.transaction.created_at.split('T')[0];
+        return String(props.transaction.created_at).split('T')[0];
     }
     if (props.transaction.payment_schedule?.due_date) {
-        return props.transaction.payment_schedule.due_date.split('T')[0];
+        return String(props.transaction.payment_schedule.due_date).split('T')[0];
     }
     return new Date().toISOString().split('T')[0];
 };
@@ -162,26 +162,8 @@ const submitWetReceipt = () => {
     });
 };
 
-const sendWaReceipt = () => {
-    const name = props.transaction.booking?.lead?.name || 'Konsumen';
-    const amountStr = formatCurrency(props.transaction.amount);
-    const unitStr = props.transaction.booking?.unit ? `Blok ${props.transaction.booking.unit.block} No. ${props.transaction.booking.unit.number}` : 'Unit';
-    const projStr = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Developer Properti';
-    const rawPhone = props.transaction.booking?.lead?.phone || '';
-    const phone = rawPhone.replace(/\D/g, '').replace(/^0/, '62');
-    const receiptUrl = `${window.location.origin}/finance/transactions/${props.transaction.id}/receipt`;
-
-    const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* (No. Kwitansi: *${receiptNumber.value}*) pada tanggal *${paymentDateFormatted.value}* via *${paymentMethodLabel.value}* telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan ${projStr}*`;
-
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
-};
-
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
-};
-
-const printReceipt = () => {
-    window.print();
 };
 
 const bookingReceiptSettings = props.transaction.booking?.receipt_settings || {};
@@ -323,10 +305,23 @@ const officerTitle = bookingReceiptSettings.receipt_sig_title || defaultTitle;
 const officerName = bookingReceiptSettings.receipt_sig_name || defaultName;
 const receiptNotes = bookingReceiptSettings.receipt_notes || null;
 
+// Track changes & auto-save management
+const initialDate = ref(getInitialPaymentDate());
+const initialMethod = ref(props.transaction.payment_method || 'transfer');
+const initialNumber = ref(resolveInitialReceiptNumber());
+const initialBank = ref(computeEffectiveBankAccount() || '');
+
 const isSaving = ref(false);
 const saveSuccessMessage = ref('');
 
-const saveReceiptData = () => {
+const hasUnsavedChanges = computed(() => {
+    return paymentDate.value !== initialDate.value
+        || paymentMethod.value !== initialMethod.value
+        || receiptNumber.value !== initialNumber.value
+        || effectiveBankAccount.value !== initialBank.value;
+});
+
+const saveReceiptData = (options = {}) => {
     isSaving.value = true;
     router.put(`/finance/transactions/${props.transaction.id}`, {
         payment_date: paymentDate.value,
@@ -335,18 +330,103 @@ const saveReceiptData = () => {
         bank_account_text: effectiveBankAccount.value,
     }, {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             isSaving.value = false;
-            saveSuccessMessage.value = 'Perubahan data kwitansi berhasil disimpan!';
-            setTimeout(() => {
-                saveSuccessMessage.value = '';
-            }, 4000);
+            initialDate.value = paymentDate.value;
+            initialMethod.value = paymentMethod.value;
+            initialNumber.value = receiptNumber.value;
+            initialBank.value = effectiveBankAccount.value;
+            
+            if (!options.silent) {
+                saveSuccessMessage.value = 'Perubahan data kwitansi & jadwal pembayaran berhasil disimpan ke sistem!';
+                setTimeout(() => {
+                    saveSuccessMessage.value = '';
+                }, 4000);
+            }
+            if (options.callback) {
+                options.callback();
+            }
         },
         onError: () => {
             isSaving.value = false;
-            alert('Gagal menyimpan perubahan kwitansi. Silakan periksa kembali.');
+            if (!options.silent) {
+                alert('Gagal menyimpan perubahan kwitansi. Silakan periksa koneksi atau input Anda.');
+            }
+            if (options.callback) {
+                options.callback();
+            }
         }
     });
+};
+
+const printReceipt = () => {
+    if (hasUnsavedChanges.value) {
+        saveReceiptData({ silent: true, callback: () => window.print() });
+    } else {
+        window.print();
+    }
+};
+
+const sendWaReceipt = () => {
+    const doSend = () => {
+        const name = props.transaction.booking?.lead?.name || 'Konsumen';
+        const amountStr = formatCurrency(props.transaction.amount);
+        const unitStr = props.transaction.booking?.unit ? `Blok ${props.transaction.booking.unit.block} No. ${props.transaction.booking.unit.number}` : 'Unit';
+        const projStr = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Developer Properti';
+        const rawPhone = props.transaction.booking?.lead?.phone || '';
+        const phone = rawPhone.replace(/\D/g, '').replace(/^0/, '62');
+        const receiptUrl = `${window.location.origin}/finance/transactions/${props.transaction.id}/receipt`;
+
+        const message = `Halo Bapak/Ibu *${name}*,\n\nTerima kasih, pembayaran Anda untuk unit *${unitStr}* (*${projStr}*) sebesar *${amountStr}* (No. Kwitansi: *${receiptNumber.value}*) pada tanggal *${paymentDateFormatted.value}* via *${paymentMethodLabel.value}* telah kami terima dengan tanda tangan & cap stempel resmi.\n\nBerikut link Kwitansi Resmi Anda:\n${receiptUrl}\n\nSalam,\n*Keuangan ${projStr}*`;
+
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    };
+
+    if (hasUnsavedChanges.value) {
+        saveReceiptData({ silent: true, callback: doSend });
+    } else {
+        doSend();
+    }
+};
+
+const handleDateChange = () => {
+    saveReceiptData({ silent: false });
+};
+
+const handleMethodChange = () => {
+    saveReceiptData({ silent: false });
+};
+
+// Smart reliable Back button handler that works even in new tabs
+const handleBack = () => {
+    const doBack = () => {
+        // 1. If there is genuine history in the current tab from our domain, go back
+        if (window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+            return;
+        }
+
+        // 2. If this tab was opened as target="_blank" / popup, try to close it
+        if (window.opener || window.history.length <= 1) {
+            window.close();
+        }
+
+        // 3. Fallback navigation if window didn't close (redirect to Booking page)
+        setTimeout(() => {
+            if (props.transaction.booking_id) {
+                router.visit(`/bookings/${props.transaction.booking_id}`);
+            } else {
+                router.visit('/finance');
+            }
+        }, 150);
+    };
+
+    if (hasUnsavedChanges.value) {
+        saveReceiptData({ silent: true, callback: doBack });
+    } else {
+        doBack();
+    }
 };
 </script>
 
@@ -354,34 +434,62 @@ const saveReceiptData = () => {
     <Head title="Kwitansi Pembayaran" />
     <div class="min-h-screen bg-slate-100 py-12 px-4 print:bg-white print:py-0">
         <!-- Actions & Share Toolbar (Hidden during print) -->
-        <div class="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3 mb-4 print:hidden">
-            <button onclick="window.history.back()" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
-                ← Kembali
-            </button>
+        <div class="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3 mb-3 print:hidden">
+            <div class="flex items-center gap-2">
+                <button 
+                    type="button" 
+                    @click="handleBack" 
+                    class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+                    title="Kembali ke halaman sebelumnya atau tutup tab kwitansi"
+                >
+                    <span>←</span> <span>Kembali</span>
+                </button>
+
+                <Link 
+                    v-if="transaction.booking_id" 
+                    :href="`/bookings/${transaction.booking_id}`" 
+                    class="px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition-all border border-blue-200 shadow-sm flex items-center gap-1.5"
+                    title="Buka rincian Booking & Jadwal SPR"
+                >
+                    <span>🏠</span> <span>Ke Halaman Booking</span>
+                </Link>
+            </div>
 
             <div class="flex flex-wrap items-center gap-2">
                 <button 
-                    @click="saveReceiptData" 
+                    type="button"
+                    @click="saveReceiptData()" 
                     :disabled="isSaving" 
                     class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     title="Simpan tanggal, metode bayar, nomor kwitansi & rekening ke database"
                 >
-                    <span>💾</span> <span>{{ isSaving ? 'Menyimpan...' : 'Simpan Kwitansi' }}</span>
+                    <span>💾</span> <span>{{ isSaving ? 'Menyimpan...' : (hasUnsavedChanges ? 'Simpan Kwitansi *' : 'Simpan Kwitansi') }}</span>
                 </button>
 
-                <button @click="sendWaReceipt" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
+                <button 
+                    type="button"
+                    @click="sendWaReceipt" 
+                    class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
                     <span>💬</span> <span>Kirim Kwitansi WA</span>
                 </button>
 
-                <button @click="printReceipt" class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
+                <button 
+                    type="button"
+                    @click="printReceipt" 
+                    class="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
                     <span>🖨️</span> <span>Cetak Kwitansi</span>
                 </button>
             </div>
         </div>
 
-        <!-- Success Toast Alert -->
-        <div v-if="saveSuccessMessage" class="max-w-3xl mx-auto mb-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold flex items-center gap-2 print:hidden shadow-sm">
-            <span>✅</span> <span>{{ saveSuccessMessage }}</span>
+        <!-- Sync Notification Alert -->
+        <div v-if="saveSuccessMessage" class="max-w-3xl mx-auto mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold px-4 py-2.5 rounded-xl flex items-center justify-between shadow-sm transition-all print:hidden">
+            <div class="flex items-center gap-2">
+                <span>✅</span> <span>{{ saveSuccessMessage }}</span>
+            </div>
+            <span class="text-[10px] text-emerald-600 bg-emerald-100/60 px-2 py-0.5 rounded-md font-semibold">Tersinkronisasi ke Jadwal & Buku Besar</span>
         </div>
 
         <!-- UPLOAD KWITANSI BASAH SECTION (PRINT HIDDEN) -->
@@ -492,14 +600,15 @@ const saveReceiptData = () => {
                             <input 
                                 v-model="paymentDate" 
                                 type="date" 
+                                @change="handleDateChange"
                                 class="text-xs font-black text-slate-800 border-b border-dashed border-slate-400 hover:border-blue-500 focus:border-blue-600 focus:outline-none bg-slate-50 px-2 py-1 rounded cursor-pointer transition-colors"
-                                title="Klik untuk mengubah tanggal kwitansi"
+                                title="Klik untuk mengubah tanggal kwitansi (otomatis tersimpan ke jadwal pembayaran & buku besar)"
                             />
                             <span class="text-xs font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                                 {{ paymentDateFormatted }}
                             </span>
                             <span class="text-[10px] text-slate-400 italic font-medium">
-                                (Dapat diubah bebas sebelum cetak)
+                                (Otomatis memperbarui jadwal & buku besar saat diubah)
                             </span>
                         </div>
                         <!-- Tampilan saat cetak: Teks rapi format Indonesia -->
@@ -517,6 +626,7 @@ const saveReceiptData = () => {
                         <div class="print:hidden flex items-center gap-1.5">
                             <select 
                                 v-model="paymentMethod" 
+                                @change="handleMethodChange"
                                 class="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer uppercase"
                                 title="Klik untuk mengubah metode pembayaran kwitansi"
                             >
@@ -526,25 +636,39 @@ const saveReceiptData = () => {
                             </select>
                         </div>
 
-                        <!-- Tampilan Print -->
-                        <span class="hidden print:inline uppercase font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 mr-2 shrink-0">
-                            {{ paymentMethodLabel }}
-                        </span>
-
-                        <!-- Rekening Tujuan jika Transfer atau ada isian rekening -->
-                        <div v-if="paymentMethod === 'transfer' || effectiveBankAccount" class="inline-flex items-center gap-1.5 flex-1 min-w-[240px]">
+                        <!-- Rekening Tujuan jika Transfer (Screen) -->
+                        <div v-if="paymentMethod === 'transfer'" class="print:hidden inline-flex items-center gap-1.5 flex-1 min-w-[240px]">
                             <span class="shrink-0 text-sm">💳</span>
                             <input 
                                 v-model="effectiveBankAccount" 
                                 type="text" 
                                 placeholder="Contoh: BRI - 012001004640307 a.n. PT Developer"
-                                class="text-xs font-black text-slate-900 border-b border-dashed border-slate-300 hover:border-slate-500 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 w-full max-w-md print:border-none print:p-0 print:w-auto" 
+                                class="text-xs font-black text-slate-900 border-b border-dashed border-slate-300 hover:border-slate-500 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 w-full max-w-md" 
                                 title="Klik untuk mengubah rekening tujuan kwitansi jika diperlukan"
                             />
                         </div>
-                        <span v-else class="text-slate-500 italic">
+                        <span v-else-if="paymentMethod === 'cash'" class="print:hidden text-slate-500 italic text-xs">
                             (Pembayaran Tunai Kasir)
                         </span>
+                        <span v-else-if="paymentMethod === 'cheque'" class="print:hidden text-slate-500 italic text-xs">
+                            (Pembayaran Cek / Bilyet Giro)
+                        </span>
+
+                        <!-- Tampilan Saat Print / Cetak -->
+                        <div class="hidden print:inline-flex items-center gap-2 text-xs font-bold text-slate-800">
+                            <span class="uppercase font-black text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                {{ paymentMethodLabel }}
+                            </span>
+                            <span v-if="paymentMethod === 'transfer' && effectiveBankAccount" class="font-bold text-slate-800">
+                                • {{ effectiveBankAccount }}
+                            </span>
+                            <span v-else-if="paymentMethod === 'cash'" class="text-slate-600 italic">
+                                (Pembayaran Tunai Kasir)
+                            </span>
+                            <span v-else-if="paymentMethod === 'cheque'" class="text-slate-600 italic">
+                                (Pembayaran Cek / Bilyet Giro)
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>

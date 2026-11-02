@@ -104,7 +104,7 @@ class GeneralLedger extends Model
      */
     public static function removeForReference(Model $reference): void
     {
-        self::where('reference_type', get_class($reference))
+        self::whereIn('reference_type', [get_class($reference), class_basename($reference)])
             ->where('reference_id', $reference->id)
             ->get()
             ->each(fn($ledger) => $ledger->delete());

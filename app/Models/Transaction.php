@@ -11,9 +11,10 @@ class Transaction extends Model
     protected static function booted()
     {
         static::created(function ($transaction) {
-            $booking = $transaction->booking;
+            $booking = $transaction->booking ?? \App\Models\Booking::find($transaction->booking_id);
             $projectId = $booking?->project_id;
             $consumerName = $booking?->lead?->name ?? 'Customer';
+            $entryDate = $transaction->created_at ? $transaction->created_at->format('Y-m-d') : now()->format('Y-m-d');
             
             GeneralLedger::recordEntry(
                 type: 'income',
@@ -22,7 +23,7 @@ class Transaction extends Model
                 reference: $transaction,
                 projectId: $projectId,
                 description: "Pembayaran dari {$consumerName}",
-                date: $transaction->created_at,
+                date: $entryDate,
                 recordedBy: $transaction->recorded_by,
                 bankAccountId: $transaction->bank_account_id,
             );
@@ -30,9 +31,10 @@ class Transaction extends Model
 
         static::updated(function ($transaction) {
             GeneralLedger::removeForReference($transaction);
-            $booking = $transaction->booking;
+            $booking = $transaction->booking ?? \App\Models\Booking::find($transaction->booking_id);
             $projectId = $booking?->project_id;
             $consumerName = $booking?->lead?->name ?? 'Customer';
+            $entryDate = $transaction->created_at ? $transaction->created_at->format('Y-m-d') : now()->format('Y-m-d');
             
             GeneralLedger::recordEntry(
                 type: 'income',
@@ -41,7 +43,7 @@ class Transaction extends Model
                 reference: $transaction,
                 projectId: $projectId,
                 description: "Pembayaran dari {$consumerName}",
-                date: $transaction->created_at,
+                date: $entryDate,
                 recordedBy: $transaction->recorded_by,
                 bankAccountId: $transaction->bank_account_id,
             );
