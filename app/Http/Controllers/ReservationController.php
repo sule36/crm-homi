@@ -148,8 +148,8 @@ class ReservationController extends Controller
         ->orderByRaw('CAST(number AS UNSIGNED) ASC')
         ->get();
 
-        $leads = Lead::select('id', 'name', 'phone', 'email', 'identity_number', 'assigned_to')
-            ->with(['assignedTo:id,name'])
+        $leads = Lead::select('id', 'name', 'phone', 'email', 'identity_number', 'assigned_to', 'inhouse_pic_id')
+            ->with(['assignedTo:id,name', 'inhousePic:id,name'])
             ->orderBy('name')
             ->get();
 
@@ -160,7 +160,7 @@ class ReservationController extends Controller
             })
             ->get();
 
-        $selectedNego = $selectedNegoId ? Negotiation::with(['unit', 'lead'])->find($selectedNegoId) : null;
+        $selectedNego = $selectedNegoId ? Negotiation::with(['unit', 'lead.assignedTo', 'lead.inhousePic'])->find($selectedNegoId) : null;
 
         return Inertia::render('Reservations/Create', [
             'units' => $units,
@@ -223,6 +223,9 @@ class ReservationController extends Controller
             DB::beginTransaction();
 
             $unit = Unit::with('project')->findOrFail($validated['unit_id']);
+            $lead = !empty($validated['lead_id'])
+                ? Lead::with(['assignedTo', 'inhousePic'])->find($validated['lead_id'])
+                : null;
 
             $proofPath = null;
             if ($request->hasFile('payment_proof')) {
@@ -231,7 +234,7 @@ class ReservationController extends Controller
 
             $coordUser = !empty($validated['agent_coordinator_id'])
                 ? User::find($validated['agent_coordinator_id'])
-                : auth()->user();
+                : ($lead?->assignedTo ?? $lead?->inhousePic ?? auth()->user());
 
             $coordName = !empty($validated['agent_coordinator_name'])
                 ? $validated['agent_coordinator_name']
@@ -352,7 +355,7 @@ class ReservationController extends Controller
 
             if ($request->input('redirect_to') === 'lead' && $reservation->lead_id) {
                 return redirect()->route('leads.show', $reservation->lead_id)
-                    ->with('success', "Reservasi unit {$unit->code} berhasil dibuat (No. {$reservation->reservation_number}). Unit berhasil di-hold!");
+                    ->with('success', "Reservasi unit {$unit->label} berhasil dibuat (No. {$reservation->reservation_number}). Unit berhasil di-hold!");
             }
 
             return redirect()->route('reservations.show', $reservation->id)
@@ -372,7 +375,7 @@ class ReservationController extends Controller
      */
     public function show(Reservation $reservation)
     {
-        $reservation->load(['project', 'unit.unitType', 'lead', 'negotiation', 'creator', 'agentCoordinator', 'refunder', 'booking']);
+        $reservation->load(['project', 'unit.unitType', 'lead.assignedTo', 'lead.inhousePic', 'negotiation', 'creator', 'agentCoordinator', 'refunder', 'booking']);
         $settings = $this->getSettings();
 
         $units = Unit::where('status', '!=', 'sold')
@@ -383,10 +386,16 @@ class ReservationController extends Controller
             ->orderByRaw('CAST(number AS UNSIGNED) ASC')
             ->get();
 
+        $coordinators = User::select('id', 'name', 'agent_type')
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('Reservations/Show', [
             'reservation' => $reservation,
             'settings' => $settings,
             'units' => $units,
+            'coordinators' => $coordinators,
         ]);
     }
 
@@ -410,7 +419,7 @@ class ReservationController extends Controller
 
         $newUnit = Unit::with('project')->findOrFail($validated['unit_id']);
         if ($newUnit->status !== 'available') {
-            return back()->with('error', "Unit {$newUnit->code} saat ini tidak berstatus Available (Status: {$newUnit->status}).");
+            return back()->with('error', "Unit {$newUnit->label} saat ini tidak berstatus Available (Status: {$newUnit->status}).");
         }
 
         $oldUnit = Unit::find($reservation->unit_id);
@@ -444,13 +453,13 @@ class ReservationController extends Controller
                 'lead_id' => $reservation->lead_id,
                 'user_id' => auth()->id(),
                 'type' => 'note',
-                'description' => "🔄 Konsumen berpindah unit reservasi dari " . ($oldUnit ? $oldUnit->code : "Unit #{$reservation->unit_id}") . " ke {$newUnit->code}.{$reasonText}",
+                'description' => "🔄 Konsumen berpindah unit reservasi dari " . ($oldUnit ? $oldUnit->label : "Unit #{$reservation->unit_id}") . " ke {$newUnit->label}.{$reasonText}",
             ]);
         }
 
         AuditLog::record('reservation_unit_changed', $reservation, ['old_unit_id' => $oldUnit?->id], ['new_unit_id' => $newUnit->id]);
 
-        return back()->with('success', "Unit reservasi berhasil diubah ke {$newUnit->code}!");
+        return back()->with('success', "Unit reservasi berhasil diubah ke {$newUnit->label}!");
     }
 
     /**
@@ -458,6 +467,10 @@ class ReservationController extends Controller
      */
     public function update(Request $request, Reservation $reservation)
     {
+        if ($request->has('agent_coordinator_id') && empty($request->input('agent_coordinator_id'))) {
+            $request->merge(['agent_coordinator_id' => null]);
+        }
+
         $validated = $request->validate([
             'unit_id' => 'nullable|exists:units,id',
             'client_name' => 'required|string|max:255',
@@ -473,15 +486,11 @@ class ReservationController extends Controller
             'policy_title' => 'nullable|string|max:255',
             'policy_text' => 'nullable|string|max:2000',
             'custom_overrides' => 'nullable|array',
-            'agent_coordinator_id' => 'nullable',
+            'agent_coordinator_id' => 'nullable|exists:users,id',
             'agent_coordinator_name' => 'nullable|string|max:255',
             'agent_coordinator_title' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:1000',
         ]);
-
-        if (array_key_exists('agent_coordinator_id', $validated) && empty($validated['agent_coordinator_id'])) {
-            $validated['agent_coordinator_id'] = null;
-        }
 
         // If unit_id is being changed in update
         if (!empty($validated['unit_id']) && $validated['unit_id'] != $reservation->unit_id) {
@@ -503,7 +512,7 @@ class ReservationController extends Controller
                         'lead_id' => $reservation->lead_id,
                         'user_id' => auth()->id(),
                         'type' => 'note',
-                        'description' => "🔄 Unit Reservasi diubah dari " . ($oldUnit ? $oldUnit->code : "Unit #{$reservation->unit_id}") . " ke {$newUnit->code}.",
+                        'description' => "🔄 Unit Reservasi diubah dari " . ($oldUnit ? $oldUnit->label : "Unit #{$reservation->unit_id}") . " ke {$newUnit->label}.",
                     ]);
                 }
             }
@@ -611,7 +620,7 @@ class ReservationController extends Controller
      */
     public function streamReceiptPdf(Reservation $reservation)
     {
-        $reservation->load(['project', 'unit.unitType', 'lead', 'creator', 'agentCoordinator']);
+        $reservation->load(['project', 'unit.unitType', 'lead.assignedTo', 'lead.inhousePic', 'creator', 'agentCoordinator']);
         $settings = $this->getSettings();
 
         if (request()->has('html') || request()->query('view') === 'html') {

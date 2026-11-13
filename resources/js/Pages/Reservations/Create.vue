@@ -24,7 +24,10 @@ const form = useForm({
     payment_method: 'transfer',
     payment_proof: null,
     company_name: '',
-    agent_coordinator_id: '',
+    agent_coordinator_id: (typeof props.preselectedNego?.lead?.assigned_to === 'object' ? props.preselectedNego?.lead?.assigned_to?.id : props.preselectedNego?.lead?.assigned_to)
+        || props.preselectedNego?.lead?.inhouse_pic?.id
+        || props.preselectedNego?.lead?.inhouse_pic_id
+        || '',
     agent_coordinator_name: '',
     agent_coordinator_title: 'Master Lead / Agent Coordinator',
     expires_days: 7,
@@ -50,7 +53,7 @@ watch(() => form.agent_coordinator_id, (coordId) => {
             ? 'Master Lead / Agent Coordinator'
             : 'Sales Coordinator / Agent Representative';
     }
-});
+}, { immediate: true });
 
 watch(() => form.lead_id, (leadId) => {
     if (!leadId) return;
@@ -60,11 +63,14 @@ watch(() => form.lead_id, (leadId) => {
         if (!form.client_phone) form.client_phone = lead.phone || '';
         if (!form.client_email) form.client_email = lead.email || '';
         if (!form.client_nik) form.client_nik = lead.identity_number || '';
-        if (lead.assigned_to && !form.agent_coordinator_id) {
-            form.agent_coordinator_id = lead.assigned_to;
+        const leadAgentId = (typeof lead.assigned_to === 'object' ? lead.assigned_to?.id : lead.assigned_to)
+            || lead.inhouse_pic?.id
+            || lead.inhouse_pic_id;
+        if (leadAgentId && !form.agent_coordinator_id) {
+            form.agent_coordinator_id = leadAgentId;
         }
     }
-});
+}, { immediate: true });
 
 const handleProofChange = (e) => {
     form.payment_proof = e.target.files[0];

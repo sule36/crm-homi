@@ -184,7 +184,7 @@ const deleteReservation = (id) => {
                                 <p class="text-[10px] text-slate-400 font-bold mt-0.5">📱 {{ res.client_phone }}</p>
                             </td>
                             <td class="px-6 py-5">
-                                <p class="text-xs font-black text-slate-800">{{ res.unit?.code || res.unit?.number || '-' }}</p>
+                                <p class="text-xs font-black text-slate-800">{{ res.unit?.label || res.unit?.code || res.unit?.number || '-' }}</p>
                                 <p class="text-[10px] text-slate-400 font-bold">{{ res.project?.name || '-' }} · Tipe {{ res.unit?.unit_type?.name || '' }}</p>
                             </td>
                             <td class="px-6 py-5 text-right">

@@ -14,6 +14,8 @@ use Inertia\Inertia;
 
 class LeadController extends Controller
 {
+    private const ALLOWED_SOURCES = 'facebook,instagram,google,tiktok,walk_in,referral,broker,agency,agent,independent,inhouse,website,other';
+
     public function index(Request $request)
     {
         $user = auth()->user();
@@ -162,7 +164,7 @@ class LeadController extends Controller
             'project_id' => 'nullable|exists:projects,id',
             'assigned_to' => 'nullable|exists:users,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
-            'source' => 'required|in:facebook,instagram,google,tiktok,walk_in,referral,broker,website,agent,other',
+            'source' => 'required|in:' . self::ALLOWED_SOURCES,
             'notes' => 'nullable|string',
             'preferences' => 'nullable|array',
             'nik' => 'nullable|string|max:30',
@@ -308,7 +310,7 @@ class LeadController extends Controller
             'assigned_to' => 'nullable|exists:users,id',
             'inhouse_pic_id' => 'nullable|exists:users,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
-            'source' => 'sometimes|in:facebook,instagram,google,tiktok,walk_in,referral,broker,website,other',
+            'source' => 'sometimes|in:' . self::ALLOWED_SOURCES,
             'status' => 'sometimes|in:new,contacted,visited,negotiation,reservation,booking,won,lost',
             'notes' => 'nullable|string',
             'lost_reason' => 'nullable|string',

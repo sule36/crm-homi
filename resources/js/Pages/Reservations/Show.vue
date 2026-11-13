@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -9,8 +9,22 @@ const props = defineProps({
     units: {
         type: Array,
         default: () => [],
+    },
+    coordinators: {
+        type: Array,
+        default: () => [],
     }
 });
+
+const formatUnitLabel = (unit) => {
+    if (!unit) return '-';
+    if (unit.label) return unit.label;
+    const parts = [];
+    if (unit.block) parts.push(`Blok ${unit.block}`);
+    if (unit.floor) parts.push(`Lt. ${unit.floor}`);
+    if (unit.number) parts.push(`No. ${unit.number}`);
+    return parts.join(' ') || unit.code || '-';
+};
 
 const showRefundModal = ref(false);
 const showEditModal = ref(false);
@@ -60,14 +74,30 @@ const editForm = useForm({
     policy_text: props.reservation.policy_text || 'Apabila pengajuan penawaran harga/skema pembayaran tidak disetujui oleh Developer atau Calon Pembeli memutuskan untuk membatalkan pengajuan sebelum penandatanganan Surat Pemesanan Rumah (SPR), dana reservasi ini DIJAMIN DIKEMBALIKAN 100% UTUH (TANPA POTONGAN BIAYA APAPUN).',
     custom_overrides: {
         project_name: props.reservation.custom_overrides?.project_name || props.reservation.project?.name || '',
-        unit_code: props.reservation.custom_overrides?.unit_code || props.reservation.unit?.code || props.reservation.unit?.number || '',
+        unit_code: props.reservation.custom_overrides?.unit_code || formatUnitLabel(props.reservation.unit),
         unit_type_name: props.reservation.custom_overrides?.unit_type_name || props.reservation.unit?.unit_type?.name || '',
-        spec_text: props.reservation.custom_overrides?.spec_text || `LB ${props.reservation.unit?.building_area || props.reservation.unit?.unit_type?.building_area || ''} m² / LT ${props.reservation.unit?.surface_area || props.reservation.unit?.unit_type?.surface_area || ''} m²`,
+        spec_text: props.reservation.custom_overrides?.spec_text || `LB ${props.reservation.unit?.building_area || props.reservation.unit?.unit_type?.building_area || '-'} m² / LT ${props.reservation.unit?.land_area || props.reservation.unit?.surface_area || props.reservation.unit?.unit_type?.land_area || props.reservation.unit?.unit_type?.surface_area || '-'} m²`,
         company_address: props.reservation.custom_overrides?.company_address || props.settings?.company_address || '',
     },
-    agent_coordinator_name: props.reservation.agent_coordinator_name || props.reservation.agent_coordinator?.name || '',
+    agent_coordinator_id: props.reservation.agent_coordinator_id
+        || (typeof props.reservation.lead?.assigned_to === 'object' ? props.reservation.lead?.assigned_to?.id : props.reservation.lead?.assigned_to)
+        || props.reservation.lead?.inhouse_pic?.id
+        || props.reservation.lead?.inhouse_pic_id
+        || '',
+    agent_coordinator_name: props.reservation.agent_coordinator_name || props.reservation.agent_coordinator?.name || props.reservation.lead?.assigned_to?.name || props.reservation.lead?.inhouse_pic?.name || '',
     agent_coordinator_title: props.reservation.agent_coordinator_title || 'Master Lead / Agent Coordinator',
     notes: props.reservation.notes || '',
+});
+
+watch(() => editForm.agent_coordinator_id, (coordId) => {
+    if (!coordId) return;
+    const coord = props.coordinators.find(c => c.id == coordId);
+    if (coord) {
+        editForm.agent_coordinator_name = coord.name || '';
+        editForm.agent_coordinator_title = coord.agent_type === 'master_lead'
+            ? 'Master Lead / Agent Coordinator'
+            : 'Sales Coordinator';
+    }
 });
 
 const submitEdit = () => {
@@ -209,7 +239,7 @@ const statusConfig = {
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-slate-500 font-medium">Kode Unit:</span>
-                            <span class="font-bold text-blue-700">Unit {{ reservation.unit?.code || reservation.unit?.number || '-' }}</span>
+                            <span class="font-bold text-blue-700">{{ formatUnitLabel(reservation.unit) }}</span>
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-slate-500 font-medium">Tipe Properti:</span>
@@ -217,7 +247,7 @@ const statusConfig = {
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-slate-500 font-medium">Spesifikasi Luas:</span>
-                            <span class="font-bold text-slate-900">LB {{ reservation.unit?.building_area || reservation.unit?.unit_type?.building_area }} m² / LT {{ reservation.unit?.surface_area || reservation.unit?.unit_type?.surface_area }} m²</span>
+                            <span class="font-bold text-slate-900">LB {{ reservation.unit?.building_area || reservation.unit?.unit_type?.building_area || '-' }} m² / LT {{ reservation.unit?.land_area || reservation.unit?.surface_area || reservation.unit?.unit_type?.land_area || reservation.unit?.unit_type?.surface_area || '-' }} m²</span>
                         </div>
                     </div>
                 </div>
@@ -297,7 +327,7 @@ const statusConfig = {
 
                 <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900">
                     <p class="font-bold">🛡️ Garansi 100% Refundable</p>
-                    <p class="mt-0.5">Dana sebesar <strong>{{ formatCurrency(reservation.amount) }}</strong> akan dikembalikan utuh 100% ke rekening pembeli, dan status unit <strong>{{ reservation.unit?.code || reservation.unit?.number }}</strong> akan dikembalikan menjadi <strong>Available</strong>.</p>
+                    <p class="mt-0.5">Dana sebesar <strong>{{ formatCurrency(reservation.amount) }}</strong> akan dikembalikan utuh 100% ke rekening pembeli, dan status unit <strong>{{ formatUnitLabel(reservation.unit) }}</strong> akan dikembalikan menjadi <strong>Available</strong>.</p>
                 </div>
 
                 <form @submit.prevent="submitRefund" class="space-y-4 text-xs">
@@ -377,6 +407,15 @@ const statusConfig = {
                             <label class="block font-bold text-slate-700 mb-1">Alamat Perusahaan / Kop Kwitansi</label>
                             <input v-model="editForm.custom_overrides.company_address" type="text" placeholder="Contoh: Tb Simatupang No. 88, Jakarta Selatan" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-blue-500" />
                             <p class="text-[10px] text-slate-400 mt-1">Alamat di Kop Surat Kwitansi di bawah logo/nama PT (kosongkan jika ingin pakai default sistem).</p>
+                        </div>
+
+                        <div v-if="coordinators.length">
+                            <label class="block font-bold text-slate-700 mb-1">Pilih Sales / Agent Koordinator (Opsional)</label>
+                            <select v-model="editForm.agent_coordinator_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500">
+                                <option value="">-- Pilih dari Daftar Sales / Koordinator --</option>
+                                <option v-for="c in coordinators" :key="c.id" :value="c.id">{{ c.name }}</option>
+                            </select>
+                            <p class="text-[10px] text-slate-400 mt-1">Memilih nama dari daftar akan otomatis mengisi Nama Penandatangan di bawah.</p>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -518,7 +557,7 @@ const statusConfig = {
                     <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
                         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unit Saat Ini</p>
                         <div class="flex items-center justify-between mt-1">
-                            <span class="text-sm font-black text-slate-800">{{ reservation.unit?.code || `${reservation.unit?.block} ${reservation.unit?.number}` }}</span>
+                            <span class="text-sm font-black text-slate-800">{{ formatUnitLabel(reservation.unit) }}</span>
                             <span class="text-xs font-bold font-mono text-emerald-700">Rp {{ Number(reservation.unit?.final_price || reservation.unit?.price || 0).toLocaleString('id-ID') }}</span>
                         </div>
                         <p class="text-[10px] text-slate-500 mt-0.5">{{ reservation.project?.name }} • Tipe {{ reservation.unit?.unit_type?.name || 'Standard' }}</p>

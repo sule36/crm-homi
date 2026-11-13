@@ -611,7 +611,7 @@ const reservationForm = useForm({
     amount: 5000000,
     payment_method: 'transfer',
     bank_account_id: '',
-    agent_coordinator_id: props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '',
+    agent_coordinator_id: props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id || '',
     expires_days: 7,
     notes: '',
     lead_id: props.lead.id,
@@ -627,7 +627,7 @@ function openReservationModal(preferredUnitId = null) {
     reservationForm.amount = 5000000;
     reservationForm.payment_method = 'transfer';
     reservationForm.bank_account_id = props.bankAccounts?.[0]?.id || '';
-    reservationForm.agent_coordinator_id = props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || '';
+    reservationForm.agent_coordinator_id = props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id || '';
     reservationForm.expires_days = 7;
     reservationForm.notes = '';
     reservationForm.lead_id = props.lead.id;

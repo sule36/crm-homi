@@ -478,7 +478,7 @@ function submitQuickFollowUp() {
             </select>
             <select v-model="sourceFilter" class="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
                 <option value="">Semua Sumber</option>
-                <option v-for="s in ['facebook','instagram','google','tiktok','walk_in','referral','broker','website']" :key="s" :value="s">{{ s.replace('_', ' ') }}</option>
+                <option v-for="s in ['facebook','instagram','google','tiktok','walk_in','referral','broker','independent','inhouse','website','other']" :key="s" :value="s">{{ s.replace('_', ' ') }}</option>
             </select>
         </div>
 

@@ -220,7 +220,10 @@
         $companyAddress = $overrides['company_address'] ?? ($reservation->company_address ?? ($settings['company_address'] ?? 'Official Real Estate & Property Developer'));
         $companyPhone = $settings['company_phone'] ?? null;
 
-        $coordName = $reservation->agent_coordinator_name ?: ($reservation->agentCoordinator?->name ?? 'Agent Coordinator');
+        $coordName = $reservation->agent_coordinator_name
+            ?: ($reservation->agentCoordinator?->name
+                ?: ($reservation->lead?->assignedTo?->name
+                    ?: ($reservation->lead?->inhousePic?->name ?? 'Agent Coordinator')));
         $coordTitle = $reservation->agent_coordinator_title ?: 'Master Lead / Agent Coordinator';
         $city = $reservation->city ?: ($settings['spr_signatures']['city'] ?? 'Jakarta');
 
@@ -230,9 +233,14 @@
 
         $overrides = $reservation->custom_overrides ?? [];
         $projectName = $overrides['project_name'] ?? ($reservation->project->name ?? '-');
-        $unitCode = $overrides['unit_code'] ?? ($reservation->unit->code ?? $reservation->unit->number ?? '-');
-        $unitTypeName = $overrides['unit_type_name'] ?? ($reservation->unit->unitType->name ?? '-');
-        $specText = $overrides['spec_text'] ?? ('LB ' . ($reservation->unit->building_area ?? $reservation->unit->unitType->building_area ?? '-') . ' m² / LT ' . ($reservation->unit->surface_area ?? $reservation->unit->unitType->surface_area ?? '-') . ' m²');
+        $defaultUnitLabel = $reservation->unit
+            ? ($reservation->unit->label ?: trim(($reservation->unit->block ? 'Blok ' . $reservation->unit->block . ' ' : '') . 'No. ' . ($reservation->unit->number ?? '-')))
+            : '-';
+        $unitCode = !empty($overrides['unit_code']) ? $overrides['unit_code'] : $defaultUnitLabel;
+        $unitTypeName = !empty($overrides['unit_type_name']) ? $overrides['unit_type_name'] : ($reservation->unit->unitType->name ?? '-');
+        $lb = $reservation->unit?->building_area ?? $reservation->unit?->unitType?->building_area ?? '-';
+        $lt = $reservation->unit?->land_area ?? $reservation->unit?->surface_area ?? $reservation->unit?->unitType?->land_area ?? $reservation->unit?->unitType?->surface_area ?? '-';
+        $specText = !empty($overrides['spec_text']) ? $overrides['spec_text'] : ('LB ' . $lb . ' m² / LT ' . $lt . ' m²');
 
         $getSafeBase64 = function($path) {
             if (empty($path)) return null;
@@ -313,7 +321,7 @@
                     <td class="data-label">No. WhatsApp / HP</td>
                     <td class="data-value">: {{ $reservation->client_phone }}</td>
                     <td class="data-label">Kode / No. Unit</td>
-                    <td class="data-value">: Unit {{ $unitCode }}</td>
+                    <td class="data-value">: {{ $unitCode }}</td>
                 </tr>
                 <tr>
                     <td class="data-label">Email</td>
