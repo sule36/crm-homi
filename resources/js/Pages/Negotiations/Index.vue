@@ -2,7 +2,7 @@
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TransactionTabs from '@/Components/Transactions/TransactionTabs.vue';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import NegotiationTemplateModal from '@/Components/Negotiations/NegotiationTemplateModal.vue';
 
 const props = defineProps({
@@ -15,6 +15,7 @@ const props = defineProps({
     leads: { type: Array, default: () => [] },
     standardBookingFee: { type: Number, default: 17000000 },
     negotiationSettings: { type: Object, default: () => ({}) },
+    preselect: { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -39,6 +40,14 @@ function applyFilters() {
 const showTemplateModal = ref(false);
 const editingNego = ref(null);
 const initialModalTab = ref('page1');
+
+onMounted(() => {
+    if (props.preselect?.create) {
+        editingNego.value = null;
+        initialModalTab.value = 'page1';
+        showTemplateModal.value = true;
+    }
+});
 
 function openCreate() {
     editingNego.value = null;
@@ -282,6 +291,7 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
             :initial-tab="initialModalTab"
             :standard-booking-fee="standardBookingFee"
             :negotiation-settings="negotiationSettings"
+            :preselect="preselect"
             @close="showTemplateModal = false" 
             @saved="router.reload({ preserveScroll: true })" 
         />

@@ -231,6 +231,9 @@ const statusConfig = {
                         <a :href="`/reservations/${reservation.id}/receipt`" target="_blank" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
                             <span>📄</span> Cetak Kwitansi PDF
                         </a>
+                        <Link v-if="reservation.status === 'active'" :href="reservation.negotiation ? `/negotiations/${reservation.negotiation.id}` : `/negotiations?create=1&lead_id=${reservation.lead_id || ''}&unit_id=${reservation.unit_id || ''}`" class="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5">
+                            <span>🤝</span> {{ reservation.negotiation ? 'Lihat Negosiasi' : 'Ajukan Negosiasi' }}
+                        </Link>
                         <Link v-if="reservation.status === 'active'" :href="`/reservations/${reservation.id}/convert`" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5">
                             <span>➡️</span> Konversi ke Booking (SPR)
                         </Link>

@@ -1575,4 +1575,186 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $unit->refresh();
         $this->assertEquals('booked', $unit->status);
     }
+
+    public function test_stale_legacy_17jt_negotiation_syncs_to_11jt_reservation_and_flows_to_spr(): void
+    {
+        $company = Company::create(['name' => 'PT Sync UTJ Nusantara', 'slug' => 'pt-sync-utj-nusantara', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active', 'name' => 'Marketing Manager Demo']);
+        $this->actingAs($user);
+
+        // Tenant sets standard Booking Fee (UTJ) = Rp 11.000.000,-
+        Setting::set('standard_booking_fee', '11000000', $company->id);
+        Setting::set('company_name', 'PT Sync UTJ Nusantara', $company->id);
+
+        [$project, , $unit] = $this->createProjectUnit($company, 'SUN', 'B', '12', 'available', 2200000000);
+        $project->update(['name' => 'Harmony Residence']);
+
+        $lead = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'assigned_to' => $user->id,
+            'name' => 'Konsumen Sync',
+            'phone' => '081211122233',
+            'source' => 'inhouse',
+            'status' => 'hot',
+        ]);
+
+        // 1. Reservation Rp 11.000.000,- created for this lead & unit
+        $reservation = Reservation::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'created_by' => $user->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'amount' => 11000000,
+            'reservation_date' => '2026-11-10',
+            'expiry_date' => '2026-11-24',
+            'status' => 'active',
+        ]);
+
+        // 2. Simulate an existing Negotiation record carrying stale legacy 10jt / 7jt / 17jt form_data
+        $negotiation = Negotiation::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'created_by' => $user->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'unit_listed_price' => 2200000000,
+            'offered_price' => 1950000000,
+            'payment_scheme' => 'cash_bertahap',
+            'dp_amount' => 300000000,
+            'installment_months' => 3,
+            'status' => 'pending',
+            'form_data' => [
+                'pengajuan' => [
+                    'price' => '1.950.000.000,-',
+                    'cara_bayar' => 'Cash Bertahap 3X',
+                    'reservasi' => '10,000,000,-',
+                    'reservasi_date' => '08 Sept 2026',
+                    'booking_fee' => '7,000,000,-',
+                    'booking_fee_total' => '(Total 17,000,000,-)',
+                    'dp1_amount' => '300.000.000,-',
+                ],
+                'jawaban' => [
+                    'price' => '1.950.000.000,-',
+                    'cara_bayar' => 'Cash Bertahap 3X',
+                    'reservasi' => '10,000,000,-',
+                    'reservasi_date' => '08 Sept 2026',
+                    'booking_fee' => '7,000,000,-',
+                    'booking_fee_total' => '(Total 17,000,000,-)',
+                    'dp1_amount' => '300.000.000,-',
+                    'notes' => [
+                        'Booking Fee sebesar Rp17.000.000,- dinyatakan hangus 100% apabila setelah SPR diterbitkan, pembeli membatalkan atau tidak melanjutkan transaksi pembelian unit.',
+                        'Ketentuan lain mengacu pada perjanjian.',
+                    ],
+                ],
+            ],
+        ]);
+
+        // Verify getFormDetails() auto-reconciles both pengajuan & jawaban to live 11jt reservation & parameter
+        $details = $negotiation->getFormDetails();
+        $this->assertEquals('11.000.000,-', $details['pengajuan']['reservasi']);
+        $this->assertEquals('0,- (Lunas UTJ)', $details['pengajuan']['booking_fee']);
+        $this->assertEquals('(Total 11.000.000,-)', $details['pengajuan']['booking_fee_total']);
+        $this->assertEquals('11.000.000,-', $details['jawaban']['reservasi']);
+        $this->assertEquals('0,- (Lunas UTJ)', $details['jawaban']['booking_fee']);
+        $this->assertEquals('(Total 11.000.000,-)', $details['jawaban']['booking_fee_total']);
+        $this->assertStringContainsString('Rp 11.000.000,-', $details['jawaban']['notes'][0]);
+        $this->assertStringNotContainsString('17.000.000', $details['jawaban']['notes'][0]);
+
+        // 3. Index preselect route works cleanly
+        $this->get("/negotiations?create=1&lead_id={$lead->id}&unit_id={$unit->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('standardBookingFee', 11000000)
+                ->where('preselect.create', true)
+                ->where('preselect.lead_id', (string) $lead->id)
+                ->where('preselect.unit_id', (string) $unit->id)
+            );
+
+        // 4. Developer updates Jawaban Tab 2 (changes scheme to Cash Bertahap 6X & approves) -> syncs scheme + 11jt UTJ
+        $this->put("/negotiations/{$negotiation->id}", [
+            'lead_id' => $lead->id,
+            'unit_id' => $unit->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'status' => 'approved',
+            'counter_price' => 1950000000,
+            'form_data' => [
+                'pengajuan' => [
+                    'price' => '1.950.000.000,-',
+                    'cara_bayar' => 'Cash Bertahap 3X',
+                    'reservasi' => '10,000,000,-',
+                    'booking_fee' => '7,000,000,-',
+                    'dp1_amount' => '300.000.000,-',
+                ],
+                'jawaban' => [
+                    'price' => '1.950.000.000,-',
+                    'cara_bayar' => 'Cash Bertahap 6X',
+                    'reservasi' => '10,000,000,-',
+                    'booking_fee' => '7,000,000,-',
+                    'dp1_amount' => '350.000.000,-',
+                    'notes' => [
+                        'Booking Fee sebesar Rp17.000.000,- dinyatakan hangus 100% apabila pembeli membatalkan.',
+                    ],
+                ],
+            ],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $negotiation->refresh();
+        $this->assertEquals('approved', $negotiation->status);
+        $this->assertEquals('cash_bertahap', $negotiation->payment_scheme);
+        $this->assertEquals(6, (int) $negotiation->installment_months);
+        $this->assertEquals(350000000, (int) $negotiation->dp_amount);
+
+        // Negotiation HTML print shows 11jt UTJ and zero 17jt/10jt/7jt leakage
+        $negoHtml = $this->get("/negotiations/{$negotiation->id}/pdf?html=1");
+        $negoHtml->assertStatus(200);
+        $negoHtml->assertSee('11.000.000,-');
+        $negoHtml->assertSee('Lunas UTJ');
+        $negoHtml->assertDontSee('17.000.000');
+        $negoHtml->assertDontSee('17,000,000');
+        $negoHtml->assertDontSee('10,000,000');
+        $negoHtml->assertDontSee('7,000,000');
+
+        // 5. Bookings/Create without query params still eager-loads active reservation & approved negotiation on lead
+        $this->get('/bookings/create')
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('standardBookingFee', 11000000)
+                ->where('leads.0.id', $lead->id)
+                ->where('leads.0.reservations.0.id', $reservation->id)
+                ->where('leads.0.reservations.0.amount', 11000000)
+                ->where('leads.0.negotiations.0.id', $negotiation->id)
+            );
+
+        // 6. Create Booking & check SPR HTML reflects 11jt UTJ + Reservation credit without hardcoded 15jt / Umala Andara
+        $this->post('/bookings', [
+            'lead_id' => $lead->id,
+            'unit_id' => $unit->id,
+            'booked_by' => $user->id,
+            'negotiation_id' => $negotiation->id,
+            'reservation_id' => $reservation->id,
+            'payment_scheme' => 'cash_installment',
+            'installment_months' => 6,
+            'booking_date' => '2026-11-15',
+            'booking_fee' => 11000000,
+            'base_price' => 1950000000,
+            'final_price' => 1950000000,
+            'dp_amount' => 350000000,
+            'auto_approve' => true,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $booking = Booking::where('lead_id', $lead->id)->firstOrFail();
+        $sprResp = $this->get("/bookings/{$booking->id}/spr?html=1");
+        $sprResp->assertStatus(200);
+        $sprResp->assertSee('11.000.000');
+        $sprResp->assertSee('Kredit Reservasi Rp 11.000.000');
+        $sprResp->assertDontSee('15.000.000');
+        $sprResp->assertDontSee('Umala Andara');
+    }
 }

@@ -11,6 +11,7 @@ const props = defineProps({
     initialTab: { type: String, default: 'page1' },
     standardBookingFee: { type: Number, default: 17000000 },
     negotiationSettings: { type: Object, default: () => ({}) },
+    preselect: { type: Object, default: null },
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -192,11 +193,74 @@ const form = useForm({
     }
 });
 
+function findActiveReservation(leadId, unitId, nObj = null) {
+    const fdMeta = nObj?.form_details?.linked_reservation || nObj?.form_data?.linked_reservation || null;
+    const candidates = [];
+    if (nObj?.lead?.reservations?.length) candidates.push(...nObj.lead.reservations);
+    if (props.lead?.reservations?.length && (!leadId || Number(props.lead.id) === Number(leadId))) {
+        candidates.push(...props.lead.reservations);
+    }
+    const leadMatch = (props.leads || []).find(l => Number(l.id) === Number(leadId));
+    if (leadMatch?.reservations?.length) {
+        candidates.push(...leadMatch.reservations);
+    }
+
+    const valid = candidates.filter(r => ['active', 'converted'].includes(String(r?.status || '').toLowerCase()));
+    if (valid.length > 0) {
+        if (fdMeta?.id) {
+            const byMetaId = valid.find(r => Number(r.id) === Number(fdMeta.id));
+            if (byMetaId) return byMetaId;
+        }
+        if (leadId && unitId) {
+            const byLeadUnit = valid.find(r => Number(r.lead_id) === Number(leadId) && Number(r.unit_id) === Number(unitId));
+            if (byLeadUnit) return byLeadUnit;
+        }
+        if (unitId) {
+            const byUnit = valid.find(r => Number(r.unit_id) === Number(unitId));
+            if (byUnit) return byUnit;
+        }
+        return valid[0];
+    }
+
+    if (fdMeta && Number(fdMeta.amount || 0) > 0) {
+        return {
+            id: fdMeta.id || null,
+            amount: Number(fdMeta.amount),
+            created_at: nObj?.form_details?.reservasi_date || null,
+            formatted_date: nObj?.form_details?.reservasi_date || '-',
+        };
+    }
+    return null;
+}
+
+function syncUtjClauseInNotes(resAmt, utjAmt) {
+    const utjText = formatNominal(utjAmt);
+    const resText = resAmt > 0 ? formatNominal(resAmt) : 'sesuai tanda jadi';
+    if (Array.isArray(form.form_data.pengajuan?.notes)) {
+        const idx = form.form_data.pengajuan.notes.findIndex(n => typeof n === 'string' && n.toLowerCase().includes('tanda jadi/reservasi sebesar'));
+        const newClause = `Tanda jadi/reservasi sebesar Rp ${resText} dikembalikan 100% apabila pengajuan ini tidak disetujui oleh Developer.`;
+        if (idx >= 0) {
+            form.form_data.pengajuan.notes[idx] = newClause;
+        } else if (form.form_data.pengajuan.notes.length >= 7) {
+            form.form_data.pengajuan.notes[6] = newClause;
+        }
+    }
+    if (Array.isArray(form.form_data.jawaban?.notes)) {
+        const idx = form.form_data.jawaban.notes.findIndex(n => typeof n === 'string' && /booking\s*fee\s*(\(utj\))?\s*sebesar\s*rp/i.test(n));
+        const newClause = `Booking Fee (UTJ) sebesar Rp ${utjText} dinyatakan hangus apabila setelah SPR diterbitkan pembeli membatalkan transaksi secara sepihak.`;
+        if (idx >= 0) {
+            form.form_data.jawaban.notes[idx] = newClause;
+        } else if (form.form_data.jawaban.notes.length >= 1) {
+            form.form_data.jawaban.notes[0] = newClause;
+        }
+    }
+}
+
 function applyReservationCredit(res) {
     const utj = effectiveStandardBookingFee.value;
     const resAmt = res ? Number(res.amount || 0) : 0;
     const resText = resAmt > 0 ? formatNominal(resAmt) : '-';
-    const resDate = res?.created_at ? formatIndoDate(res.created_at) : '-';
+    const resDate = res?.formatted_date || (res?.created_at ? formatIndoDate(res.created_at) : '-');
     const remainingUtj = Math.max(0, utj - resAmt);
     const bfText = remainingUtj > 0 ? formatNominal(remainingUtj) : (utj > 0 ? '0,- (Lunas UTJ)' : '-');
     const bfTotalText = `(Total ${formatNominal(utj)})`;
@@ -213,22 +277,28 @@ function applyReservationCredit(res) {
     form.form_data.jawaban.booking_fee = bfText;
     form.form_data.jawaban.booking_fee_total = bfTotalText;
 
-    if (form.form_data.pengajuan?.notes && form.form_data.pengajuan.notes.length >= 7) {
-        form.form_data.pengajuan.notes[6] = `Tanda jadi/reservasi sebesar Rp ${resAmt > 0 ? resText : 'sesuai tanda jadi'} dikembalikan 100% apabila pengajuan ini tidak disetujui oleh Developer.`;
-    }
+    syncUtjClauseInNotes(resAmt, utj);
 }
 
 function recalculatePengajuanAndJawaban() {
     const listed = parseDigits(form.form_data.price_list);
     const offer = parseDigits(form.form_data.pengajuan.price) || listed;
     const utj = effectiveStandardBookingFee.value;
-    const resAmt = parseDigits(form.form_data.reservasi);
+    const resAmt = parseDigits(form.form_data.reservasi) || parseDigits(form.form_data.pengajuan.reservasi) || parseDigits(form.form_data.jawaban.reservasi);
     const remainingUtj = Math.max(0, utj - resAmt);
+    const resText = resAmt > 0 ? formatNominal(resAmt) : '-';
+    const resDate = form.form_data.reservasi_date && form.form_data.reservasi_date !== '-'
+        ? form.form_data.reservasi_date
+        : (form.form_data.pengajuan.reservasi_date || form.form_data.jawaban.reservasi_date || '-');
+    const bfText = remainingUtj > 0 ? formatNominal(remainingUtj) : (utj > 0 ? '0,- (Lunas UTJ)' : '-');
+    const bfTotalText = `(Total ${formatNominal(utj)})`;
 
-    form.form_data.pengajuan.booking_fee = remainingUtj > 0 ? formatNominal(remainingUtj) : '0,- (Lunas UTJ)';
-    form.form_data.pengajuan.booking_fee_total = `(Total ${formatNominal(utj)})`;
-    form.form_data.pengajuan.reservasi = resAmt > 0 ? formatNominal(resAmt) : '-';
-    form.form_data.pengajuan.reservasi_date = form.form_data.reservasi_date || '-';
+    form.form_data.reservasi = resText;
+    form.form_data.reservasi_date = resDate;
+    form.form_data.pengajuan.reservasi = resText;
+    form.form_data.pengajuan.reservasi_date = resDate;
+    form.form_data.pengajuan.booking_fee = bfText;
+    form.form_data.pengajuan.booking_fee_total = bfTotalText;
 
     if (listed > 0 && offer > 0 && listed > offer) {
         form.form_data.diskon = formatNominal(listed - offer);
@@ -244,12 +314,16 @@ function recalculatePengajuanAndJawaban() {
     const jwbOffer = parseDigits(form.form_data.jawaban.price) || offer;
     const jwbDp1 = parseDigits(form.form_data.jawaban.dp1_amount) || dp1;
     const jwbDp2 = parseDigits(form.form_data.jawaban.dp2_amount) || dp2;
-    form.form_data.jawaban.booking_fee = form.form_data.pengajuan.booking_fee;
-    form.form_data.jawaban.booking_fee_total = form.form_data.pengajuan.booking_fee_total;
+    form.form_data.jawaban.reservasi = resText;
+    form.form_data.jawaban.reservasi_date = resDate;
+    form.form_data.jawaban.booking_fee = bfText;
+    form.form_data.jawaban.booking_fee_total = bfTotalText;
     if (jwbOffer > 0) {
         const jwbPelunasan = Math.max(0, jwbOffer - utj - jwbDp1 - jwbDp2);
         form.form_data.jawaban.pelunasan_amount = jwbPelunasan > 0 ? formatNominal(jwbPelunasan) : '0,-';
     }
+
+    syncUtjClauseInNotes(resAmt, utj);
 }
 
 // Watch isOpen & initialize data
@@ -282,6 +356,14 @@ watch(() => props.isOpen, (open) => {
             const labelMap = { cash_keras: 'Cash Keras', kpr: 'KPR Bank', cash_bertahap: n.installment_months ? `Cash Bertahap ${n.installment_months}X` : 'Cash Bertahap' };
             form.form_data.pengajuan.cara_bayar = labelMap[n.payment_scheme] || 'Cash Bertahap';
         }
+
+        // Synchronize live active Reservation & Parameter UTJ so Jawaban/Pengajuan never show stale 10jt/7jt/17jt
+        const matchedRes = findActiveReservation(n.lead_id, n.unit_id, n);
+        if (matchedRes) {
+            applyReservationCredit(matchedRes);
+        } else {
+            recalculatePengajuanAndJawaban();
+        }
     } else {
         // Create new
         form.reset();
@@ -294,24 +376,30 @@ watch(() => props.isOpen, (open) => {
         form.form_data.jawaban.sig_menyetujui_name = props.negotiationSettings?.sig2_name || 'Direktur';
         applyReservationCredit(null);
 
-        if (props.lead) {
-            form.lead_id = props.lead.id;
-            form.client_name = props.lead.name || '';
-            form.client_phone = props.lead.phone || '';
-            form.client_email = props.lead.email || '';
-            form.form_data.dari = props.lead.name || '';
-            form.form_data.jawaban.sig_pengaju_name = props.lead.name || '';
-            const activeRes = (props.lead.reservations || []).find(r => r.status === 'active') || props.lead.reservations?.[0] || null;
+        const targetLead = props.lead || (props.preselect?.lead_id ? (props.leads || []).find(l => Number(l.id) === Number(props.preselect.lead_id)) : null);
+        if (targetLead) {
+            form.lead_id = targetLead.id;
+            form.client_name = targetLead.name || '';
+            form.client_phone = targetLead.phone || '';
+            form.client_email = targetLead.email || '';
+            form.form_data.dari = targetLead.name || '';
+            form.form_data.jawaban.sig_pengaju_name = targetLead.name || '';
+            const targetUnitId = props.preselect?.unit_id || null;
+            const activeRes = findActiveReservation(targetLead.id, targetUnitId, null);
             if (activeRes) {
                 applyReservationCredit(activeRes);
             }
-            const resUnit = activeRes?.unit_id ? selectableUnits.value.find(u => u.id == activeRes.unit_id) : null;
+            const pickUnitId = targetUnitId || activeRes?.unit_id;
+            const resUnit = pickUnitId ? selectableUnits.value.find(u => Number(u.id) === Number(pickUnitId)) : null;
             if (resUnit) {
                 selectUnit(resUnit);
                 return;
             }
         }
-        if (selectableUnits.value.length > 0) {
+        const preUnit = props.preselect?.unit_id ? selectableUnits.value.find(u => Number(u.id) === Number(props.preselect.unit_id)) : null;
+        if (preUnit) {
+            selectUnit(preUnit);
+        } else if (selectableUnits.value.length > 0) {
             selectUnit(selectableUnits.value[0]);
         }
     }
@@ -674,15 +762,15 @@ function openPdf() {
                                 </div>
                                 <div class="sm:col-span-2">
                                     <label class="block font-bold text-slate-500 text-[11px] mb-1">Price List Resmi</label>
-                                    <input v-model="form.form_data.price_list" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-xs font-mono text-slate-900" placeholder="3,840,921,600,-" />
+                                    <input v-model="form.form_data.price_list" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-xs font-mono text-slate-900" placeholder="Sesuai Price List Unit" />
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-500 text-[11px] mb-1">Reservasi Awal</label>
-                                    <input v-model="form.form_data.reservasi" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-xs" placeholder="10,000,000,-" />
+                                    <input v-model="form.form_data.reservasi" @change="recalculatePengajuanAndJawaban" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-xs" placeholder="Nominal Reservasi" />
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-500 text-[11px] mb-1">Tanggal Reservasi</label>
-                                    <input v-model="form.form_data.reservasi_date" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-xs" placeholder="8 Sept 2026" />
+                                    <input v-model="form.form_data.reservasi_date" @change="recalculatePengajuanAndJawaban" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-xs" :placeholder="formatIndoDate()" />
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-500 text-[11px] mb-1">Diskon Yang Diajukan</label>
@@ -721,7 +809,7 @@ function openPdf() {
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-600 text-[11px] mb-1">Pengajuan Price (Nilai Akhir)</label>
-                                    <input v-model="form.form_data.pengajuan.price" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-xs font-mono text-emerald-700" placeholder="3,550,921,600,-" />
+                                    <input v-model="form.form_data.pengajuan.price" @change="recalculatePengajuanAndJawaban" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-xs font-mono text-emerald-700" placeholder="Nominal Penawaran" />
                                 </div>
                             </div>
 
@@ -736,10 +824,10 @@ function openPdf() {
                                 <div class="grid grid-cols-12 gap-2 items-center">
                                     <div class="col-span-3 font-bold text-slate-700">Reservasi</div>
                                     <div class="col-span-5">
-                                        <input v-model="form.form_data.pengajuan.reservasi" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" />
+                                        <input v-model="form.form_data.pengajuan.reservasi" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="-" />
                                     </div>
                                     <div class="col-span-4">
-                                        <input v-model="form.form_data.pengajuan.reservasi_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                        <input v-model="form.form_data.pengajuan.reservasi_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="-" />
                                     </div>
                                 </div>
 
@@ -747,11 +835,11 @@ function openPdf() {
                                 <div class="grid grid-cols-12 gap-2 items-center">
                                     <div class="col-span-3 font-bold text-slate-700">Booking Fee</div>
                                     <div class="col-span-5 flex gap-1">
-                                        <input v-model="form.form_data.pengajuan.booking_fee" type="text" class="w-1/2 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="7,000,000,-" />
-                                        <input v-model="form.form_data.pengajuan.booking_fee_total" type="text" class="w-1/2 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px]" placeholder="(Total 17,000,000,-)" />
+                                        <input v-model="form.form_data.pengajuan.booking_fee" type="text" class="w-1/2 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="Sisa UTJ" />
+                                        <input v-model="form.form_data.pengajuan.booking_fee_total" type="text" class="w-1/2 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px]" :placeholder="`(Total ${formatNominal(effectiveStandardBookingFee)})`" />
                                     </div>
                                     <div class="col-span-4">
-                                        <input v-model="form.form_data.pengajuan.booking_fee_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="24 Sept 2026" />
+                                        <input v-model="form.form_data.pengajuan.booking_fee_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" :placeholder="formatIndoDate()" />
                                     </div>
                                 </div>
 
@@ -759,10 +847,10 @@ function openPdf() {
                                 <div class="grid grid-cols-12 gap-2 items-center">
                                     <div class="col-span-3 font-bold text-slate-700">DP1 %</div>
                                     <div class="col-span-5">
-                                        <input v-model="form.form_data.pengajuan.dp1_amount" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="200,000,000,-" />
+                                        <input v-model="form.form_data.pengajuan.dp1_amount" @change="recalculatePengajuanAndJawaban" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="-" />
                                     </div>
                                     <div class="col-span-4">
-                                        <input v-model="form.form_data.pengajuan.dp1_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="1 Okt 2026" />
+                                        <input v-model="form.form_data.pengajuan.dp1_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="Tanggal DP 1" />
                                     </div>
                                 </div>
 
@@ -770,10 +858,10 @@ function openPdf() {
                                 <div class="grid grid-cols-12 gap-2 items-center">
                                     <div class="col-span-3 font-bold text-slate-700">DP2</div>
                                     <div class="col-span-5">
-                                        <input v-model="form.form_data.pengajuan.dp2_amount" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="1,666,960,800,-" />
+                                        <input v-model="form.form_data.pengajuan.dp2_amount" @change="recalculatePengajuanAndJawaban" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="-" />
                                     </div>
                                     <div class="col-span-4">
-                                        <input v-model="form.form_data.pengajuan.dp2_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="25 Des 2026" />
+                                        <input v-model="form.form_data.pengajuan.dp2_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="Tanggal DP 2" />
                                     </div>
                                 </div>
 
@@ -781,10 +869,10 @@ function openPdf() {
                                 <div class="grid grid-cols-12 gap-2 items-center">
                                     <div class="col-span-3 font-bold text-slate-700">Pelunasan</div>
                                     <div class="col-span-5">
-                                        <input v-model="form.form_data.pengajuan.pelunasan_amount" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="1,666,960,800,-" />
+                                        <input v-model="form.form_data.pengajuan.pelunasan_amount" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-xs" placeholder="Otomatis" />
                                     </div>
                                     <div class="col-span-4">
-                                        <input v-model="form.form_data.pengajuan.pelunasan_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="25 Des 2027" />
+                                        <input v-model="form.form_data.pengajuan.pelunasan_date" type="text" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" placeholder="Tanggal Pelunasan" />
                                     </div>
                                 </div>
                             </div>
@@ -830,10 +918,18 @@ function openPdf() {
                     <div v-show="activeTab === 'page2'" class="space-y-6">
                         
                         <div class="p-4 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-3">
-                            <div class="flex items-center justify-between">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
                                 <span class="font-black text-purple-950 text-xs uppercase tracking-wider block">
                                     🔄 1. Data Lembar JAWABAN (Counter Offer / Hasil Disetujui)
                                 </span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-bold text-purple-900 bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200">
+                                        UTJ Sistem: Rp {{ formatNum(effectiveStandardBookingFee) }} · Reservasi: Rp {{ formatNum(parseDigits(form.form_data.reservasi)) }}
+                                    </span>
+                                    <button type="button" @click="recalculatePengajuanAndJawaban" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold rounded-lg transition-colors">
+                                        ↻ Sinkron Reservasi, UTJ &amp; Pelunasan
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -843,7 +939,7 @@ function openPdf() {
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-600 text-[11px] mb-1">Harga Disetujui / Counter Developer</label>
-                                    <input v-model="form.form_data.jawaban.price" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-xs font-mono text-purple-900" placeholder="3,700,000,000,-" />
+                                    <input v-model="form.form_data.jawaban.price" @change="recalculatePengajuanAndJawaban" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-xs font-mono text-purple-900" placeholder="Nominal Harga Disetujui" />
                                 </div>
                             </div>
 
@@ -949,7 +1045,7 @@ function openPdf() {
 
                             <div>
                                 <label class="block font-bold text-slate-500 text-[11px] mb-1">Kota & Tanggal TTD</label>
-                                <input v-model="form.form_data.jawaban.sig_city_date" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-xs" placeholder="Jakarta, 24 September 2026" />
+                                <input v-model="form.form_data.jawaban.sig_city_date" type="text" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-semibold text-xs" :placeholder="`${props.negotiationSettings?.city || 'Jakarta'}, ${formatIndoDate()}`" />
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">

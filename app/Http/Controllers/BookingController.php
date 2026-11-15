@@ -107,7 +107,15 @@ class BookingController extends Controller
             'defaultFreeLegal' => (bool)$defaultFreeLegal,
             'standardBookingFee' => \App\Models\Setting::getStandardBookingFee(),
             'availableUnits' => Unit::selectableForLov($unitId ? (int) $unitId : null)->with('project', 'unitType')->orderByUnitNumber()->get(),
-            'leads' => Lead::whereNotIn('status', ['won', 'lost'])->with(['assignedToUser', 'inhousePic', 'brokerCompany'])->get(),
+            'leads' => Lead::whereNotIn('status', ['won', 'lost'])
+                ->with([
+                    'assignedToUser',
+                    'inhousePic',
+                    'brokerCompany',
+                    'reservations' => fn($q) => $q->where('status', 'active')->with(['unit.project', 'unit.unitType'])->latest(),
+                    'negotiations' => fn($q) => $q->whereIn('status', ['approved', 'counter_offer', 'pending'])->with(['unit.project', 'unit.unitType', 'lead', 'creator'])->latest(),
+                ])
+                ->get(),
             'agents' => \App\Models\User::with('brokerCompany')->orderBy('name', 'asc')->get(),
         ]);
     }

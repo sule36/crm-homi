@@ -306,7 +306,7 @@
             "Pembeli diperkenankan untuk memilih cara pembayaran selain KPR dengan syarat dan ketentuan dari Pengembang",
             "Pembayaran segala bentuk cicilan kepada Pengembang yang melebihi waktu yang telah ditentukan dalam SPR ini, akan dikenakan denda sebesar 1% per hari dengan denda maksimal 5% dari jumlah kewajiban yang terlambat",
             "Pembeli tidak diperkenankan untuk mengalihkan pembelian tanah dan bangunan, pengalihan pembelian akan dikenakan denda sebesar 2.5% dari harga jual final",
-            "Nilai Uang Tanda Jadi ditetapkan sebesar Rp. 15.000.000,- (lima belas juta rupiah)",
+            "Nilai Uang Tanda Jadi ditetapkan sebesar Rp. " . number_format((float)($booking->booking_fee ?: \App\Models\Setting::getStandardBookingFee()), 0, ',', '.') . ",-",
             "Jangka waktu perjanjian ini berakhir sesuai tanggal akhir pelunasan pembayaran oleh Pembeli, kecuali untuk KPR sesuai pelunasan dari Bank setelah Serah Terima unit kepada Pembeli",
             "SPR ini akan batal dengan sendirinya dalam hal terjadinya kondisi yang dijelaskan pada pasal 3 dan 5, Pembatalan SPR dalam bentuk tertulis antara Pengembang dan Pembeli dibuat 3 rangkap dimana 1 rangkapnya milik Pemilik Tanah",
             "Penandatanganan SPR dilakukan setelah seluruh pasal didalamnya disepakati oleh masing-masing pihak"
@@ -371,7 +371,7 @@
         // Special Offer & Benefit (prioritize per-booking overrides)
         $defaultOffer = [
             'enabled' => true,
-            'title' => 'Special Offer & Benefit ' . ($project->name ?? 'Umala Andara'),
+            'title' => 'Special Offer & Benefit ' . ($project->name ?? 'Project'),
             'bonus_furniture' => [
                 'Kitchen Set',
                 'Kitchen Island',
@@ -624,9 +624,13 @@
                             ? $fmtDate($schedDates['utj_date']) 
                             : $fmtDate($booking->booking_date ?? $booking->created_at);
 
+                        $utjLabel = 'Booking Fee (UTJ)';
+                        if ($booking->reservation && (float)$booking->reservation->amount > 0) {
+                            $utjLabel .= ' (Kredit Reservasi Rp ' . number_format((float)$booking->reservation->amount, 0, ',', '.') . ')';
+                        }
                         $summaryRows[] = [
                             'type' => 'utj',
-                            'label' => 'Booking Fee (UTJ)',
+                            'label' => $utjLabel,
                             'amount' => $bookingFee,
                             'date' => $utjDateVal,
                         ];
@@ -648,9 +652,14 @@
                             $dateVal = $fmtDate($schedDates['dp_date']);
                         }
 
+                        $rowLabel = $sched->label;
+                        if ($type === 'utj' && $booking->reservation && (float)$booking->reservation->amount > 0 && !str_contains(strtolower($rowLabel), 'reservasi')) {
+                            $rowLabel .= ' (Kredit Reservasi Rp ' . number_format((float)$booking->reservation->amount, 0, ',', '.') . ')';
+                        }
+
                         $summaryRows[] = [
                             'type' => $type,
-                            'label' => $sched->label,
+                            'label' => $rowLabel,
                             'amount' => (float)$sched->amount,
                             'date' => $dateVal,
                         ];

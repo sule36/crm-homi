@@ -34,7 +34,7 @@ class SPKController extends Controller
 
     private function prepareBookingForSpr(Booking $booking): array
     {
-        $relations = ['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules'];
+        $relations = ['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules', 'reservation'];
         if (Schema::hasColumn('bookings', 'bank_account_id')) {
             $relations[] = 'bankAccount';
         }

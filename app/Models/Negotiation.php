@@ -269,23 +269,40 @@ class Negotiation extends Model
         }
 
         try {
-            return Reservation::withoutGlobalScopes()
+            $base = Reservation::withoutGlobalScopes()
                 ->whereIn('status', ['active', 'converted'])
-                ->where(function ($q) {
-                    if ($this->id) {
-                        $q->where('negotiation_id', $this->id);
-                    }
-                    if ($this->lead_id && $this->unit_id) {
-                        $q->orWhere(function ($sq) {
-                            $sq->where('lead_id', $this->lead_id)->where('unit_id', $this->unit_id);
-                        });
-                    }
-                    if ($this->lead_id) {
-                        $q->orWhere('lead_id', $this->lead_id);
-                    }
-                })
-                ->latest()
-                ->first();
+                ->when($this->company_id, fn ($q) => $q->where('company_id', $this->company_id));
+
+            if ($this->id) {
+                $byNego = (clone $base)->where('negotiation_id', $this->id)->latest()->first();
+                if ($byNego) {
+                    return $byNego;
+                }
+            }
+
+            if ($this->lead_id && $this->unit_id) {
+                $byLeadUnit = (clone $base)
+                    ->where('lead_id', $this->lead_id)
+                    ->where('unit_id', $this->unit_id)
+                    ->latest()
+                    ->first();
+                if ($byLeadUnit) {
+                    return $byLeadUnit;
+                }
+            }
+
+            if ($this->unit_id) {
+                $byUnit = (clone $base)->where('unit_id', $this->unit_id)->latest()->first();
+                if ($byUnit) {
+                    return $byUnit;
+                }
+            }
+
+            if ($this->lead_id) {
+                return (clone $base)->where('lead_id', $this->lead_id)->latest()->first();
+            }
+
+            return null;
         } catch (\Throwable $e) {
             return null;
         }
@@ -391,7 +408,79 @@ class Negotiation extends Model
         $savedPengajuan = is_array($saved['pengajuan'] ?? null) ? $saved['pengajuan'] : [];
         $savedJawaban = is_array($saved['jawaban'] ?? null) ? $saved['jawaban'] : [];
 
+        // Enforce live sync with active/converted Reservation & Parameter Booking (UTJ) so old saved form_data never overrides real numbers
+        $isLegacyDummyReservasi = fn ($val): bool => in_array(trim((string) $val), ['10,000,000,-', '10.000.000,-'], true);
+        $isLegacyDummyUtj = fn ($bf, $total): bool => in_array(trim((string) $bf), ['7,000,000,-', '7.000.000,-'], true)
+            || in_array(trim((string) $total), ['(Total 17,000,000,-)', '(Total 17.000.000,-)'], true);
+
+        $hasLiveReservation = $reservation !== null;
+        if ($hasLiveReservation || $isLegacyDummyReservasi($saved['reservasi'] ?? '')) {
+            $saved['reservasi'] = $reservasiFormatted;
+            $saved['reservasi_date'] = $reservasiDateFormatted;
+        }
+        if ($hasLiveReservation || $isLegacyDummyReservasi($savedPengajuan['reservasi'] ?? '')) {
+            $savedPengajuan['reservasi'] = $reservasiFormatted;
+            $savedPengajuan['reservasi_date'] = $reservasiDateFormatted;
+        }
+        if ($hasLiveReservation || $isLegacyDummyReservasi($savedJawaban['reservasi'] ?? '')) {
+            $savedJawaban['reservasi'] = $reservasiFormatted;
+            $savedJawaban['reservasi_date'] = $reservasiDateFormatted;
+        }
+
+        // Always sync Booking Fee (Sisa UTJ) & Total Parameter UTJ when Reservation exists or saved total differs/is legacy
+        $savedPengajuanTotalRaw = (string) ($savedPengajuan['booking_fee_total'] ?? '');
+        $savedPengajuanTotalDigits = (int) preg_replace('/[^0-9]/', '', $savedPengajuanTotalRaw);
+        $savedPengajuanTotalValid = $savedPengajuanTotalDigits === $standardBookingFee && !str_contains($savedPengajuanTotalRaw, ',000');
+
+        $savedJawabanTotalRaw = (string) ($savedJawaban['booking_fee_total'] ?? '');
+        $savedJawabanTotalDigits = (int) preg_replace('/[^0-9]/', '', $savedJawabanTotalRaw);
+        $savedJawabanTotalValid = $savedJawabanTotalDigits === $standardBookingFee && !str_contains($savedJawabanTotalRaw, ',000');
+
+        if (
+            $hasLiveReservation
+            || $isLegacyDummyUtj($savedPengajuan['booking_fee'] ?? '', $savedPengajuanTotalRaw)
+            || ($savedPengajuanTotalDigits > 0 && $savedPengajuanTotalDigits !== $standardBookingFee)
+        ) {
+            $savedPengajuan['booking_fee'] = $bookingFeeFormatted;
+            if (!$savedPengajuanTotalValid) {
+                $savedPengajuan['booking_fee_total'] = $bookingFeeTotalFormatted;
+            }
+        }
+        if (
+            $hasLiveReservation
+            || $isLegacyDummyUtj($savedJawaban['booking_fee'] ?? '', $savedJawabanTotalRaw)
+            || ($savedJawabanTotalDigits > 0 && $savedJawabanTotalDigits !== $standardBookingFee)
+        ) {
+            $savedJawaban['booking_fee'] = $bookingFeeFormatted;
+            if (!$savedJawabanTotalValid) {
+                $savedJawaban['booking_fee_total'] = $bookingFeeTotalFormatted;
+            }
+        }
+
+        // Keep standard UTJ / Reservation clause notes synchronized with live Setting & Reservation amounts
+        if (!empty($savedPengajuan['notes']) && is_array($savedPengajuan['notes'])) {
+            foreach ($savedPengajuan['notes'] as $idx => $noteLine) {
+                if (is_string($noteLine) && str_contains(strtolower($noteLine), 'tanda jadi/reservasi sebesar')) {
+                    $savedPengajuan['notes'][$idx] = "Tanda jadi/reservasi sebesar Rp " . $reservasiNoteText . " dikembalikan 100% apabila pengajuan ini tidak disetujui oleh Developer.";
+                }
+            }
+        }
+        if (!empty($savedJawaban['notes']) && is_array($savedJawaban['notes'])) {
+            foreach ($savedJawaban['notes'] as $idx => $noteLine) {
+                if (is_string($noteLine) && preg_match('/booking\s*fee\s*(\(utj\))?\s*sebesar\s*rp/i', $noteLine)) {
+                    $savedJawaban['notes'][$idx] = "Booking Fee (UTJ) sebesar Rp " . $utjNoteText . " dinyatakan hangus apabila setelah SPR diterbitkan pembeli membatalkan transaksi secara sepihak.";
+                }
+            }
+        }
+
         return [
+            'linked_reservation' => [
+                'id' => $reservation?->id,
+                'reservation_number' => $reservation?->reservation_number,
+                'amount' => $reservasiAmount,
+                'standard_booking_fee' => $standardBookingFee,
+                'remaining_utj' => $remainingUtj,
+            ],
             'kepada' => !empty($saved['kepada']) ? $saved['kepada'] : ($companyName . ' – ' . $projectName),
             'dari' => !empty($saved['dari']) ? $saved['dari'] : $clientDisplayName,
             'cc' => !empty($saved['cc']) ? $saved['cc'] : ($sigConfig['sig1_title'] ?? 'Agent Coordinator'),

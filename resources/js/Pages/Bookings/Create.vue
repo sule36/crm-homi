@@ -43,10 +43,10 @@ function resolveNegotiationDealPrice(nego) {
 }
 
 const initialBasePrice = resolveNegotiationDealPrice(props.negotiation) || props.unit?.final_price || '';
-const reservedCreditAmount = Number(props.reservedAmount || props.reservation?.amount || 0);
+const initialReservedCredit = Number(props.reservedAmount || props.reservation?.amount || 0);
 const initialBookingFee = props.standardBookingFee > 0
-    ? Math.max(Number(props.standardBookingFee), reservedCreditAmount)
-    : (reservedCreditAmount || '');
+    ? Math.max(Number(props.standardBookingFee), initialReservedCredit)
+    : (initialReservedCredit || '');
 const initialDpAmount = props.negotiation?.dp_amount || '';
 const initialInstallmentMonths = props.negotiation?.installment_months || 12;
 const initialSpecialBonusItems = (Array.isArray(props.negotiation?.special_bonus_items) && props.negotiation.special_bonus_items.length > 0)
@@ -136,6 +136,35 @@ const handleLeadChange = () => {
         if (selectedLead.npwp) form.buyer_npwp = selectedLead.npwp;
         if (selectedLead.address) form.buyer_address = selectedLead.address;
         if (selectedLead.job) form.buyer_job = selectedLead.job;
+
+        // Auto-sync active reservation & approved negotiation when selecting a lead interactively
+        const resList = selectedLead.reservations || [];
+        const matchedRes = (form.unit_id ? resList.find(r => Number(r.unit_id) === Number(form.unit_id)) : null) || resList[0] || null;
+        if (matchedRes) {
+            form.reservation_id = matchedRes.id;
+            if (!form.unit_id && matchedRes.unit_id) {
+                form.unit_id = matchedRes.unit_id;
+                handleUnitChange();
+            }
+            const resAmt = Number(matchedRes.amount || 0);
+            const stdUtj = Number(props.standardBookingFee || 0);
+            form.booking_fee = stdUtj > 0 ? Math.max(stdUtj, resAmt) : (resAmt || '');
+        } else if (!props.reservation) {
+            form.reservation_id = '';
+            form.booking_fee = props.standardBookingFee > 0 ? Number(props.standardBookingFee) : '';
+        }
+
+        if (!props.negotiation) {
+            const negList = selectedLead.negotiations || [];
+            const approvedNego = negList.find(n => n.status === 'approved' && (!form.unit_id || Number(n.unit_id) === Number(form.unit_id)))
+                || negList.find(n => n.status === 'approved');
+            if (approvedNego) {
+                applyNegotiation(approvedNego);
+            }
+        }
+    } else if (!props.reservation) {
+        form.reservation_id = '';
+        form.booking_fee = props.standardBookingFee > 0 ? Number(props.standardBookingFee) : '';
     }
 };
 
@@ -181,6 +210,13 @@ const handleUnitChange = () => {
         form.bphtb_amount = 0;
         form.ajb_bbn_amount = 0;
         form.final_price = 0;
+    }
+
+    if (!props.reservation && activeReservation.value) {
+        form.reservation_id = activeReservation.value.id;
+        const resAmt = Number(activeReservation.value.amount || 0);
+        const stdUtj = Number(props.standardBookingFee || 0);
+        form.booking_fee = stdUtj > 0 ? Math.max(stdUtj, resAmt) : (resAmt || '');
     }
 };
 
@@ -274,8 +310,30 @@ const discountPercent = computed(() => {
     return 0;
 });
 
+const activeReservation = computed(() => {
+    if (props.reservation) return props.reservation;
+    const resList = currentLead.value?.reservations || [];
+    if (!resList.length) return null;
+    if (form.unit_id) {
+        const exact = resList.find(r => Number(r.unit_id) === Number(form.unit_id));
+        if (exact) return exact;
+    }
+    return resList[0];
+});
+
+const reservedCreditAmount = computed(() => {
+    return Number(props.reservedAmount || activeReservation.value?.amount || 0);
+});
+
+const availableNegotiationList = computed(() => {
+    if (Array.isArray(props.availableNegotiations) && props.availableNegotiations.length > 0) {
+        return props.availableNegotiations;
+    }
+    return currentLead.value?.negotiations || [];
+});
+
 const remainingUtjToPay = computed(() => {
-    return Math.max(0, Number(form.booking_fee || 0) - reservedCreditAmount);
+    return Math.max(0, Number(form.booking_fee || 0) - reservedCreditAmount.value);
 });
 
 const simulationResult = computed(() => buildScheduleSimulation(form));
@@ -370,16 +428,16 @@ const formatCurrency = (value) => {
             </div>
 
             <!-- RESERVATION CONVERSION BADGE -->
-            <div v-if="props.reservation" class="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-start gap-3 shadow-sm">
+            <div v-if="activeReservation" class="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-start gap-3 shadow-sm">
                 <span class="text-2xl">🔖</span>
                 <div class="flex-1">
                     <div class="flex items-center justify-between">
-                        <h4 class="font-black text-sm text-emerald-950">Dikonversi dari Reservasi #{{ props.reservation.reservation_number }}</h4>
+                        <h4 class="font-black text-sm text-emerald-950">Dikonversi dari Reservasi #{{ activeReservation.reservation_number }}</h4>
                         <span class="px-2 py-0.5 bg-emerald-200/60 text-emerald-900 rounded font-black text-[10px]">UTJ TERSEDIA</span>
                     </div>
-                    <p class="mt-0.5">Pemohon: <strong>{{ props.reservation.client_name }}</strong> · Kredit Biaya Reservasi: <strong class="font-mono text-emerald-800 text-sm">{{ formatCurrency(props.reservation.amount) }}</strong></p>
+                    <p class="mt-0.5">Pemohon: <strong>{{ activeReservation.client_name }}</strong> · Kredit Biaya Reservasi: <strong class="font-mono text-emerald-800 text-sm">{{ formatCurrency(activeReservation.amount) }}</strong></p>
                     <p class="text-[11px] text-emerald-700 mt-1 font-semibold">
-                        ✅ Nominal reservasi sebesar <strong>{{ formatCurrency(props.reservation.amount) }}</strong> otomatis terkunci sebagai Booking Fee (UTJ) dan langsung dicatat Lunas di jadwal SPR.
+                        ✅ Nominal reservasi sebesar <strong>{{ formatCurrency(activeReservation.amount) }}</strong> otomatis terkunci sebagai Kredit Booking Fee (UTJ).
                     </p>
                 </div>
             </div>
@@ -403,15 +461,15 @@ const formatCurrency = (value) => {
             </div>
 
             <!-- SELECT FROM OTHER AVAILABLE NEGOTIATIONS -->
-            <div v-if="props.availableNegotiations && props.availableNegotiations.length > 0 && !props.negotiation" class="mb-6 p-4 bg-indigo-50/90 border border-indigo-200 rounded-2xl text-xs text-indigo-950 shadow-sm">
+            <div v-if="availableNegotiationList && availableNegotiationList.length > 0 && !props.negotiation" class="mb-6 p-4 bg-indigo-50/90 border border-indigo-200 rounded-2xl text-xs text-indigo-950 shadow-sm">
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-bold flex items-center gap-1.5 text-indigo-900">
-                        <span>🤝</span> <span>Ditemukan {{ props.availableNegotiations.length }} Riwayat Kesepakatan Negosiasi</span>
+                        <span>🤝</span> <span>Ditemukan {{ availableNegotiationList.length }} Riwayat Kesepakatan Negosiasi</span>
                     </span>
                     <span class="text-[10px] text-indigo-600 font-semibold">Klik untuk terapkan harga nego:</span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button type="button" v-for="neg in props.availableNegotiations" :key="neg.id" 
+                    <button type="button" v-for="neg in availableNegotiationList" :key="neg.id" 
                         @click="applyNegotiation(neg)"
                         :class="form.negotiation_id === neg.id ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-300' : 'bg-white text-slate-800 hover:bg-indigo-100/60 border-slate-200'"
                         class="p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-xs">
@@ -653,7 +711,7 @@ const formatCurrency = (value) => {
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1.5">Booking Fee / UTJ <span class="text-rose-500">*</span></label>
-                                        <input v-model="form.booking_fee" type="number" placeholder="17000000" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                                        <input v-model="form.booking_fee" type="number" :placeholder="String(standardBookingFee || 17000000)" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
                                         <p class="text-[10px] text-slate-500 font-semibold mt-1">
                                             Parameter UTJ Standar: <span class="font-bold text-slate-800">{{ formatCurrency(standardBookingFee) }}</span> (dapat disesuaikan bila ada promo)
                                         </p>

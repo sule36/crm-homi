@@ -96,7 +96,8 @@ class NegotiationController extends Controller
         ?int $installmentMonths,
         array $bonusItems,
         ?int $counterPrice = null,
-        ?string $clientName = null
+        ?string $clientName = null,
+        ?Reservation $reservation = null
     ): array {
         $formData = $baseFormData;
         if (!isset($formData['pengajuan']) || !is_array($formData['pengajuan'])) {
@@ -128,6 +129,40 @@ class NegotiationController extends Controller
             $formData['jawaban']['price'] = Negotiation::formatNominal($counterPrice);
         }
 
+        // Keep Reservasi & UTJ Parameter synchronized in stored form_data too
+        $standardBookingFee = Setting::getStandardBookingFee();
+        $resAmt = (int) ($reservation?->amount ?? 0);
+        if ($reservation) {
+            $resFormatted = $resAmt > 0 ? Negotiation::formatNominal($resAmt) : '-';
+            $resDate = $reservation->created_at ? $reservation->created_at->translatedFormat('d F Y') : '-';
+            $remainingUtj = max(0, $standardBookingFee - $resAmt);
+            $bfFormatted = $remainingUtj > 0 ? Negotiation::formatNominal($remainingUtj) : ($standardBookingFee > 0 ? '0,- (Lunas UTJ)' : '-');
+            $bfTotalFormatted = '(Total ' . Negotiation::formatNominal($standardBookingFee) . ')';
+
+            $pTotalRaw = (string) ($formData['pengajuan']['booking_fee_total'] ?? '');
+            $pTotalDigits = (int) preg_replace('/[^0-9]/', '', $pTotalRaw);
+            $pTotalValid = $pTotalDigits === $standardBookingFee && !str_contains($pTotalRaw, ',000');
+
+            $jTotalRaw = (string) ($formData['jawaban']['booking_fee_total'] ?? '');
+            $jTotalDigits = (int) preg_replace('/[^0-9]/', '', $jTotalRaw);
+            $jTotalValid = $jTotalDigits === $standardBookingFee && !str_contains($jTotalRaw, ',000');
+
+            $formData['reservasi'] = $resFormatted;
+            $formData['reservasi_date'] = $resDate;
+            $formData['pengajuan']['reservasi'] = $resFormatted;
+            $formData['pengajuan']['reservasi_date'] = $resDate;
+            $formData['pengajuan']['booking_fee'] = $bfFormatted;
+            if (!$pTotalValid) {
+                $formData['pengajuan']['booking_fee_total'] = $bfTotalFormatted;
+            }
+            $formData['jawaban']['reservasi'] = $resFormatted;
+            $formData['jawaban']['reservasi_date'] = $resDate;
+            $formData['jawaban']['booking_fee'] = $bfFormatted;
+            if (!$jTotalValid) {
+                $formData['jawaban']['booking_fee_total'] = $bfTotalFormatted;
+            }
+        }
+
         return $formData;
     }
 
@@ -152,7 +187,15 @@ class NegotiationController extends Controller
 
         $user = auth()->user();
 
-        $query = Negotiation::with(['lead', 'unit.unitType', 'unit.project', 'project', 'creator', 'reviewer', 'booking'])
+        $query = Negotiation::with([
+            'lead.reservations' => fn ($q) => $q->whereIn('status', ['active', 'converted'])->latest(),
+            'unit.unitType',
+            'unit.project',
+            'project',
+            'creator',
+            'reviewer',
+            'booking',
+        ])
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when($request->project_id, fn ($q, $p) => $q->where('project_id', $p))
             ->when($request->created_by, fn ($q, $a) => $q->where('created_by', $a))
@@ -225,7 +268,7 @@ class NegotiationController extends Controller
             ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'project_id')
-            ->with(['reservations' => fn ($q) => $q->where('status', 'active')->latest()])
+            ->with(['reservations' => fn ($q) => $q->whereIn('status', ['active', 'converted'])->latest()])
             ->orderBy('name')
             ->get();
 
@@ -233,6 +276,11 @@ class NegotiationController extends Controller
             'negotiations' => $negotiations,
             'stats' => $stats,
             'filters' => $request->only(['status', 'project_id', 'created_by', 'search']),
+            'preselect' => [
+                'create' => $request->boolean('create'),
+                'lead_id' => $request->query('lead_id'),
+                'unit_id' => $request->query('unit_id'),
+            ],
             'projects' => Project::select('id', 'name')->get(),
             'agents' => User::select('id', 'name')->where(function ($q) {
                 $q->whereIn('agent_type', ['inhouse', 'freelance', 'master_lead'])
@@ -309,6 +357,21 @@ class NegotiationController extends Controller
             ? array_values(array_filter(array_map('trim', $request->special_bonus_items)))
             : $this->parseBonusItemsFromString($inputFormData['bonus'] ?? null);
 
+        $linkedRes = Reservation::withoutGlobalScopes()
+            ->whereIn('status', ['active', 'converted'])
+            ->where('company_id', $unit->company_id ?? auth()->user()?->company_id)
+            ->where(function ($q) use ($request, $unit) {
+                if ($request->lead_id) {
+                    $q->where(fn ($sq) => $sq->where('lead_id', $request->lead_id)->where('unit_id', $unit->id))
+                      ->orWhere('unit_id', $unit->id)
+                      ->orWhere('lead_id', $request->lead_id);
+                } else {
+                    $q->where('unit_id', $unit->id);
+                }
+            })
+            ->latest()
+            ->first();
+
         $syncedFormData = !empty($inputFormData)
             ? $this->buildSyncedFormData(
                 $inputFormData,
@@ -318,7 +381,8 @@ class NegotiationController extends Controller
                 $installmentMonths ? (int)$installmentMonths : null,
                 $bonusItems,
                 $counterPrice,
-                $request->client_name
+                $request->client_name,
+                $linkedRes
             )
             : null;
 
@@ -370,7 +434,7 @@ class NegotiationController extends Controller
      */
     public function show(Negotiation $negotiation)
     {
-        $negotiation->load(['lead.reservations' => fn ($q) => $q->where('status', 'active')->latest(), 'unit.unitType', 'unit.project', 'project', 'creator', 'reviewer', 'booking']);
+        $negotiation->load(['lead.reservations' => fn ($q) => $q->whereIn('status', ['active', 'converted'])->latest(), 'unit.unitType', 'unit.project', 'project', 'creator', 'reviewer', 'booking']);
         $negotiation->form_details = $negotiation->getFormDetails();
 
         $units = Unit::selectableForLov($negotiation->unit_id)
@@ -381,7 +445,7 @@ class NegotiationController extends Controller
             ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'project_id')
-            ->with(['reservations' => fn ($q) => $q->where('status', 'active')->latest()])
+            ->with(['reservations' => fn ($q) => $q->whereIn('status', ['active', 'converted'])->latest()])
             ->orderBy('name')
             ->get();
 
@@ -468,12 +532,28 @@ class NegotiationController extends Controller
             if ($parsedDp !== null && !isset($validated['dp_amount'])) {
                 $updateData['dp_amount'] = $parsedDp;
             }
+            if (($validated['status'] ?? $negotiation->status) === 'approved' && !empty($fd['jawaban']['cara_bayar'])) {
+                $updateData['payment_scheme'] = $this->parseSchemeFromLabel($fd['jawaban']['cara_bayar']);
+                if (preg_match('/(\d+)\s*(?:[xX]|bulan|bln)/i', $fd['jawaban']['cara_bayar'], $m)) {
+                    $updateData['installment_months'] = (int)$m[1];
+                }
+                $parsedJawabanDp = $this->parseDigitsToInt($fd['jawaban']['dp1_amount'] ?? null);
+                if ($parsedJawabanDp !== null) {
+                    $updateData['dp_amount'] = $parsedJawabanDp;
+                }
+            }
             if (!array_key_exists('special_bonus_items', $validated) && !empty($fd['bonus'])) {
                 $bonusItems = $this->parseBonusItemsFromString($fd['bonus']);
             }
             if (!empty($fd['jawaban']['sig_menyetujui_name']) && empty($validated['developer_sig_name'])) {
                 $updateData['developer_sig_name'] = $fd['jawaban']['sig_menyetujui_name'];
             }
+
+            // Resolve linked reservation using updated lead_id / unit_id so form_data stays in sync
+            $tempNego = clone $negotiation;
+            $tempNego->lead_id = $updateData['lead_id'];
+            $tempNego->unit_id = $updateData['unit_id'];
+            $linkedRes = $tempNego->resolveLinkedReservation();
 
             $updateData['form_data'] = $this->buildSyncedFormData(
                 $fd,
@@ -483,9 +563,11 @@ class NegotiationController extends Controller
                 $updateData['installment_months'] ? (int)$updateData['installment_months'] : null,
                 $bonusItems,
                 isset($updateData['counter_price']) ? (int)$updateData['counter_price'] : ($negotiation->counter_price ? (int)$negotiation->counter_price : null),
-                $updateData['client_name']
+                $updateData['client_name'],
+                $linkedRes
             );
         } elseif (is_array($negotiation->form_data)) {
+            $linkedRes = $negotiation->resolveLinkedReservation();
             $updateData['form_data'] = $this->buildSyncedFormData(
                 $negotiation->form_data,
                 $updateData['offered_price'] ? (int)$updateData['offered_price'] : null,
@@ -494,7 +576,8 @@ class NegotiationController extends Controller
                 $updateData['installment_months'] ? (int)$updateData['installment_months'] : null,
                 $bonusItems,
                 array_key_exists('counter_price', $validated) ? ($validated['counter_price'] ? (int)$validated['counter_price'] : null) : ($negotiation->counter_price ? (int)$negotiation->counter_price : null),
-                $updateData['client_name']
+                $updateData['client_name'],
+                $linkedRes
             );
         }
 
