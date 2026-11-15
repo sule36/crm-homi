@@ -245,10 +245,14 @@ const form = useForm({
         sig2_title: props.settings.spr_signatures?.sig2_title || 'Direktur',
         sig2_name: props.settings.spr_signatures?.sig2_name || 'Luhur Wira Pramudya',
         sig2_image: props.settings.spr_signatures?.sig2_image || null,
-        sig3_title: props.settings.spr_signatures?.sig3_title || 'Pemesan Utama',
+        finance_title: props.settings.spr_signatures?.finance_title || 'Finance & Kasir',
+        finance_name: props.settings.spr_signatures?.finance_name || '',
+        finance_image: props.settings.spr_signatures?.finance_image || null,
+        reservation_signer_slot: props.settings.spr_signatures?.reservation_signer_slot || 'sig1',
+        sig3_title: (props.settings.spr_signatures?.sig3_title && props.settings.spr_signatures?.sig3_title !== 'Pemesan Utama') ? props.settings.spr_signatures?.sig3_title : 'SALES',
         sig3_name: props.settings.spr_signatures?.sig3_name || '',
         sig3_image: props.settings.spr_signatures?.sig3_image || null,
-        sig4_title: props.settings.spr_signatures?.sig4_title || 'Penanggung Jawab',
+        sig4_title: props.settings.spr_signatures?.sig4_title || 'Pemesan / Pembeli',
         sig4_name: props.settings.spr_signatures?.sig4_name || '',
         sig4_image: props.settings.spr_signatures?.sig4_image || null,
     },
@@ -280,6 +284,7 @@ const form = useForm({
     signature_image2: null,
     signature_image3: null,
     signature_image4: null,
+    signature_image_finance: null,
 
     wa_verify_token: props.settings.wa_verify_token || '',
     wa_access_token: props.settings.wa_access_token || '',
@@ -370,6 +375,7 @@ const handleSig1Upload = (e) => { form.signature_image1 = e.target.files[0]; };
 const handleSig2Upload = (e) => { form.signature_image2 = e.target.files[0]; };
 const handleSig3Upload = (e) => { form.signature_image3 = e.target.files[0]; };
 const handleSig4Upload = (e) => { form.signature_image4 = e.target.files[0]; };
+const handleSigFinanceUpload = (e) => { form.signature_image_finance = e.target.files[0]; };
 
 const tabs = [
     { id: 'spk', name: 'Template SPR & TTD', icon: '📜' },
@@ -471,9 +477,9 @@ const tabs = [
 
                     <!-- Section 3: Setup Tanda Tangan & Scan Digital -->
                     <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
-                        <h3 class="text-xs font-black uppercase tracking-widest text-amber-600 mb-6">3. Setup Format Dokumen & Tanda Tangan Digital SPR</h3>
+                        <h3 class="text-xs font-black uppercase tracking-widest text-amber-600 mb-6">3. Setup Format Dokumen & Master Penandatangan Developer</h3>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Format Standar Nomor SPR</label>
                                 <input v-model="form.spr_number_format" type="text" placeholder="{seq}/SPR-{code}/{month_roman}/{year}" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
@@ -485,85 +491,128 @@ const tabs = [
                                 <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Kota Terbit Dokumen</label>
                                 <input v-model="form.spr_signatures.city" type="text" placeholder="misal: Jakarta Selatan" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm font-bold text-slate-800" />
                             </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Default TTD Kwitansi Reservasi</label>
+                                <select v-model="form.spr_signatures.reservation_signer_slot" class="w-full px-4 py-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs font-black text-slate-800">
+                                    <option value="sig1">Role Operasional ({{ form.spr_signatures.sig1_title || 'Sales Manager' }})</option>
+                                    <option value="finance">Role Finance ({{ form.spr_signatures.finance_title || 'Finance & Kasir' }})</option>
+                                    <option value="sig2">Role Pimpinan ({{ form.spr_signatures.sig2_title || 'Direktur' }})</option>
+                                </select>
+                                <p class="text-[10px] text-slate-500 font-medium mt-1.5">Pejabat developer default yang otomatis tercetak di Kwitansi Reservasi baru.</p>
+                            </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
-                            <!-- TTD 1 (Marketing / Sales Agent / Staff) -->
-                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 1 (Marketing / Sales)</h4>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
-                                    <input v-model="form.spr_signatures.sig1_title" type="text" placeholder="Sales Manager" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat</label>
-                                    <input v-model="form.spr_signatures.sig1_name" type="text" placeholder="Dhany Nur" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Marketing (PNG Transparan)</label>
-                                    <input type="file" @change="handleSig1Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
-                                    <div v-if="form.spr_signatures.sig1_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
-                                        <img :src="`/storage/${form.spr_signatures.sig1_image}`" class="h-10 max-w-full inline-block object-contain" />
+                        <div class="pt-4 border-t border-slate-100 space-y-5">
+                            <div>
+                                <p class="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-3">🏛️ Pejabat Resmi Pihak Developer (Kwitansi, Negosiasi, SPK & SPR)</p>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <!-- TTD 1 (Operasional / Sales Manager Developer) -->
+                                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                        <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Role 1: Operasional / Sales Mgr</h4>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan Resmi</label>
+                                            <input v-model="form.spr_signatures.sig1_title" type="text" placeholder="Sales Manager" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Lengkap Pejabat</label>
+                                            <input v-model="form.spr_signatures.sig1_name" type="text" placeholder="Dhany Nur" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Digital (PNG Transparan)</label>
+                                            <input type="file" @change="handleSig1Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                            <div v-if="form.spr_signatures.sig1_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
+                                                <img :src="`/storage/${form.spr_signatures.sig1_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- TTD 2 (Direktur / Manajemen) -->
+                                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                        <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Role 2: Pimpinan / Direktur</h4>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan Resmi</label>
+                                            <input v-model="form.spr_signatures.sig2_title" type="text" placeholder="Direktur" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Lengkap Pejabat</label>
+                                            <input v-model="form.spr_signatures.sig2_name" type="text" placeholder="Luhur Wira Pramudya" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Scan TTD Digital (PNG Transparan)</label>
+                                            <input type="file" @change="handleSig2Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                            <div v-if="form.spr_signatures.sig2_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
+                                                <img :src="`/storage/${form.spr_signatures.sig2_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Role 3 Developer: Finance / Penerima Dana -->
+                                    <div class="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-3">
+                                        <h4 class="text-[11px] font-black text-emerald-900 uppercase tracking-wider">💳 Role 3: Finance / Penerima Dana</h4>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-emerald-700 uppercase mb-1">Judul / Jabatan Resmi</label>
+                                            <input v-model="form.spr_signatures.finance_title" type="text" placeholder="Finance & Kasir" class="w-full px-3 py-2 bg-white border border-emerald-200 rounded-lg text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-emerald-700 uppercase mb-1">Nama Pejabat Keuangan</label>
+                                            <input v-model="form.spr_signatures.finance_name" type="text" placeholder="Nama Finance / Admin PT..." class="w-full px-3 py-2 bg-white border border-emerald-200 rounded-lg text-xs font-bold" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-emerald-700 uppercase mb-1">Upload TTD Finance (PNG Transparan)</label>
+                                            <input type="file" @change="handleSigFinanceUpload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-100 file:text-emerald-700" />
+                                            <div v-if="form.spr_signatures.finance_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
+                                                <img :src="`/storage/${form.spr_signatures.finance_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- TTD 2 (Direktur / Management) -->
-                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 2 (Direktur / Mgt)</h4>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
-                                    <input v-model="form.spr_signatures.sig2_title" type="text" placeholder="Direktur" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat</label>
-                                    <input v-model="form.spr_signatures.sig2_name" type="text" placeholder="Luhur Wira Pramudya" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Scan TTD Digital (PNG Transparan)</label>
-                                    <input type="file" @change="handleSig2Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
-                                    <div v-if="form.spr_signatures.sig2_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
-                                        <img :src="`/storage/${form.spr_signatures.sig2_image}`" class="h-10 max-w-full inline-block object-contain" />
+                            <div>
+                                <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">📝 Slot Tambahan Khusus SPR (Sales Pendamping & Pihak Konsumen)</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <!-- TTD 3 (Sales / Marketing Penutup) -->
+                                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                        <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot 3 SPR: Sales / Marketing</h4>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
+                                                <input v-model="form.spr_signatures.sig3_title" type="text" placeholder="SALES" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                            </div>
+                                            <div>
+                                                <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Default (Opsional)</label>
+                                                <input v-model="form.spr_signatures.sig3_name" type="text" placeholder="Otomatis dari Sales PIC Booking" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Default Sales (Opsional, PNG)</label>
+                                            <input type="file" @change="handleSig3Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                            <div v-if="form.spr_signatures.sig3_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
+                                                <img :src="`/storage/${form.spr_signatures.sig3_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            <!-- TTD 3 (Pemesan Utama / Pembeli) -->
-                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 3 (Pemesan Utama)</h4>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
-                                    <input v-model="form.spr_signatures.sig3_title" type="text" placeholder="Pemesan Utama" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat / Custom Name</label>
-                                    <input v-model="form.spr_signatures.sig3_name" type="text" placeholder="Default: Otomatis dari nama Pembeli" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Pemesan (PNG Transparan)</label>
-                                    <input type="file" @change="handleSig3Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
-                                    <div v-if="form.spr_signatures.sig3_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
-                                        <img :src="`/storage/${form.spr_signatures.sig3_image}`" class="h-10 max-w-full inline-block object-contain" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- TTD 4 (Penanggung Jawab / Pemesan 2 / Saksi) -->
-                            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                                <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot TTD 4 (Penanggung Jawab)</h4>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
-                                    <input v-model="form.spr_signatures.sig4_title" type="text" placeholder="Penanggung Jawab / Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Pejabat / Custom Name</label>
-                                    <input v-model="form.spr_signatures.sig4_name" type="text" placeholder="Default: Otomatis jika ada Pemesan 2" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
-                                </div>
-                                <div>
-                                    <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Digital (PNG Transparan)</label>
-                                    <input type="file" @change="handleSig4Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
-                                    <div v-if="form.spr_signatures.sig4_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
-                                        <img :src="`/storage/${form.spr_signatures.sig4_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                    <!-- TTD 4 (Pemesan / Pembeli / Penanggung Jawab) -->
+                                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                        <h4 class="text-[11px] font-black text-slate-800 uppercase tracking-wider">✒️ Slot 4 SPR: Pemesan / Pembeli</h4>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Judul / Jabatan</label>
+                                                <input v-model="form.spr_signatures.sig4_title" type="text" placeholder="Pemesan / Pembeli" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                            </div>
+                                            <div>
+                                                <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Nama Default (Opsional)</label>
+                                                <input v-model="form.spr_signatures.sig4_name" type="text" placeholder="Otomatis dari Data Pembeli" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Upload TTD Default Pembeli (Opsional, PNG)</label>
+                                            <input type="file" @change="handleSig4Upload" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-100 file:text-amber-700" />
+                                            <div v-if="form.spr_signatures.sig4_image" class="mt-2 p-2 bg-white rounded-lg border text-center">
+                                                <img :src="`/storage/${form.spr_signatures.sig4_image}`" class="h-10 max-w-full inline-block object-contain" />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

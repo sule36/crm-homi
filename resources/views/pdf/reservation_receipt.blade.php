@@ -223,9 +223,11 @@
         $coordName = $reservation->agent_coordinator_name
             ?: ($reservation->agentCoordinator?->name
                 ?: ($reservation->lead?->assignedTo?->name
-                    ?: ($reservation->lead?->inhousePic?->name ?? 'Agent Coordinator')));
-        $coordTitle = $reservation->agent_coordinator_title ?: 'Master Lead / Agent Coordinator';
-        $city = $reservation->city ?: ($settings['spr_signatures']['city'] ?? 'Jakarta');
+                    ?: ($reservation->lead?->inhousePic?->name ?? 'Developer Representative')));
+        $coordTitle = $reservation->agent_coordinator_title ?: 'Developer Representative';
+        $salesPicName = $overrides['sales_pic_name']
+            ?? ($reservation->lead?->assignedTo?->name ?: $reservation->lead?->inhousePic?->name);
+        $city = $reservation->city ?: ($settings['spr_signatures']['city'] ?? 'Jakarta Selatan');
 
         $docTitle = $reservation->receipt_title ?: 'KWITANSI TANDA TERIMA RESERVASI UNIT';
         $policyTitle = $reservation->policy_title ?: 'GARANSI KLAUSA 100% REFUNDABLE (PENGEMBALIAN DANA UTUH)';
@@ -278,6 +280,13 @@
         $standardBookingFee = (int) ($settings['standard_booking_fee'] ?? 17000000);
         $paidReservation = (int) $reservation->amount;
         $remainingUtj = max(0, $standardBookingFee - $paidReservation);
+
+        $signerSlot = $overrides['signer_slot'] ?? null;
+        $signerImagePath = $overrides['signer_image'] ?? null;
+        if (empty($signerImagePath) && in_array($signerSlot, ['finance', 'sig1', 'sig2'], true)) {
+            $signerImagePath = $settings['spr_signatures'][$signerSlot . '_image'] ?? null;
+        }
+        $signerImageData = !empty($signerImagePath) ? $getSafeBase64($signerImagePath) : null;
     @endphp
 
     <!-- KOP SURAT / HEADER -->
@@ -352,6 +361,14 @@
                     <td class="data-label">Spesifikasi Unit</td>
                     <td class="data-value">: {{ $specText }}</td>
                 </tr>
+                @if(!empty($salesPicName) && strtolower(trim($salesPicName)) !== strtolower(trim($coordName)))
+                <tr>
+                    <td class="data-label"></td>
+                    <td class="data-value"></td>
+                    <td class="data-label">Sales / Agent PIC</td>
+                    <td class="data-value">: {{ $salesPicName }}</td>
+                </tr>
+                @endif
             </table>
         </div>
     </div>
@@ -402,9 +419,13 @@
                 <div style="font-weight: 600;">{{ $city }}, {{ optional($reservation->created_at)->format('d F Y') }}</div>
                 <div style="font-weight: 600;">{{ $coordTitle }},</div>
                 <div class="sig-box">
-                    <div style="height: 38px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; text-align: center;">
-                        <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 38px;">[ Verified Agent System ]</span>
-                    </div>
+                    @if($signerImageData)
+                        <img src="{{ $signerImageData }}" style="max-height: 46px; max-width: 140px; object-fit: contain; display: inline-block;" alt="TTD Developer" />
+                    @else
+                        <div style="height: 38px; border-bottom: 1px dashed #cbd5e1; width: 140px; margin: 0 auto; text-align: center;">
+                            <span style="font-size: 7pt; color: #94a3b8; font-style: italic; line-height: 38px;">[ Verified Developer Receipt ]</span>
+                        </div>
+                    @endif
                 </div>
                 <div class="sig-name">{{ $coordName }}</div>
                 <div style="font-size: 7.5pt; color: #475569; font-weight: 600; margin-top: 2px;">{{ $companyName }}</div>

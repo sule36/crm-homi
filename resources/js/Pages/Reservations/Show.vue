@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { splitCoordinatorsByRole, resolveInitialSignerKey, applySignerSelection } from '@/utils/developerSigners';
 
 const props = defineProps({
     reservation: Object,
@@ -14,11 +15,21 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    developerSignatories: {
+        type: Array,
+        default: () => [],
+    },
+    defaultDeveloperSigner: {
+        type: Object,
+        default: null,
+    },
     standardBookingFee: {
         type: Number,
         default: null,
     },
 });
+
+const groupedCoordinators = computed(() => splitCoordinatorsByRole(props.coordinators));
 
 const effectiveStandardBookingFee = computed(() => {
     const raw = props.standardBookingFee ?? props.settings?.standard_booking_fee ?? 17000000;
@@ -92,15 +103,16 @@ const editForm = useForm({
         spec_text: props.reservation.custom_overrides?.spec_text || `LB ${props.reservation.unit?.building_area || props.reservation.unit?.unit_type?.building_area || '-'} m² / LT ${props.reservation.unit?.land_area || props.reservation.unit?.surface_area || props.reservation.unit?.unit_type?.land_area || props.reservation.unit?.unit_type?.surface_area || '-'} m²`,
         company_address: props.reservation.custom_overrides?.company_address || props.settings?.company_address || '',
     },
-    agent_coordinator_id: props.reservation.agent_coordinator_id
-        || (typeof props.reservation.lead?.assigned_to === 'object' ? props.reservation.lead?.assigned_to?.id : props.reservation.lead?.assigned_to)
-        || props.reservation.lead?.inhouse_pic?.id
-        || props.reservation.lead?.inhouse_pic_id
-        || '',
+    signer_slot: props.reservation.custom_overrides?.signer_slot || (props.reservation.agent_coordinator_id ? 'user' : 'custom'),
+    sales_pic_name: props.reservation.custom_overrides?.sales_pic_name || props.reservation.lead?.assigned_to?.name || props.reservation.lead?.inhouse_pic?.name || '',
+    agent_coordinator_id: props.reservation.agent_coordinator_id || '',
     agent_coordinator_name: props.reservation.agent_coordinator_name || props.reservation.agent_coordinator?.name || props.reservation.lead?.assigned_to?.name || props.reservation.lead?.inhouse_pic?.name || '',
-    agent_coordinator_title: props.reservation.agent_coordinator_title || 'Master Lead / Agent Coordinator',
+    agent_coordinator_title: props.reservation.agent_coordinator_title || 'Developer Representative',
     notes: props.reservation.notes || '',
 });
+
+const selectedSignerKey = ref(resolveInitialSignerKey({ reservation: props.reservation, defaultDeveloperSigner: props.defaultDeveloperSigner }));
+const activePresetImage = ref(props.reservation.custom_overrides?.signer_image || null);
 
 const syncEditFormFromProps = (res) => {
     editForm.client_name = res.client_name || '';
@@ -122,14 +134,14 @@ const syncEditFormFromProps = (res) => {
         spec_text: res.custom_overrides?.spec_text || `LB ${res.unit?.building_area || res.unit?.unit_type?.building_area || '-'} m² / LT ${res.unit?.land_area || res.unit?.surface_area || res.unit?.unit_type?.land_area || res.unit?.unit_type?.surface_area || '-'} m²`,
         company_address: res.custom_overrides?.company_address || props.settings?.company_address || '',
     };
-    editForm.agent_coordinator_id = res.agent_coordinator_id
-        || (typeof res.lead?.assigned_to === 'object' ? res.lead?.assigned_to?.id : res.lead?.assigned_to)
-        || res.lead?.inhouse_pic?.id
-        || res.lead?.inhouse_pic_id
-        || '';
+    editForm.signer_slot = res.custom_overrides?.signer_slot || (res.agent_coordinator_id ? 'user' : 'custom');
+    editForm.sales_pic_name = res.custom_overrides?.sales_pic_name || res.lead?.assigned_to?.name || res.lead?.inhouse_pic?.name || '';
+    editForm.agent_coordinator_id = res.agent_coordinator_id || '';
     editForm.agent_coordinator_name = res.agent_coordinator_name || res.agent_coordinator?.name || res.lead?.assigned_to?.name || res.lead?.inhouse_pic?.name || '';
-    editForm.agent_coordinator_title = res.agent_coordinator_title || 'Master Lead / Agent Coordinator';
+    editForm.agent_coordinator_title = res.agent_coordinator_title || 'Developer Representative';
     editForm.notes = res.notes || '';
+    selectedSignerKey.value = resolveInitialSignerKey({ reservation: res, defaultDeveloperSigner: props.defaultDeveloperSigner });
+    activePresetImage.value = res.custom_overrides?.signer_image || null;
 };
 
 watch(() => props.reservation, (res) => {
@@ -138,15 +150,13 @@ watch(() => props.reservation, (res) => {
     }
 }, { deep: true });
 
-watch(() => editForm.agent_coordinator_id, (coordId) => {
-    if (!coordId) return;
-    const coord = props.coordinators.find(c => c.id == coordId);
-    if (coord) {
-        editForm.agent_coordinator_name = coord.name || '';
-        editForm.agent_coordinator_title = coord.agent_type === 'master_lead'
-            ? 'Master Lead / Agent Coordinator'
-            : 'Sales Coordinator';
-    }
+watch(selectedSignerKey, (key) => {
+    const res = applySignerSelection(key, {
+        form: editForm,
+        developerSignatories: props.developerSignatories,
+        coordinators: props.coordinators,
+    });
+    activePresetImage.value = res.image;
 });
 
 const submitEdit = () => {
@@ -327,16 +337,22 @@ const statusConfig = {
                     </div>
                 </div>
 
-                <!-- CARD 4: PENANDATANGAN AGENT KOORDINATOR -->
+                <!-- CARD 4: PENANDATANGAN PIHAK DEVELOPER -->
                 <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 md:col-span-2">
                     <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-3 flex items-center gap-2">
-                        <span>✍️</span> Agent Koordinator Penandatangan Kwitansi
+                        <span>✍️</span> Penandatangan Resmi Pihak Developer & Bukti Transfer
                     </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                         <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase">Nama Penandatangan</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Pejabat Penandatangan (PT)</p>
                             <p class="text-sm font-black text-slate-900 mt-0.5">{{ reservation.agent_coordinator_name || reservation.agent_coordinator?.name || '-' }}</p>
-                            <p class="text-[10px] text-slate-500 font-semibold">{{ reservation.agent_coordinator_title || 'Agent Coordinator' }}</p>
+                            <p class="text-[10px] text-slate-500 font-semibold">{{ reservation.agent_coordinator_title || 'Developer Representative' }}</p>
+                            <p v-if="reservation.custom_overrides?.signer_image" class="text-[10px] text-emerald-700 font-bold mt-1">✓ TTD Digital Aktif</p>
+                        </div>
+                        <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Sales / Agent PIC</p>
+                            <p class="text-sm font-black text-slate-800 mt-0.5">{{ reservation.custom_overrides?.sales_pic_name || reservation.lead?.assigned_to?.name || reservation.lead?.inhouse_pic?.name || '-' }}</p>
+                            <p class="text-[10px] text-slate-500">Referensi Sales Pendamping</p>
                         </div>
                         <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
                             <p class="text-[10px] font-bold text-slate-400 uppercase">Bukti Pembayaran Reservasi</p>
@@ -470,24 +486,45 @@ const statusConfig = {
                             <p class="text-[10px] text-slate-400 mt-1">Alamat di Kop Surat Kwitansi di bawah logo/nama PT (kosongkan jika ingin pakai default sistem).</p>
                         </div>
 
-                        <div v-if="coordinators.length">
-                            <label class="block font-bold text-slate-700 mb-1">Pilih Sales / Agent Koordinator (Opsional)</label>
-                            <select v-model="editForm.agent_coordinator_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500">
-                                <option value="">-- Pilih dari Daftar Sales / Koordinator --</option>
-                                <option v-for="c in coordinators" :key="c.id" :value="c.id">{{ c.name }}</option>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Pilih Pejabat / Penandatangan Pihak Developer</label>
+                            <select v-model="selectedSignerKey" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500">
+                                <optgroup v-if="developerSignatories.length" label="🏛️ Pejabat Resmi Developer (Master Settings)">
+                                    <option v-for="s in developerSignatories" :key="s.key" :value="`preset:${s.key}`">
+                                        {{ s.name ? `${s.name} — ${s.title}` : `${s.label} (${s.title})` }}{{ s.image ? ' ✓ TTD Digital' : '' }}
+                                    </option>
+                                </optgroup>
+                                <optgroup v-if="groupedCoordinators.devStaff.length" label="👔 Tim Internal Developer (User)">
+                                    <option v-for="c in groupedCoordinators.devStaff" :key="c.id" :value="`user:${c.id}`">
+                                        {{ c.name }} ({{ c.signer_title }})
+                                    </option>
+                                </optgroup>
+                                <optgroup v-if="groupedCoordinators.salesAgents.length" label="🤝 Sales / Agent Koordinator">
+                                    <option v-for="c in groupedCoordinators.salesAgents" :key="c.id" :value="`user:${c.id}`">
+                                        {{ c.name }} ({{ c.signer_title }})
+                                    </option>
+                                </optgroup>
+                                <option value="custom">✏️ Isi Manual Nama & Jabatan Penandatangan</option>
                             </select>
-                            <p class="text-[10px] text-slate-400 mt-1">Memilih nama dari daftar akan otomatis mengisi Nama Penandatangan di bawah.</p>
+                            <p v-if="activePresetImage" class="text-[10px] text-emerald-700 font-bold mt-1">✓ TTD Digital resmi dari Settings akan tercetak di kwitansi PDF.</p>
+                            <p v-else class="text-[10px] text-slate-400 mt-1">Memilih pejabat otomatis mengisi Nama & Jabatan Penandatangan di bawah.</p>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">Nama Penandatangan (Koordinator) <span class="text-rose-500">*</span></label>
+                                <label class="block font-bold text-slate-700 mb-1">Nama Penandatangan (Pejabat PT) <span class="text-rose-500">*</span></label>
                                 <input v-model="editForm.agent_coordinator_name" type="text" placeholder="Masukkan nama penandatangan..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Jabatan Penandatangan <span class="text-rose-500">*</span></label>
-                                <input v-model="editForm.agent_coordinator_title" type="text" placeholder="Contoh: Master Lead / Agent Coordinator" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
+                                <input v-model="editForm.agent_coordinator_title" type="text" placeholder="Contoh: Sales Manager / Finance & Kasir" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
                             </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Sales / Agent PIC Referensi (Opsional)</label>
+                            <input v-model="editForm.sales_pic_name" type="text" placeholder="Nama Sales yang membawa pembeli..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500" />
+                            <p class="text-[10px] text-slate-400 mt-1">Ditampilkan sebagai catatan Sales PIC pada kwitansi tanpa menggantikan pejabat penandatangan PT.</p>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">

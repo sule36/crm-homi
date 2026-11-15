@@ -1,9 +1,10 @@
 <script setup>
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import KprCalculatorModal from '@/Components/Crm/KprCalculatorModal.vue';
 import NegotiationTemplateModal from '@/Components/Negotiations/NegotiationTemplateModal.vue';
+import { splitCoordinatorsByRole, resolveInitialSignerKey, applySignerSelection } from '@/utils/developerSigners';
 
 const props = defineProps({
     lead: Object,
@@ -28,6 +29,14 @@ const props = defineProps({
     standardBookingFee: {
         type: Number,
         default: 17000000,
+    },
+    developerSignatories: {
+        type: Array,
+        default: () => [],
+    },
+    defaultDeveloperSigner: {
+        type: Object,
+        default: null,
     },
 });
 
@@ -606,6 +615,22 @@ function resetCustomerSignature(book) {
 
 // --- QUICK RESERVATION MODAL & ACTIONS ---
 const showReservationModal = ref(false);
+const groupedQuickSigners = computed(() => {
+    const mapped = (props.agents || []).map((a) => {
+        const roles = (a.roles || []).map((r) => r.name);
+        const isDev = roles.some((r) => ['super_admin', 'admin', 'developer', 'sales_manager', 'finance', 'master_lead'].includes(r))
+            || ['master_lead', 'inhouse', 'inhouse_developer', 'inhouse_master_lead'].includes(a.agent_type);
+        let signerTitle = 'Sales Coordinator';
+        if (roles.includes('finance')) signerTitle = 'Finance & Kasir';
+        else if (roles.includes('sales_manager')) signerTitle = 'Sales Manager';
+        else if (roles.includes('master_lead') || a.agent_type === 'master_lead') signerTitle = 'Master Lead / Agent Coordinator';
+        else if (isDev) signerTitle = 'Developer Representative';
+        return { ...a, role_names: roles, is_developer_staff: isDev, signer_title: signerTitle };
+    });
+    return splitCoordinatorsByRole(mapped);
+});
+
+const quickReservationSignerKey = ref(resolveInitialSignerKey({ defaultDeveloperSigner: props.defaultDeveloperSigner }));
 const reservationForm = useForm({
     unit_id: '',
     client_name: props.lead.name || '',
@@ -615,11 +640,24 @@ const reservationForm = useForm({
     amount: 5000000,
     payment_method: 'transfer',
     bank_account_id: '',
-    agent_coordinator_id: props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id || '',
+    signer_slot: props.defaultDeveloperSigner?.name ? (props.defaultDeveloperSigner?.slot || 'sig1') : 'user',
+    sales_pic_name: props.lead.assigned_to_user?.name || props.lead.inhouse_pic_user?.name || '',
+    agent_coordinator_id: '',
+    agent_coordinator_name: props.defaultDeveloperSigner?.name || '',
+    agent_coordinator_title: props.defaultDeveloperSigner?.title || 'Sales Manager',
     expires_days: 7,
     notes: '',
     lead_id: props.lead.id,
     redirect_to: 'lead',
+});
+
+watch(quickReservationSignerKey, (key) => {
+    const allOpts = [...groupedQuickSigners.value.devStaff, ...groupedQuickSigners.value.salesAgents];
+    applySignerSelection(key, {
+        form: reservationForm,
+        developerSignatories: props.developerSignatories,
+        coordinators: allOpts,
+    });
 });
 
 function openReservationModal(preferredUnitId = null) {
@@ -631,7 +669,19 @@ function openReservationModal(preferredUnitId = null) {
     reservationForm.amount = 5000000;
     reservationForm.payment_method = 'transfer';
     reservationForm.bank_account_id = props.bankAccounts?.[0]?.id || '';
-    reservationForm.agent_coordinator_id = props.lead.assigned_to_user?.id || (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id || '';
+    reservationForm.sales_pic_name = props.lead.assigned_to_user?.name || props.lead.inhouse_pic_user?.name || '';
+    const defaultKey = resolveInitialSignerKey({ defaultDeveloperSigner: props.defaultDeveloperSigner });
+    quickReservationSignerKey.value = defaultKey || (
+        (props.lead.assigned_to_user?.id || props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id)
+            ? `user:${props.lead.assigned_to_user?.id || props.lead.inhouse_pic_user?.id || props.lead.inhouse_pic_id}`
+            : ''
+    );
+    const allOpts = [...groupedQuickSigners.value.devStaff, ...groupedQuickSigners.value.salesAgents];
+    applySignerSelection(quickReservationSignerKey.value, {
+        form: reservationForm,
+        developerSignatories: props.developerSignatories,
+        coordinators: allOpts,
+    });
     reservationForm.expires_days = 7;
     reservationForm.notes = '';
     reservationForm.lead_id = props.lead.id;
@@ -2104,10 +2154,19 @@ function submitChangeResUnit() {
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">Sales / Koordinator</label>
-                                <select v-model="reservationForm.agent_coordinator_id" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
-                                    <option value="">-- Pilih Sales Agent --</option>
-                                    <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+                                <label class="block font-bold text-slate-700 mb-1">Penandatangan PT (Kwitansi)</label>
+                                <select v-model="quickReservationSignerKey" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                                    <optgroup v-if="developerSignatories.length" label="🏛️ Pejabat Resmi Developer">
+                                        <option v-for="s in developerSignatories" :key="s.key" :value="`preset:${s.key}`">
+                                            {{ s.name ? `${s.name} (${s.title})` : `${s.label}` }}
+                                        </option>
+                                    </optgroup>
+                                    <optgroup v-if="groupedQuickSigners.devStaff.length" label="👔 Tim Internal Developer">
+                                        <option v-for="a in groupedQuickSigners.devStaff" :key="a.id" :value="`user:${a.id}`">{{ a.name }} ({{ a.signer_title }})</option>
+                                    </optgroup>
+                                    <optgroup v-if="groupedQuickSigners.salesAgents.length" label="🤝 Sales / Agent">
+                                        <option v-for="a in groupedQuickSigners.salesAgents" :key="a.id" :value="`user:${a.id}`">{{ a.name }}</option>
+                                    </optgroup>
                                 </select>
                             </div>
                             <div>

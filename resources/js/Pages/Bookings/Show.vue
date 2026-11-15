@@ -3,6 +3,7 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import KprProgress from '@/Components/Crm/KprProgress.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+import { buildScheduleSimulation, createDefaultCustomTerms, addMonthsIso } from '@/utils/bookingSchedule';
 
 const props = defineProps({
     booking: Object,
@@ -13,6 +14,10 @@ const props = defineProps({
     units: {
         type: Array,
         default: () => []
+    },
+    signatureConfig: {
+        type: Object,
+        default: () => ({})
     }
 });
 
@@ -377,7 +382,10 @@ function recalculateSprFinancialTotal() {
 
 function onReceiptSigSlotChange() {
     const slot = sprTemplateForm.receipt_settings.receipt_sig_slot;
-    if (slot === 'sig1') {
+    if (slot === 'finance') {
+        sprTemplateForm.receipt_settings.receipt_sig_title = props.signatureConfig?.finance_title || 'Finance & Kasir';
+        sprTemplateForm.receipt_settings.receipt_sig_name = props.signatureConfig?.finance_name || 'Keuangan';
+    } else if (slot === 'sig1') {
         sprTemplateForm.receipt_settings.receipt_sig_title = sprTemplateForm.sig1_title || 'Kasir & Keuangan';
         sprTemplateForm.receipt_settings.receipt_sig_name = sprTemplateForm.sig1_name || 'Keuangan';
     } else if (slot === 'sig2') {
@@ -556,67 +564,128 @@ const showScheduleModal = ref(false);
 const showAddRowModal = ref(false);
 const editingScheduleRow = ref(null);
 
+const existingUnpaidUnitSchedules = (props.booking.payment_schedules || []).filter(
+    s => s.status !== 'paid' && s.installment_number !== 0 && s.installment_number !== 99
+);
+const paidUnitSchedules = computed(() =>
+    (props.booking.payment_schedules || []).filter(
+        s => s.status === 'paid' && s.installment_number !== 0 && s.installment_number !== 99
+    )
+);
+const paidUnitAmount = computed(() =>
+    paidUnitSchedules.value.reduce((sum, s) => sum + Math.round(Number(s.amount) || 0), 0)
+);
+
+const initialRegenCustom = existingUnpaidUnitSchedules.map(s => ({
+    label: s.label || 'DP',
+    amount: Math.round(Number(s.amount) || 0),
+    due_date: s.due_date ? String(s.due_date).slice(0, 10) : '',
+}));
+
 const regenForm = useForm({
     payment_scheme: props.booking.payment_scheme || 'cash_installment',
+    schedule_mode: 'standard',
+    custom_schedules: initialRegenCustom,
     installment_months: props.booking.installment_months || 0,
     dp_amount: props.booking.dp_amount || 0,
     dp_installment_months: props.booking.dp_installment_months || 0,
 });
 
+const regenBookingDate = computed(() => {
+    const raw = props.booking.booking_date;
+    return raw ? String(raw).slice(0, 10) : new Date().toISOString().slice(0, 10);
+});
+
+const regenSimulationResult = computed(() => {
+    const basePrice = Math.max(0, Math.round(Number(props.booking.base_price) || 0));
+    const finalPrice = Math.max(0, Math.round(Number(props.booking.final_price) || 0));
+    // Deduct already-paid non-UTJ unit rows so simulation only allocates remaining balance
+    const effectiveBookingFee = Math.round(Number(props.booking.booking_fee) || 0) + paidUnitAmount.value;
+    return buildScheduleSimulation({
+        payment_scheme: regenForm.payment_scheme,
+        schedule_mode: regenForm.schedule_mode,
+        custom_schedules: regenForm.custom_schedules,
+        booking_fee: effectiveBookingFee,
+        base_price: basePrice,
+        final_price: finalPrice,
+        ppn_amount: props.booking.ppn_amount || 0,
+        bphtb_amount: props.booking.bphtb_amount || 0,
+        ajb_bbn_amount: props.booking.ajb_bbn_amount || 0,
+        other_legal_fees: props.booking.other_legal_fees || 0,
+        dp_amount: regenForm.dp_amount,
+        dp_installment_months: regenForm.dp_installment_months,
+        installment_months: regenForm.installment_months,
+        booking_date: regenBookingDate.value,
+    });
+});
+
 const simulatedRegenRows = computed(() => {
-    const targetPrice = Number(props.booking.final_price || props.booking.base_price || 0);
-    const bookingFee = Number(props.booking.booking_fee || 0);
-    const scheme = regenForm.payment_scheme;
-    const dpAmount = Number(regenForm.dp_amount || 0);
-    const dpMonths = Number(regenForm.dp_installment_months || 0);
-    const instMonths = Number(regenForm.installment_months || 0);
-
-    const rows = [];
-    rows.push({ label: 'Booking Fee (UTJ)', amount: bookingFee, note: 'Tanda Jadi' });
-
-    let remaining = Math.max(0, targetPrice - bookingFee);
-
-    if (scheme === 'cash') {
-        rows.push({ label: 'Pelunasan Cash Keras', amount: remaining, note: '14 Hari' });
-    } else if (scheme === 'kpr') {
-        const dpTotal = dpAmount > 0 ? dpAmount : Math.round(targetPrice * 0.10);
-        const dpTenor = dpMonths > 0 ? dpMonths : 3;
-        const dpPerMonth = Math.round(dpTotal / dpTenor);
-        for (let d = 1; d <= dpTenor; d++) {
-            const amt = (d === dpTenor) ? (dpTotal - (dpPerMonth * (dpTenor - 1))) : dpPerMonth;
-            rows.push({ label: dpTenor > 1 ? `DP ${d}` : 'DP 1', amount: amt, note: `Bulan ke-${d}` });
-        }
-        const bankLoan = Math.max(0, remaining - dpTotal);
-        rows.push({ label: 'Pencairan KPR (Bank)', amount: bankLoan, note: `Saat Akad (Bulan ke-${dpTenor + 1})` });
-    } else {
-        // cash_installment
-        const dpTenor = dpMonths > 0 ? dpMonths : (dpAmount > 0 ? 1 : 0);
-        let offset = 0;
-        if (dpAmount > 0 && dpTenor > 0) {
-            const dpPerMonth = Math.round(dpAmount / dpTenor);
-            for (let d = 1; d <= dpTenor; d++) {
-                const amt = (d === dpTenor) ? (dpAmount - (dpPerMonth * (dpTenor - 1))) : dpPerMonth;
-                rows.push({ label: dpTenor > 1 ? `DP ${d}` : 'DP 1', amount: amt, note: `Bulan ke-${d}` });
-            }
-            offset = dpTenor;
-            remaining = Math.max(0, remaining - dpAmount);
-        }
-
-        const tenor = instMonths !== null && instMonths !== undefined ? instMonths : (dpAmount > 0 ? 0 : 12);
-        if (tenor > 0 && remaining > 0) {
-            const perMonth = Math.round(remaining / tenor);
-            for (let i = 1; i <= tenor; i++) {
-                const amt = (i === tenor) ? (remaining - (perMonth * (tenor - 1))) : perMonth;
-                rows.push({ label: `Cicilan Ke-${i} (dari ${tenor} Bulan)`, amount: amt, note: `Bulan ke-${offset + i}` });
-            }
-        }
+    const rows = [...regenSimulationResult.value.rows];
+    if (paidUnitAmount.value > 0 && rows.length > 0) {
+        // Restore true UTJ + paid items visual clarity
+        rows[0] = {
+            ...rows[0],
+            amount: Math.round(Number(props.booking.booking_fee) || 0),
+        };
+        const paidRows = paidUnitSchedules.value.map(s => ({
+            label: `${s.label} (Sudah Lunas)`,
+            tag: 'Lunas',
+            amount: Math.round(Number(s.amount) || 0),
+        }));
+        rows.splice(1, 0, ...paidRows);
     }
-
     return rows;
 });
 
+const switchRegenMode = (mode) => {
+    regenForm.schedule_mode = mode;
+    if (mode === 'custom_terms' && (!Array.isArray(regenForm.custom_schedules) || regenForm.custom_schedules.length === 0)) {
+        regenForm.custom_schedules = createDefaultCustomTerms(regenSimulationResult.value.unitAfterUtj, regenBookingDate.value);
+    }
+};
+
+const addRegenCustomTerm = () => {
+    const n = (regenForm.custom_schedules?.length || 0) + 1;
+    regenForm.custom_schedules.push({
+        label: `DP ${n}`,
+        amount: 0,
+        due_date: addMonthsIso(regenBookingDate.value, n),
+    });
+};
+
+const removeRegenCustomTerm = (idx) => {
+    if (regenForm.custom_schedules.length <= 1) return;
+    regenForm.custom_schedules.splice(idx, 1);
+};
+
+const autoFillRegenTermRemainder = (idx) => {
+    const target = regenSimulationResult.value.unitAfterUtj;
+    const otherSum = regenForm.custom_schedules.reduce((acc, row, rIdx) => {
+        return rIdx === idx ? acc : acc + Math.max(0, Math.round(Number(row.amount) || 0));
+    }, 0);
+    regenForm.custom_schedules[idx].amount = Math.max(0, target - otherSum);
+};
+
+const applyRegenPreset3Terms = () => {
+    regenForm.custom_schedules = createDefaultCustomTerms(regenSimulationResult.value.unitAfterUtj, regenBookingDate.value);
+};
+
+const regenMismatchError = ref('');
+
 function submitRegenSchedule() {
-    regenForm.post(`/bookings/${props.booking.id}/regenerate-schedule`, {
+    regenMismatchError.value = '';
+    if (regenForm.payment_scheme === 'cash_installment' && regenForm.schedule_mode === 'custom_terms') {
+        if (Math.abs(regenSimulationResult.value.customDiff) > 100) {
+            regenMismatchError.value = `Total termin custom belum pas dengan sisa harga unit (selisih Rp ${Math.abs(regenSimulationResult.value.customDiff).toLocaleString('id-ID')}). Gunakan "Isi Sisa".`;
+            return;
+        }
+    }
+    regenForm.transform((data) => ({
+        ...data,
+        custom_schedules: (data.payment_scheme === 'cash_installment' && data.schedule_mode === 'custom_terms')
+            ? data.custom_schedules
+            : [],
+    })).post(`/bookings/${props.booking.id}/regenerate-schedule`, {
         preserveScroll: true,
         onSuccess: () => { 
             showScheduleModal.value = false; 
@@ -1308,10 +1377,10 @@ const docTypeLabels = {
         <!-- REGENERATE SCHEDULE MODAL -->
         <div v-if="showScheduleModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showScheduleModal = false"></div>
-            <div class="relative bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl p-8 animate-in zoom-in duration-150">
+            <div class="relative bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-8 animate-in zoom-in duration-150">
                 <div class="flex justify-between items-center mb-6 pb-3 border-b border-slate-100">
                     <h3 class="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                        <span>⚙️</span> <span>Atur Skema & Tenor Cash Bertahap</span>
+                        <span>⚙️</span> <span>Atur Skema & Termin Pembayaran</span>
                     </h3>
                     <button @click="showScheduleModal = false" class="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
                 </div>
@@ -1326,38 +1395,112 @@ const docTypeLabels = {
                         </select>
                     </div>
 
-                    <div v-if="regenForm.payment_scheme === 'cash_installment'">
-                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tenor Sisa Cicilan (Bulan / Tahun)</label>
-                        <div class="grid grid-cols-2 gap-3">
-                            <select v-model.number="regenForm.installment_months" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20">
-                                <option :value="0">0 Bulan (Pelunasan via Angsuran DP)</option>
-                                <option :value="3">3 Bulan (0.25 Tahun)</option>
-                                <option :value="6">6 Bulan (0.5 Tahun)</option>
-                                <option :value="12">12 Bulan (1 Tahun)</option>
-                                <option :value="24">24 Bulan (2 Tahun)</option>
-                                <option :value="36">36 Bulan (3 Tahun)</option>
-                                <option :value="48">48 Bulan (4 Tahun)</option>
-                                <option :value="60">60 Bulan (5 Tahun)</option>
-                                <option :value="72">72 Bulan (6 Tahun)</option>
-                            </select>
-                            <input v-model.number="regenForm.installment_months" type="number" min="0" max="360" placeholder="Custom (Bulan)" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20" />
+                    <div v-if="regenForm.payment_scheme === 'cash_installment'" class="flex items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                        <span class="text-[10px] font-black text-slate-600 uppercase pl-2">Mode Cash Bertahap:</span>
+                        <div class="inline-flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                            <button
+                                type="button"
+                                @click="switchRegenMode('standard')"
+                                :class="regenForm.schedule_mode === 'standard' ? 'bg-slate-900 text-white' : 'text-slate-600'"
+                                class="px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all"
+                            >
+                                DP + Cicilan Flat
+                            </button>
+                            <button
+                                type="button"
+                                @click="switchRegenMode('custom_terms')"
+                                :class="regenForm.schedule_mode === 'custom_terms' ? 'bg-amber-600 text-white' : 'text-slate-600'"
+                                class="px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all"
+                            >
+                                Pecah Termin Custom
+                            </button>
                         </div>
-                        <p class="text-[10px] text-amber-600 mt-1 font-bold">
-                            {{ regenForm.installment_months > 0 ? `Total Durasi Cicilan: ${regenForm.installment_months} Bulan (${(regenForm.installment_months / 12).toFixed(1)} Tahun)` : 'Tanpa sisa cicilan (seluruh pembayaran diselesaikan di tahap DP)' }}
-                        </p>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Uang Muka / DP (Rp)</label>
-                            <input v-model.number="regenForm.dp_amount" type="number" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
-                            <p class="text-[9px] text-slate-400 mt-1">Bisa diisi seluruh sisa kesepakatan</p>
+                    <template v-if="!(regenForm.payment_scheme === 'cash_installment' && regenForm.schedule_mode === 'custom_terms')">
+                        <div v-if="regenForm.payment_scheme === 'cash_installment'">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Tenor Sisa Cicilan (Bulan / Tahun)</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <select v-model.number="regenForm.installment_months" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20">
+                                    <option :value="0">0 Bulan (Tanpa Cicilan / 1x Pelunasan Sisa)</option>
+                                    <option :value="3">3 Bulan (0.25 Tahun)</option>
+                                    <option :value="6">6 Bulan (0.5 Tahun)</option>
+                                    <option :value="12">12 Bulan (1 Tahun)</option>
+                                    <option :value="24">24 Bulan (2 Tahun)</option>
+                                    <option :value="36">36 Bulan (3 Tahun)</option>
+                                    <option :value="48">48 Bulan (4 Tahun)</option>
+                                    <option :value="60">60 Bulan (5 Tahun)</option>
+                                    <option :value="72">72 Bulan (6 Tahun)</option>
+                                </select>
+                                <input v-model.number="regenForm.installment_months" type="number" min="0" max="360" placeholder="Custom (Bulan)" class="px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500/20" />
+                            </div>
+                            <p class="text-[10px] text-amber-600 mt-1 font-bold">
+                                {{ regenForm.installment_months > 0 ? `Total Durasi Cicilan: ${regenForm.installment_months} Bulan (${(regenForm.installment_months / 12).toFixed(1)} Tahun)` : 'Jika masih ada sisa harga setelah DP, otomatis dibuat 1x Pelunasan Sisa Cash Bertahap' }}
+                            </p>
                         </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Berapa Kali DP (Bulan)</label>
-                            <input v-model.number="regenForm.dp_installment_months" type="number" min="0" max="60" placeholder="1 (atau 2, 3)" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
-                            <p class="text-[9px] text-slate-400 mt-1">Isi 3 untuk dibagi jadi DP 1, DP 2, DP 3</p>
+
+                        <div v-if="regenForm.payment_scheme !== 'cash'" class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Total Uang Muka / DP Keseluruhan (Rp)</label>
+                                <input v-model.number="regenForm.dp_amount" type="number" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                                <p class="text-[9px] text-slate-400 mt-1">Dibagi rata sebanyak Berapa Kali DP. Untuk DP berbeda nominal, pilih Pecah Termin Custom.</p>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1.5">Berapa Kali DP (Bulan)</label>
+                                <input v-model.number="regenForm.dp_installment_months" type="number" min="0" max="60" placeholder="1 (atau 2, 3)" class="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold" />
+                                <p class="text-[9px] text-slate-400 mt-1">Isi 3 untuk dibagi jadi DP 1, DP 2, DP 3</p>
+                            </div>
                         </div>
+                    </template>
+
+                    <!-- Custom Terms Mode Inside Regenerate Modal -->
+                    <div v-else class="space-y-3 p-3.5 bg-amber-50/40 border border-amber-200 rounded-2xl">
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div>
+                                <span class="text-slate-500 font-semibold">Sisa Harga Unit Target:</span>
+                                <span class="ml-1.5 font-mono font-black text-slate-900">Rp {{ Number(regenSimulationResult.unitAfterUtj).toLocaleString('id-ID') }}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @click="applyRegenPreset3Terms" class="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-black">
+                                    Preset 3 Termin
+                                </button>
+                                <button type="button" @click="addRegenCustomTerm" class="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black">
+                                    + Tambah Termin
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                            <div v-for="(term, tIdx) in regenForm.custom_schedules" :key="tIdx" class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-slate-200">
+                                <div class="sm:col-span-4">
+                                    <input v-model="term.label" type="text" placeholder="DP 1" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold" />
+                                </div>
+                                <div class="sm:col-span-4 flex gap-1">
+                                    <input v-model.number="term.amount" type="number" min="0" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold" />
+                                    <button type="button" @click="autoFillRegenTermRemainder(tIdx)" class="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[9px] font-black shrink-0">
+                                        Isi Sisa
+                                    </button>
+                                </div>
+                                <div class="sm:col-span-3">
+                                    <input v-model="term.due_date" type="date" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px]" />
+                                </div>
+                                <div class="sm:col-span-1 flex justify-end">
+                                    <button type="button" @click="removeRegenCustomTerm(tIdx)" :disabled="regenForm.custom_schedules.length <= 1" class="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-30 text-xs font-black">✕</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs"
+                            :class="Math.abs(regenSimulationResult.customDiff) <= 100 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+                        >
+                            <span>Total: <strong class="font-mono">Rp {{ Number(regenSimulationResult.customTermsTotal).toLocaleString('id-ID') }}</strong></span>
+                            <span class="font-black text-[11px]">
+                                {{ Math.abs(regenSimulationResult.customDiff) <= 100 ? '✅ 100% Pas' : (regenSimulationResult.customDiff > 0 ? `Kurang Rp ${Number(regenSimulationResult.customDiff).toLocaleString('id-ID')}` : `Kelebihan Rp ${Number(Math.abs(regenSimulationResult.customDiff)).toLocaleString('id-ID')}`) }}
+                            </span>
+                        </div>
+                        <p v-if="regenMismatchError || regenForm.errors.custom_schedules" class="text-xs font-bold text-rose-600">
+                            {{ regenMismatchError || regenForm.errors.custom_schedules }}
+                        </p>
                     </div>
 
                     <!-- Live Simulation Preview -->
@@ -1370,7 +1513,7 @@ const docTypeLabels = {
                             <div v-for="(sim, sIdx) in simulatedRegenRows" :key="sIdx" class="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-100 text-xs">
                                 <div>
                                     <span class="font-bold text-slate-800">{{ sim.label }}</span>
-                                    <span class="text-[10px] text-slate-400 ml-1.5 font-medium">({{ sim.note }})</span>
+                                    <span class="text-[10px] text-slate-400 ml-1.5 font-medium">({{ sim.tag }})</span>
                                 </div>
                                 <span class="font-mono font-black text-slate-900">Rp {{ Number(sim.amount).toLocaleString('id-ID') }}</span>
                             </div>
@@ -1888,6 +2031,7 @@ const docTypeLabels = {
                             <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                                 <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider">✒️ Sumber TTD & Cap Stempel Kwitansi</label>
                                 <select v-model="sprTemplateForm.receipt_settings.receipt_sig_slot" @change="onReceiptSigSlotChange" class="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500">
+                                    <option value="finance">💳 Finance & Kasir (Settings: {{ signatureConfig?.finance_name || signatureConfig?.finance_title || 'Finance' }})</option>
                                     <option value="sig1">TTD Slot 1 ({{ sprTemplateForm.sig1_title || 'TTD 1' }} - {{ sprTemplateForm.sig1_name || 'Petugas' }})</option>
                                     <option value="sig2">TTD Slot 2 ({{ sprTemplateForm.sig2_title || 'TTD 2' }} - {{ sprTemplateForm.sig2_name || 'Direktur' }})</option>
                                     <option value="sig3">TTD Slot 3 ({{ sprTemplateForm.sig3_title || 'TTD 3' }} - {{ sprTemplateForm.sig3_name || 'Sales' }})</option>

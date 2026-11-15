@@ -284,7 +284,11 @@ let defaultSigImage = props.settings?.spr_signatures?.sig1_image || null;
 let defaultTitle = props.transaction.booking?.sig1_title || props.settings?.spr_signatures?.sig1_title || 'Kasir & Keuangan';
 let defaultName = props.transaction.booking?.sig1_name || props.settings?.spr_signatures?.sig1_name || props.transaction.recorded_by_user?.name || 'Keuangan';
 
-if (slotKey === 'sig2') {
+if (slotKey === 'finance') {
+    defaultSigImage = props.settings?.spr_signatures?.finance_image || defaultSigImage;
+    defaultTitle = props.settings?.spr_signatures?.finance_title || 'Finance & Kasir';
+    defaultName = props.settings?.spr_signatures?.finance_name || defaultName;
+} else if (slotKey === 'sig2') {
     defaultSigImage = props.settings?.spr_signatures?.sig2_image || defaultSigImage;
     defaultTitle = props.transaction.booking?.sig2_title || props.settings?.spr_signatures?.sig2_title || 'Direktur';
     defaultName = props.transaction.booking?.sig2_name || props.settings?.spr_signatures?.sig2_name || defaultName;

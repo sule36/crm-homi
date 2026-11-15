@@ -293,6 +293,7 @@ class TransactionController extends Controller
         foreach ($settingsRaw as $s) {
             $settings[$s->key] = \App\Models\Setting::get($s->key);
         }
+        $settings['spr_signatures'] = \App\Models\Setting::getSignatureConfig();
 
         return Inertia::render('Finance/Receipt', [
             'transaction' => $transaction,

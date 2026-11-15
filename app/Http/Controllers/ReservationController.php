@@ -31,9 +31,177 @@ class ReservationController extends Controller
         foreach ($settingsRaw as $s) {
             $settings[$s->key] = Setting::get($s->key);
         }
+        $settings['spr_signatures'] = Setting::getSignatureConfig();
         $settings['standard_booking_fee'] = Setting::getStandardBookingFee();
 
         return $settings;
+    }
+
+    private function resolveUserSignerTitle(?User $user): string
+    {
+        if (!$user) {
+            return 'Developer Representative';
+        }
+        if ($user->hasRole('finance')) {
+            return 'Finance & Kasir';
+        }
+        if ($user->hasRole('sales_manager')) {
+            return 'Sales Manager';
+        }
+        if ($user->hasAnyRole(['super_admin', 'admin', 'developer'])) {
+            return 'Developer Representative';
+        }
+        if ($user->hasRole('master_lead') || $user->agent_type === 'master_lead') {
+            return 'Master Lead / Agent Coordinator';
+        }
+        if (in_array($user->agent_type, ['inhouse', 'inhouse_developer', 'inhouse_master_lead'], true)) {
+            return 'Sales In-House';
+        }
+
+        return 'Sales Coordinator';
+    }
+
+    private function getCoordinatorOptions()
+    {
+        return User::with('roles:id,name')
+            ->select('id', 'name', 'agent_type')
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get()
+            ->map(function (User $u) {
+                $roleNames = $u->roles->pluck('name')->values()->all();
+                $isDevStaff = !empty(array_intersect($roleNames, ['super_admin', 'admin', 'developer', 'sales_manager', 'finance', 'master_lead']))
+                    || in_array($u->agent_type, ['master_lead', 'inhouse', 'inhouse_developer', 'inhouse_master_lead'], true);
+
+                return [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'agent_type' => $u->agent_type,
+                    'role_names' => $roleNames,
+                    'signer_title' => $this->resolveUserSignerTitle($u),
+                    'is_developer_staff' => $isDevStaff,
+                ];
+            })
+            ->values();
+    }
+
+    private function resolveReservationSignerData(array $validated, ?Lead $lead = null, ?Reservation $existing = null): array
+    {
+        $slot = $validated['signer_slot'] ?? null;
+        $existingOverrides = is_array($existing?->custom_overrides) ? $existing->custom_overrides : [];
+        $inputOverrides = is_array($validated['custom_overrides'] ?? null) ? $validated['custom_overrides'] : [];
+        $mergedOverrides = array_merge($existingOverrides, $inputOverrides);
+
+        $salesPicName = $validated['sales_pic_name']
+            ?? ($mergedOverrides['sales_pic_name'] ?? null)
+            ?? $lead?->assignedTo?->name
+            ?? $lead?->inhousePic?->name
+            ?? $existing?->lead?->assignedTo?->name
+            ?? $existing?->lead?->inhousePic?->name;
+
+        if (!empty($salesPicName)) {
+            $mergedOverrides['sales_pic_name'] = $salesPicName;
+        }
+
+        $coordUser = !empty($validated['agent_coordinator_id'])
+            ? User::with('roles:id,name')->find($validated['agent_coordinator_id'])
+            : null;
+
+        if (in_array($slot, ['finance', 'sig1', 'sig2'], true)) {
+            $preset = Setting::resolveDeveloperSignatory($slot);
+            $coordName = !empty($validated['agent_coordinator_name'])
+                ? $validated['agent_coordinator_name']
+                : (!empty($preset['name']) ? $preset['name'] : ($existing?->agent_coordinator_name ?: $preset['title']));
+            $coordTitle = !empty($validated['agent_coordinator_title'])
+                ? $validated['agent_coordinator_title']
+                : $preset['title'];
+
+            $mergedOverrides['signer_slot'] = $preset['slot'];
+            if (!empty($preset['image'])) {
+                $mergedOverrides['signer_image'] = $preset['image'];
+            } else {
+                unset($mergedOverrides['signer_image']);
+            }
+
+            return [
+                'agent_coordinator_id' => null,
+                'agent_coordinator_name' => $coordName,
+                'agent_coordinator_title' => $coordTitle,
+                'custom_overrides' => $mergedOverrides,
+            ];
+        }
+
+        if ($coordUser) {
+            $coordName = !empty($validated['agent_coordinator_name'])
+                ? $validated['agent_coordinator_name']
+                : $coordUser->name;
+            $coordTitle = !empty($validated['agent_coordinator_title'])
+                ? $validated['agent_coordinator_title']
+                : $this->resolveUserSignerTitle($coordUser);
+
+            $mergedOverrides['signer_slot'] = 'user';
+            unset($mergedOverrides['signer_image']);
+
+            return [
+                'agent_coordinator_id' => $coordUser->id,
+                'agent_coordinator_name' => $coordName,
+                'agent_coordinator_title' => $coordTitle,
+                'custom_overrides' => $mergedOverrides,
+            ];
+        }
+
+        if (!empty($validated['agent_coordinator_name'])) {
+            $mergedOverrides['signer_slot'] = $slot ?: ($mergedOverrides['signer_slot'] ?? 'custom');
+            if ($mergedOverrides['signer_slot'] === 'custom') {
+                unset($mergedOverrides['signer_image']);
+            }
+
+            return [
+                'agent_coordinator_id' => null,
+                'agent_coordinator_name' => $validated['agent_coordinator_name'],
+                'agent_coordinator_title' => !empty($validated['agent_coordinator_title'])
+                    ? $validated['agent_coordinator_title']
+                    : ($existing?->agent_coordinator_title ?: 'Developer Representative'),
+                'custom_overrides' => $mergedOverrides,
+            ];
+        }
+
+        if (!$existing) {
+            $preset = Setting::resolveDeveloperSignatory();
+            if (!empty($preset['name'])) {
+                $mergedOverrides['signer_slot'] = $preset['slot'];
+                if (!empty($preset['image'])) {
+                    $mergedOverrides['signer_image'] = $preset['image'];
+                }
+
+                return [
+                    'agent_coordinator_id' => null,
+                    'agent_coordinator_name' => $preset['name'],
+                    'agent_coordinator_title' => !empty($validated['agent_coordinator_title']) ? $validated['agent_coordinator_title'] : $preset['title'],
+                    'custom_overrides' => $mergedOverrides,
+                ];
+            }
+
+            $fallbackUser = $lead?->assignedTo ?? $lead?->inhousePic ?? auth()->user();
+            if ($fallbackUser && method_exists($fallbackUser, 'loadMissing')) {
+                $fallbackUser->loadMissing('roles:id,name');
+            }
+            $mergedOverrides['signer_slot'] = 'user';
+
+            return [
+                'agent_coordinator_id' => $fallbackUser?->id,
+                'agent_coordinator_name' => $fallbackUser?->name ?: 'Developer Representative',
+                'agent_coordinator_title' => !empty($validated['agent_coordinator_title']) ? $validated['agent_coordinator_title'] : $this->resolveUserSignerTitle($fallbackUser),
+                'custom_overrides' => $mergedOverrides,
+            ];
+        }
+
+        return [
+            'agent_coordinator_id' => null,
+            'agent_coordinator_name' => $existing->agent_coordinator_name,
+            'agent_coordinator_title' => !empty($validated['agent_coordinator_title']) ? $validated['agent_coordinator_title'] : $existing->agent_coordinator_title,
+            'custom_overrides' => $mergedOverrides,
+        ];
     }
 
     /**
@@ -192,10 +360,7 @@ class ReservationController extends Controller
             ->orderBy('name')
             ->get();
 
-        $coordinators = User::select('id', 'name', 'agent_type')
-            ->where('status', 'active')
-            ->orderBy('name')
-            ->get();
+        $coordinators = $this->getCoordinatorOptions();
 
         $selectedNego = $selectedNegoId ? Negotiation::with(['unit', 'lead.assignedTo', 'lead.inhousePic'])->find($selectedNegoId) : null;
 
@@ -203,6 +368,8 @@ class ReservationController extends Controller
             'units' => $units,
             'leads' => $leads,
             'coordinators' => $coordinators,
+            'developerSignatories' => Setting::getDeveloperSignatories(),
+            'defaultDeveloperSigner' => Setting::resolveDeveloperSignatory(),
             'preselectedUnitId' => $selectedUnitId,
             'preselectedLeadId' => $selectedLeadId,
             'preselectedNego' => $selectedNego,
@@ -236,6 +403,8 @@ class ReservationController extends Controller
             'policy_title' => 'nullable|string|max:255',
             'policy_text' => 'nullable|string|max:2000',
             'custom_overrides' => 'nullable|array',
+            'signer_slot' => 'nullable|in:finance,sig1,sig2,user,custom',
+            'sales_pic_name' => 'nullable|string|max:255',
             'agent_coordinator_id' => 'nullable|exists:users,id',
             'agent_coordinator_name' => 'nullable|string|max:255',
             'agent_coordinator_title' => 'nullable|string|max:255',
@@ -264,19 +433,7 @@ class ReservationController extends Controller
                 $proofPath = $request->file('payment_proof')->store('reservation_proofs', 'public');
             }
 
-            $coordUser = !empty($validated['agent_coordinator_id'])
-                ? User::find($validated['agent_coordinator_id'])
-                : ($lead?->assignedTo ?? $lead?->inhousePic ?? auth()->user());
-
-            $coordName = !empty($validated['agent_coordinator_name'])
-                ? $validated['agent_coordinator_name']
-                : ($coordUser ? $coordUser->name : 'Agent Coordinator');
-
-            $coordTitle = !empty($validated['agent_coordinator_title'])
-                ? $validated['agent_coordinator_title']
-                : ($coordUser && $coordUser->agent_type === 'master_lead'
-                    ? 'Master Lead / Agent Coordinator'
-                    : ($coordUser ? 'Sales Coordinator' : 'Coordinator Representative'));
+            $signerResolved = $this->resolveReservationSignerData($validated, $lead, null);
 
             $companyName = !empty($validated['company_name'])
                 ? $validated['company_name']
@@ -307,10 +464,10 @@ class ReservationController extends Controller
                 'terms_text' => $validated['terms_text'] ?? null,
                 'policy_title' => $validated['policy_title'] ?? null,
                 'policy_text' => $validated['policy_text'] ?? null,
-                'custom_overrides' => $validated['custom_overrides'] ?? null,
-                'agent_coordinator_id' => $coordUser?->id,
-                'agent_coordinator_name' => $coordName,
-                'agent_coordinator_title' => $coordTitle,
+                'custom_overrides' => !empty($signerResolved['custom_overrides']) ? $signerResolved['custom_overrides'] : null,
+                'agent_coordinator_id' => $signerResolved['agent_coordinator_id'],
+                'agent_coordinator_name' => $signerResolved['agent_coordinator_name'],
+                'agent_coordinator_title' => $signerResolved['agent_coordinator_title'],
                 'expires_at' => $expiresAt,
                 'notes' => $validated['notes'] ?? null,
             ];
@@ -404,16 +561,15 @@ class ReservationController extends Controller
             ->orderByUnitNumber()
             ->get();
 
-        $coordinators = User::select('id', 'name', 'agent_type')
-            ->where('status', 'active')
-            ->orderBy('name')
-            ->get();
+        $coordinators = $this->getCoordinatorOptions();
 
         return Inertia::render('Reservations/Show', [
             'reservation' => $reservation,
             'settings' => $settings,
             'units' => $units,
             'coordinators' => $coordinators,
+            'developerSignatories' => Setting::getDeveloperSignatories(),
+            'defaultDeveloperSigner' => Setting::resolveDeveloperSignatory(),
             'standardBookingFee' => Setting::getStandardBookingFee(),
         ]);
     }
@@ -509,6 +665,8 @@ class ReservationController extends Controller
             'policy_title' => 'nullable|string|max:255',
             'policy_text' => 'nullable|string|max:2000',
             'custom_overrides' => 'nullable|array',
+            'signer_slot' => 'nullable|in:finance,sig1,sig2,user,custom',
+            'sales_pic_name' => 'nullable|string|max:255',
             'agent_coordinator_id' => 'nullable|exists:users,id',
             'agent_coordinator_name' => 'nullable|string|max:255',
             'agent_coordinator_title' => 'nullable|string|max:255',
@@ -540,6 +698,14 @@ class ReservationController extends Controller
                 }
             }
         }
+
+        $reservation->loadMissing(['lead.assignedTo', 'lead.inhousePic']);
+        $signerResolved = $this->resolveReservationSignerData($validated, $reservation->lead, $reservation);
+
+        $validated['agent_coordinator_id'] = $signerResolved['agent_coordinator_id'];
+        $validated['agent_coordinator_name'] = $signerResolved['agent_coordinator_name'];
+        $validated['agent_coordinator_title'] = $signerResolved['agent_coordinator_title'];
+        $validated['custom_overrides'] = !empty($signerResolved['custom_overrides']) ? $signerResolved['custom_overrides'] : null;
 
         // Safe filter against actual database schema to prevent crashes if migrations aren't executed yet
         $safeData = [];

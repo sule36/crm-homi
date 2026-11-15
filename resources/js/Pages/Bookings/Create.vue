@@ -2,6 +2,7 @@
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { Head, useForm, usePage, Link } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
+import { buildScheduleSimulation, createDefaultCustomTerms, addMonthsIso } from '@/utils/bookingSchedule';
 
 const props = defineProps({
     unit: Object,
@@ -62,6 +63,8 @@ const form = useForm({
     other_legal_fees: 0,
     final_price: initialBasePrice,
     payment_scheme: mapNegoSchemeToBooking(props.negotiation?.payment_scheme) || 'kpr',
+    schedule_mode: 'standard',
+    custom_schedules: [],
     dp_amount: initialDpAmount,
     dp_installment_months: 3,
     installment_months: initialInstallmentMonths,
@@ -254,59 +257,43 @@ const remainingUtjToPay = computed(() => {
     return Math.max(0, Number(form.booking_fee || 0) - reservedCreditAmount);
 });
 
-const scheduleSimulation = computed(() => {
-    const targetPrice = Number(form.final_price || form.base_price || 0);
-    const bookingFee = Number(form.booking_fee || 0);
-    const scheme = form.payment_scheme;
-    const dpAmount = Number(form.dp_amount || 0);
-    const dpMonths = Number(form.dp_installment_months || 0);
-    const instMonths = form.installment_months !== '' && form.installment_months !== null ? Number(form.installment_months) : null;
+const simulationResult = computed(() => buildScheduleSimulation(form));
+const scheduleSimulation = computed(() => simulationResult.value.rows);
 
-    const rows = [];
-    if (bookingFee > 0) {
-        rows.push({ label: 'Booking Fee (UTJ)', amount: bookingFee, note: 'Tanda Jadi' });
+const switchCashScheduleMode = (mode) => {
+    form.schedule_mode = mode;
+    if (mode === 'custom_terms' && (!Array.isArray(form.custom_schedules) || form.custom_schedules.length === 0)) {
+        form.custom_schedules = createDefaultCustomTerms(simulationResult.value.unitAfterUtj, form.booking_date);
     }
+};
 
-    let remaining = Math.max(0, targetPrice - bookingFee);
+const applyPreset3Terms = () => {
+    form.custom_schedules = createDefaultCustomTerms(simulationResult.value.unitAfterUtj, form.booking_date);
+};
 
-    if (scheme === 'cash') {
-        rows.push({ label: 'Pelunasan Cash Keras', amount: remaining, note: '14 Hari' });
-    } else if (scheme === 'kpr') {
-        const dpTotal = dpAmount > 0 ? dpAmount : Math.round(targetPrice * 0.10);
-        const dpTenor = dpMonths > 0 ? dpMonths : 3;
-        const dpPerMonth = Math.round(dpTotal / dpTenor);
-        for (let d = 1; d <= dpTenor; d++) {
-            const amt = (d === dpTenor) ? (dpTotal - (dpPerMonth * (dpTenor - 1))) : dpPerMonth;
-            rows.push({ label: dpTenor > 1 ? `DP ${d}` : 'DP 1', amount: amt, note: `Bulan ke-${d}` });
-        }
-        const bankLoan = Math.max(0, remaining - dpTotal);
-        rows.push({ label: 'Pencairan KPR (Bank)', amount: bankLoan, note: `Saat Akad (Bulan ke-${dpTenor + 1})` });
-    } else {
-        // cash_installment
-        const dpTenor = dpMonths > 0 ? dpMonths : (dpAmount > 0 ? 1 : 0);
-        let offset = 0;
-        if (dpAmount > 0 && dpTenor > 0) {
-            const dpPerMonth = Math.round(dpAmount / dpTenor);
-            for (let d = 1; d <= dpTenor; d++) {
-                const amt = (d === dpTenor) ? (dpAmount - (dpPerMonth * (dpTenor - 1))) : dpPerMonth;
-                rows.push({ label: dpTenor > 1 ? `DP ${d}` : 'DP 1', amount: amt, note: `Bulan ke-${d}` });
-            }
-            offset = dpTenor;
-            remaining = Math.max(0, remaining - dpAmount);
-        }
+const addCustomTerm = () => {
+    const nextNum = (form.custom_schedules?.length || 0) + 1;
+    form.custom_schedules.push({
+        label: `DP ${nextNum}`,
+        amount: 0,
+        due_date: addMonthsIso(form.booking_date, nextNum),
+    });
+};
 
-        const tenor = instMonths !== null && !isNaN(instMonths) ? instMonths : (dpAmount > 0 ? 0 : 12);
-        if (tenor > 0 && remaining > 0) {
-            const perMonth = Math.round(remaining / tenor);
-            for (let i = 1; i <= tenor; i++) {
-                const amt = (i === tenor) ? (remaining - (perMonth * (tenor - 1))) : perMonth;
-                rows.push({ label: `Cicilan Ke-${i} (dari ${tenor} Bulan)`, amount: amt, note: `Bulan ke-${offset + i}` });
-            }
-        }
-    }
+const removeCustomTerm = (idx) => {
+    if (form.custom_schedules.length <= 1) return;
+    form.custom_schedules.splice(idx, 1);
+};
 
-    return rows;
-});
+const autoFillTermRemainder = (idx) => {
+    const target = simulationResult.value.unitAfterUtj;
+    const otherSum = form.custom_schedules.reduce((acc, row, rIdx) => {
+        return rIdx === idx ? acc : acc + Math.max(0, Math.round(Number(row.amount) || 0));
+    }, 0);
+    form.custom_schedules[idx].amount = Math.max(0, target - otherSum);
+};
+
+const customMismatchError = ref('');
 
 // Calculate initial taxes if unit is pre-selected and not free
 if (props.unit || props.negotiation) {
@@ -321,7 +308,19 @@ if (props.unit || props.negotiation) {
 }
 
 const submit = () => {
-    form.post('/bookings');
+    customMismatchError.value = '';
+    if (form.payment_scheme === 'cash_installment' && form.schedule_mode === 'custom_terms') {
+        if (Math.abs(simulationResult.value.customDiff) > 100) {
+            customMismatchError.value = `Total termin custom belum pas dengan sisa harga unit setelah UTJ (selisih Rp ${Math.abs(simulationResult.value.customDiff).toLocaleString('id-ID')}). Gunakan tombol "Isi Sisa" pada salah satu termin.`;
+            return;
+        }
+    }
+    form.transform((data) => ({
+        ...data,
+        custom_schedules: (data.payment_scheme === 'cash_installment' && data.schedule_mode === 'custom_terms')
+            ? data.custom_schedules
+            : [],
+    })).post('/bookings');
 };
 
 const formatCurrency = (value) => {
@@ -682,49 +681,157 @@ const formatCurrency = (value) => {
                                 </div>
 
                                 <!-- DETAIL KHUSUS CASH BERTAHAP -->
-                                <div v-if="form.payment_scheme === 'cash_installment'" class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                                    <h4 class="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                                        <span>Rincian Pembayaran In-House / Cash Bertahap</span>
-                                        <span class="text-[10px] text-amber-600 font-bold">Bisa DP bertahap (DP 1, 2, 3) atau Cicilan Flat</span>
-                                    </h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div v-if="form.payment_scheme === 'cash_installment'" class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                         <div>
-                                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nominal DP (Rp)</label>
-                                            <input v-model="form.dp_amount" type="number" placeholder="0 (jika tanpa DP terpisah)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
-                                            <p class="text-[9px] text-slate-400 mt-1">Bisa diisi seluruh sisa untuk DP 1, 2, 3</p>
+                                            <h4 class="text-[11px] font-black text-slate-700 uppercase tracking-wider">Rincian Pembayaran In-House / Cash Bertahap</h4>
+                                            <p class="text-[10px] text-slate-500 mt-0.5">Pilih cicilan flat standar atau pecah termin DP berbeda nominal (DP 1, DP 2, DP 3, dst).</p>
+                                        </div>
+                                        <div class="inline-flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                                            <button
+                                                type="button"
+                                                @click="switchCashScheduleMode('standard')"
+                                                :class="form.schedule_mode === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+                                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
+                                            >
+                                                DP + Cicilan Flat
+                                            </button>
+                                            <button
+                                                type="button"
+                                                @click="switchCashScheduleMode('custom_terms')"
+                                                :class="form.schedule_mode === 'custom_terms' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+                                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
+                                            >
+                                                Pecah Termin Custom
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Mode 1: Standard DP + Cicilan Flat -->
+                                    <div v-if="form.schedule_mode === 'standard'" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Total Nominal DP Keseluruhan (Rp)</label>
+                                            <input v-model="form.dp_amount" type="number" placeholder="0 (jika langsung cicilan)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
+                                            <p class="text-[9px] text-slate-400 mt-1">Total keseluruhan DP (dibagi rata ke jumlah DP). Jika nominal tiap DP berbeda, pilih <strong>Pecah Termin Custom</strong>.</p>
                                         </div>
                                         <div>
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Berapa Kali DP (Bulan)</label>
                                             <input v-model="form.dp_installment_months" type="number" min="0" max="60" placeholder="Contoh: 1, 2, atau 3" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
-                                            <p class="text-[9px] text-slate-400 mt-1">Contoh: 3 untuk DP 1, DP 2, DP 3</p>
+                                            <p class="text-[9px] text-slate-400 mt-1">Contoh: 3 untuk membagi rata DP ke DP 1, DP 2, DP 3</p>
                                         </div>
                                         <div>
                                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tenor Sisa Cicilan (Bulan)</label>
-                                            <input v-model="form.installment_months" type="number" min="0" max="360" placeholder="0 jika hanya DP" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
-                                            <p class="text-[9px] text-slate-400 mt-1">0 jika pelunasan tuntas via angsuran DP</p>
+                                            <input v-model="form.installment_months" type="number" min="0" max="360" placeholder="0 = 1x pelunasan sisa" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-blue-500/20" />
+                                            <p class="text-[9px] text-slate-400 mt-1">Jika diisi 0 & masih ada sisa harga unit, otomatis dibuat 1x Pelunasan Sisa</p>
                                         </div>
+                                    </div>
+
+                                    <!-- Mode 2: Custom Split Terms (DP 1, DP 2, DP 3 berbeda nominal) -->
+                                    <div v-else class="space-y-3">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 bg-white px-3.5 py-2.5 rounded-xl border border-amber-200 text-xs">
+                                            <div>
+                                                <span class="text-slate-500 font-semibold">Target Total Termin (Harga Unit - UTJ):</span>
+                                                <span class="ml-1.5 font-mono font-black text-slate-900">{{ formatCurrency(simulationResult.unitAfterUtj) }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <button type="button" @click="applyPreset3Terms" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-black transition-all">
+                                                    Preset 3 Termin (DP 1-3)
+                                                </button>
+                                                <button type="button" @click="addCustomTerm" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-black transition-all">
+                                                    + Tambah Termin
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <div
+                                                v-for="(term, tIdx) in form.custom_schedules"
+                                                :key="tIdx"
+                                                class="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-xl border border-slate-200"
+                                            >
+                                                <div class="md:col-span-4">
+                                                    <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Nama Termin #{{ tIdx + 1 }}</label>
+                                                    <input v-model="term.label" type="text" placeholder="Contoh: DP 1 / DP 2 / Pelunasan" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:bg-white focus:ring-2 focus:ring-amber-500/20" />
+                                                </div>
+                                                <div class="md:col-span-4">
+                                                    <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Nominal (Rp)</label>
+                                                    <div class="flex gap-1">
+                                                        <input v-model.number="term.amount" type="number" min="0" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-amber-500/20" />
+                                                        <button
+                                                            type="button"
+                                                            @click="autoFillTermRemainder(tIdx)"
+                                                            title="Isi otomatis dengan sisa harga yang belum dialokasikan"
+                                                            class="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[9px] font-black whitespace-nowrap shrink-0 transition-all"
+                                                        >
+                                                            Isi Sisa
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="md:col-span-3">
+                                                    <label class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Jatuh Tempo</label>
+                                                    <input v-model="term.due_date" type="date" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:bg-white focus:ring-2 focus:ring-amber-500/20" />
+                                                </div>
+                                                <div class="md:col-span-1 flex justify-end pt-3 md:pt-4">
+                                                    <button
+                                                        type="button"
+                                                        @click="removeCustomTerm(tIdx)"
+                                                        :disabled="form.custom_schedules.length <= 1"
+                                                        class="p-1.5 text-slate-400 hover:text-rose-600 disabled:opacity-30 transition-colors text-xs font-black"
+                                                        title="Hapus termin"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            class="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border text-xs"
+                                            :class="Math.abs(simulationResult.customDiff) <= 100 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+                                        >
+                                            <div>
+                                                <span class="font-bold">Total Termin Diinput:</span>
+                                                <span class="ml-1.5 font-mono font-black">{{ formatCurrency(simulationResult.customTermsTotal) }}</span>
+                                            </div>
+                                            <div class="font-black text-[11px]">
+                                                <span v-if="Math.abs(simulationResult.customDiff) <= 100">✅ Pas 100% Sesuai Target Setelah UTJ</span>
+                                                <span v-else-if="simulationResult.customDiff > 0">⚠️ Kurang {{ formatCurrency(simulationResult.customDiff) }} dari target</span>
+                                                <span v-else>⚠️ Kelebihan {{ formatCurrency(Math.abs(simulationResult.customDiff)) }} dari target</span>
+                                            </div>
+                                        </div>
+
+                                        <p v-if="customMismatchError || form.errors.custom_schedules" class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
+                                            {{ customMismatchError || form.errors.custom_schedules }}
+                                        </p>
                                     </div>
                                 </div>
 
                                 <!-- Live Schedule Preview in Create.vue -->
                                 <div v-if="scheduleSimulation.length > 0" class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
                                     <div class="flex items-center justify-between text-[11px] font-black text-slate-700 uppercase tracking-wider">
-                                        <span>📅 Simulasi Jadwal Yang Akan Dicetak Di SPR:</span>
+                                        <span>📅 Simulasi Jadwal Yang Akan Dicetak Di SPR & Tersimpan:</span>
                                         <span class="text-blue-600 font-bold">{{ scheduleSimulation.length }} Tahapan</span>
                                     </div>
-                                    <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                    <div class="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                                         <div v-for="(sim, sIdx) in scheduleSimulation" :key="sIdx" class="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-100 text-xs">
                                             <div class="flex items-center gap-2">
                                                 <span class="w-5 h-5 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-bold">#{{ sIdx + 1 }}</span>
                                                 <span class="font-bold text-slate-900">{{ sim.label }}</span>
-                                                <span class="text-[10px] text-slate-400">({{ sim.note }})</span>
+                                                <span class="text-[10px] text-slate-400">({{ sim.tag }})</span>
                                             </div>
                                             <span class="font-mono font-black text-slate-900">Rp {{ Number(sim.amount).toLocaleString('id-ID') }}</span>
                                         </div>
                                     </div>
-                                    <div class="pt-2 border-t border-slate-200 flex justify-between items-center text-xs">
-                                        <span class="font-black text-slate-600 uppercase text-[10px]">Total Estimasi Pembayaran:</span>
-                                        <span class="font-mono font-black text-emerald-700">Rp {{ Number(scheduleSimulation.reduce((acc, r) => acc + r.amount, 0)).toLocaleString('id-ID') }}</span>
+                                    <div class="pt-2 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 text-xs">
+                                        <span class="font-black text-slate-600 uppercase text-[10px]">Total Estimasi Pembayaran (UTJ + Termin{{ simulationResult.taxLegalTotal > 0 ? ' + Pajak/Legal' : '' }}):</span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-mono font-black" :class="Math.abs(simulationResult.totalScheduled - simulationResult.finalPrice) <= 100 ? 'text-emerald-700' : 'text-rose-600'">
+                                                Rp {{ Number(simulationResult.totalScheduled).toLocaleString('id-ID') }}
+                                            </span>
+                                            <span v-if="Math.abs(simulationResult.totalScheduled - simulationResult.finalPrice) <= 100" class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-black">
+                                                100% COCOK
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

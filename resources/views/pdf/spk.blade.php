@@ -385,33 +385,54 @@
         </thead>
         <tbody>
             @php
-                $dpAmount = $booking->dp_amount > 0 ? $booking->dp_amount : ($booking->final_price * 0.10);
-                $kprAmount = $booking->final_price - $booking->booking_fee - $dpAmount;
                 $formattedBank = ($bankInfo['bank_name'] ?? 'Bank Resmi Developer') . ' ' . ($bankInfo['account_number'] ?? '-');
                 $accHolder = $bankInfo['account_holder'] ?? $tenantCompanyName;
+                $spkSchedules = ($booking->paymentSchedules ?? collect([]))->sortBy([
+                    ['installment_number', 'asc'],
+                    ['due_date', 'asc'],
+                ]);
             @endphp
-            <tr>
-                <td>Uang Tanda Jadi (UTJ)</td>
-                <td class="text-right">{{ number_format($booking->booking_fee, 2, '.', ',') }}</td>
-                <td class="text-center">{{ date('n/j/Y', strtotime($booking->booking_date)) }}</td>
-                <td>{{ $formattedBank }}</td>
-                <td>{{ $accHolder }}</td>
-            </tr>
-            @if(strtolower($booking->payment_scheme) === 'kpr' || strtolower($booking->payment_scheme) === 'cash_bertahap')
-            <tr>
-                <td>Down Payment (DP)</td>
-                <td class="text-right">{{ number_format($dpAmount, 2, '.', ',') }}</td>
-                <td class="text-center">TBD</td>
-                <td>{{ $formattedBank }}</td>
-                <td>{{ $accHolder }}</td>
-            </tr>
-            <tr>
-                <td>Pelunasan / {{ strtoupper($booking->payment_scheme) }}</td>
-                <td class="text-right">{{ number_format($kprAmount, 2, '.', ',') }}</td>
-                <td class="text-center">TBD</td>
-                <td>{{ $formattedBank }}</td>
-                <td>{{ $accHolder }}</td>
-            </tr>
+            @if($spkSchedules->isNotEmpty())
+                @foreach($spkSchedules as $sched)
+                <tr>
+                    <td>{{ $sched->label }}</td>
+                    <td class="text-right">{{ number_format((float)$sched->amount, 2, '.', ',') }}</td>
+                    <td class="text-center">{{ $sched->due_date ? date('n/j/Y', strtotime($sched->due_date)) : 'TBD' }}</td>
+                    <td>{{ $formattedBank }}</td>
+                    <td>{{ $accHolder }}</td>
+                </tr>
+                @endforeach
+            @else
+                @php
+                    $schemeNorm = strtolower((string)$booking->payment_scheme);
+                    $dpAmount = $booking->dp_amount > 0 ? (float)$booking->dp_amount : ($schemeNorm === 'kpr' ? ($booking->final_price * 0.10) : 0);
+                    $sisaAmount = max(0, (float)$booking->final_price - (float)$booking->booking_fee - $dpAmount);
+                @endphp
+                <tr>
+                    <td>Uang Tanda Jadi (UTJ)</td>
+                    <td class="text-right">{{ number_format($booking->booking_fee, 2, '.', ',') }}</td>
+                    <td class="text-center">{{ date('n/j/Y', strtotime($booking->booking_date)) }}</td>
+                    <td>{{ $formattedBank }}</td>
+                    <td>{{ $accHolder }}</td>
+                </tr>
+                @if($dpAmount > 0)
+                <tr>
+                    <td>Down Payment (DP)</td>
+                    <td class="text-right">{{ number_format($dpAmount, 2, '.', ',') }}</td>
+                    <td class="text-center">TBD</td>
+                    <td>{{ $formattedBank }}</td>
+                    <td>{{ $accHolder }}</td>
+                </tr>
+                @endif
+                @if($sisaAmount > 0)
+                <tr>
+                    <td>Pelunasan / {{ strtoupper($booking->payment_scheme) }}</td>
+                    <td class="text-right">{{ number_format($sisaAmount, 2, '.', ',') }}</td>
+                    <td class="text-center">TBD</td>
+                    <td>{{ $formattedBank }}</td>
+                    <td>{{ $accHolder }}</td>
+                </tr>
+                @endif
             @endif
             <tr class="total-row">
                 <td>Total</td>
@@ -462,7 +483,7 @@
                     <div class="sig-name">({{ $sigs['sig2_name'] ?? 'Luhur Wira Pramudya' }})</div>
                 </td>
                 <td>
-                    <div class="sig-title">{{ $sigs['sig3_title'] ?? 'Pembeli' }}</div>
+                    <div class="sig-title">{{ !empty($booking->sig4_title) ? $booking->sig4_title : (!empty($sigs['sig4_title']) ? $sigs['sig4_title'] : 'Pembeli') }}</div>
                     <div class="sig-box"></div>
                     <div class="sig-name">({{ $booking->lead->name }})</div>
                 </td>

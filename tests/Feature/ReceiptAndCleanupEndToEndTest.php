@@ -595,4 +595,328 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $htmlSettled->assertSee('Rp 11.000.000');
         $htmlSettled->assertSee('Rp 0 (UTJ Standar Terpenuhi Penuh)');
     }
+
+    public function test_developer_signatory_roles_flow_end_to_end_from_settings_to_receipts_and_booking(): void
+    {
+        Storage::fake('public');
+
+        $company = Company::create(['name' => 'PT Signatory Developer', 'slug' => 'signatory-dev-co', 'status' => 'active']);
+        $admin = User::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+        $salesAgent = User::factory()->create([
+            'company_id' => $company->id,
+            'name' => 'Rudi Closing Agent',
+            'agent_type' => 'inhouse',
+            'status' => 'active',
+        ]);
+
+        [$project, , $unit] = $this->createProjectUnit($company, 'ALC', 'B', '7', 'available');
+
+        $lead = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'name' => 'Dewi Sartika',
+            'phone' => '081211122233',
+            'status' => 'negotiation',
+            'source' => 'inhouse',
+            'assigned_to' => $salesAgent->id,
+        ]);
+
+        $this->actingAs($admin);
+
+        // 1. Configure Developer Signatories (including Finance role + TTD upload + reservation default slot) in /settings
+        $this->post('/settings', [
+            'spr_signatures' => [
+                'city' => 'Jakarta Selatan',
+                'sig1_title' => 'Sales Manager',
+                'sig1_name' => 'Dhany Nur',
+                'sig2_title' => 'Direktur',
+                'sig2_name' => 'Luhur Wira Pramudya',
+                'finance_title' => 'Finance & Kasir',
+                'finance_name' => 'Siti Aminah Finance',
+                'reservation_signer_slot' => 'finance',
+                'sig3_title' => 'SALES',
+                'sig4_title' => 'Pemesan / Pembeli',
+            ],
+            'signature_image_finance' => UploadedFile::fake()->image('ttd-finance.png'),
+        ])->assertRedirect();
+
+        $sigConfig = Setting::getSignatureConfig();
+        $this->assertEquals('finance', $sigConfig['reservation_signer_slot']);
+        $this->assertEquals('Siti Aminah Finance', $sigConfig['finance_name']);
+        $this->assertNotEmpty($sigConfig['finance_image']);
+        Storage::disk('public')->assertExists($sigConfig['finance_image']);
+
+        // 2. Verify pages expose developerSignatories & defaultDeveloperSigner props cleanly
+        $this->get('/reservations/create')
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->where('defaultDeveloperSigner.slot', 'finance')
+                ->where('defaultDeveloperSigner.name', 'Siti Aminah Finance')
+                ->where('developerSignatories.0.key', 'finance')
+            );
+
+        $this->get("/leads/{$lead->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->where('defaultDeveloperSigner.slot', 'finance')
+                ->where('defaultDeveloperSigner.name', 'Siti Aminah Finance')
+            );
+
+        // 3. Create reservation without manual signer override -> uses Finance signatory while crediting Sales PIC separately
+        $this->post('/reservations', [
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'amount' => 11000000,
+            'payment_method' => 'transfer',
+        ])->assertSessionHasNoErrors();
+
+        $reservation = Reservation::firstOrFail();
+        $this->assertEquals('Siti Aminah Finance', $reservation->agent_coordinator_name);
+        $this->assertEquals('Finance & Kasir', $reservation->agent_coordinator_title);
+        $this->assertEquals('finance', $reservation->custom_overrides['signer_slot'] ?? null);
+        $this->assertEquals($sigConfig['finance_image'], $reservation->custom_overrides['signer_image'] ?? null);
+        $this->assertEquals('Rudi Closing Agent', $reservation->custom_overrides['sales_pic_name'] ?? null);
+
+        $htmlFinanceReceipt = $this->get("/reservations/{$reservation->id}/receipt?html=1");
+        $htmlFinanceReceipt->assertStatus(200);
+        $htmlFinanceReceipt->assertSee('Siti Aminah Finance');
+        $htmlFinanceReceipt->assertSee('Finance &amp; Kasir', false);
+        $htmlFinanceReceipt->assertSee('Rudi Closing Agent');
+
+        // 4. Switch reservation signer to Manajemen / Direktur (sig2) via PUT
+        $this->put("/reservations/{$reservation->id}", [
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'amount' => 11000000,
+            'payment_method' => 'transfer',
+            'signer_slot' => 'sig2',
+            'sales_pic_name' => 'Rudi Closing Agent',
+        ])->assertSessionHasNoErrors();
+
+        $reservation->refresh();
+        $this->assertEquals('Luhur Wira Pramudya', $reservation->agent_coordinator_name);
+        $this->assertEquals('Direktur', $reservation->agent_coordinator_title);
+        $this->assertEquals('sig2', $reservation->custom_overrides['signer_slot'] ?? null);
+
+        // 5. Convert / store Booking -> inherits configured Developer Signatory defaults & SPK PDF shows Pembeli (not SALES)
+        $this->post('/bookings', [
+            'reservation_id' => $reservation->id,
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'booked_by' => $salesAgent->id,
+            'booking_fee' => 17000000,
+            'base_price' => 1500000000,
+            'final_price' => 1500000000,
+            'payment_scheme' => 'kpr',
+            'dp_amount' => 150000000,
+        ])->assertSessionHasNoErrors();
+
+        $booking = \App\Models\Booking::firstOrFail();
+        $this->assertEquals('Dhany Nur', $booking->sig1_name);
+        $this->assertEquals('Sales Manager', $booking->sig1_title);
+        $this->assertEquals('Luhur Wira Pramudya', $booking->sig2_name);
+        $this->assertEquals('Direktur', $booking->sig2_title);
+        $this->assertEquals('Rudi Closing Agent', $booking->sig3_name);
+        $this->assertEquals('SALES', $booking->sig3_title);
+
+        $this->get("/bookings/{$booking->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->where('signatureConfig.finance_name', 'Siti Aminah Finance')
+                ->where('signatureConfig.reservation_signer_slot', 'finance')
+            );
+    }
+
+    public function test_custom_terms_split_dp_persists_through_pending_approve_spr_and_spk(): void
+    {
+        $company = Company::create(['name' => 'Custom Terms Co', 'slug' => 'custom-terms-co', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+        $this->actingAs($user);
+
+        [$project, , $unit] = $this->createProjectUnit($company, 'CTC', 'B', '1', 'available');
+        $lead = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'name' => 'Buyer Pecah Termin',
+            'phone' => '08199990000',
+            'source' => 'inhouse',
+            'status' => 'new',
+        ]);
+
+        // Harga 3 M, UTJ 11 jt -> Sisa 2.989.000.000 dipecah menjadi 3 termin berbeda nominal
+        $response = $this->post('/bookings', [
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'booked_by' => $user->id,
+            'booking_fee' => 11000000,
+            'base_price' => 3000000000,
+            'final_price' => 3000000000,
+            'payment_scheme' => 'cash_installment',
+            'schedule_mode' => 'custom_terms',
+            'booking_date' => '2026-11-15',
+            'custom_schedules' => [
+                ['label' => 'DP 1', 'amount' => 200000000, 'due_date' => '2026-12-15'],
+                ['label' => 'DP 2', 'amount' => 1700000000, 'due_date' => '2027-01-15'],
+                ['label' => 'DP 3 (Pelunasan)', 'amount' => 1089000000, 'due_date' => '2027-02-15'],
+            ],
+        ]);
+
+        $response->assertRedirect()->assertSessionHasNoErrors();
+
+        $booking = \App\Models\Booking::where('lead_id', $lead->id)->firstOrFail();
+        $this->assertEquals('pending', $booking->status);
+        $this->assertEquals(2989000000.0, (float) $booking->dp_amount);
+        $this->assertEquals(3, (int) $booking->dp_installment_months);
+        $this->assertEquals(0, (int) $booking->installment_months);
+
+        $schedules = $booking->paymentSchedules()->orderBy('installment_number')->get();
+        $this->assertCount(4, $schedules);
+        $this->assertEquals(0, $schedules[0]->installment_number);
+        $this->assertEquals('upcoming', $schedules[0]->status);
+        $this->assertEquals('DP 1', $schedules[1]->label);
+        $this->assertEquals(200000000.0, (float) $schedules[1]->amount);
+        $this->assertEquals('DP 2', $schedules[2]->label);
+        $this->assertEquals(1700000000.0, (float) $schedules[2]->amount);
+        $this->assertEquals('DP 3 (Pelunasan)', $schedules[3]->label);
+        $this->assertEquals(1089000000.0, (float) $schedules[3]->amount);
+        $this->assertEquals(3000000000.0, (float) $schedules->sum('amount'));
+
+        // Approve must mark UTJ paid WITHOUT wiping custom DP 1, DP 2, DP 3
+        $this->post("/bookings/{$booking->id}/approve")->assertSessionHasNoErrors();
+        $booking->refresh();
+        $this->assertEquals('approved', $booking->status);
+
+        $approvedSchedules = $booking->paymentSchedules()->orderBy('installment_number')->get();
+        $this->assertCount(4, $approvedSchedules);
+        $this->assertEquals('paid', $approvedSchedules[0]->status);
+        $this->assertEquals(200000000.0, (float) $approvedSchedules[1]->amount);
+        $this->assertEquals(1700000000.0, (float) $approvedSchedules[2]->amount);
+        $this->assertEquals(1089000000.0, (float) $approvedSchedules[3]->amount);
+        $this->assertEquals(3000000000.0, (float) $approvedSchedules->sum('amount'));
+
+        // SPR HTML must display the exact 3 custom terms (not 66.666.667 or 60 Bulan)
+        $sprHtml = $this->get("/bookings/{$booking->id}/spr?html=1");
+        $sprHtml->assertStatus(200);
+        $sprHtml->assertSee('Booking Fee (UTJ)');
+        $sprHtml->assertSee('200.000.000');
+        $sprHtml->assertSee('1.700.000.000');
+        $sprHtml->assertSee('DP 3 (Pelunasan)');
+        $sprHtml->assertSee('1.089.000.000');
+        $sprHtml->assertDontSee('60 Bulan');
+
+        // SPK Blade view must also reflect actual paymentSchedules rows
+        $spkRendered = view('pdf.spk', ['booking' => $booking->load(['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules']), 'settings' => []])->render();
+        $this->assertStringContainsString('DP 1', $spkRendered);
+        $this->assertStringContainsString('200,000,000.00', $spkRendered);
+        $this->assertStringContainsString('1,700,000,000.00', $spkRendered);
+        $this->assertStringContainsString('DP 3 (Pelunasan)', $spkRendered);
+        $this->assertStringContainsString('1,089,000,000.00', $spkRendered);
+    }
+
+    public function test_custom_terms_rejects_mismatched_total_to_prevent_inconsistency(): void
+    {
+        $company = Company::create(['name' => 'Custom Mismatch Co', 'slug' => 'custom-mismatch-co', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+        $this->actingAs($user);
+
+        [$project, , $unit] = $this->createProjectUnit($company, 'CMC', 'C', '2', 'available');
+        $lead = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'name' => 'Buyer Selisih',
+            'phone' => '08188887777',
+            'source' => 'inhouse',
+            'status' => 'new',
+        ]);
+
+        $response = $this->post('/bookings', [
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'booked_by' => $user->id,
+            'booking_fee' => 11000000,
+            'base_price' => 3000000000,
+            'final_price' => 3000000000,
+            'payment_scheme' => 'cash_installment',
+            'schedule_mode' => 'custom_terms',
+            'custom_schedules' => [
+                ['label' => 'DP 1', 'amount' => 200000000],
+                ['label' => 'DP 2', 'amount' => 500000000],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['custom_schedules']);
+        $this->assertDatabaseCount('bookings', 0);
+    }
+
+    public function test_standard_zero_installment_months_and_regenerate_custom_preserve_paid_and_total(): void
+    {
+        $company = Company::create(['name' => 'Standard Zero Co', 'slug' => 'std-zero-co', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+        $this->actingAs($user);
+
+        [$project, , $unit] = $this->createProjectUnit($company, 'SZC', 'D', '5', 'available');
+        $lead = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'name' => 'Buyer Zero Tenor',
+            'phone' => '08177776666',
+            'source' => 'inhouse',
+            'status' => 'new',
+        ]);
+
+        // Standard cash_installment with 200jt DP (2x) and installment_months = 0 on 1 M unit (10jt UTJ)
+        $this->post('/bookings', [
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'booked_by' => $user->id,
+            'booking_fee' => 10000000,
+            'base_price' => 1000000000,
+            'final_price' => 1000000000,
+            'payment_scheme' => 'cash_installment',
+            'schedule_mode' => 'standard',
+            'dp_amount' => 200000000,
+            'dp_installment_months' => 2,
+            'installment_months' => 0,
+            'auto_approve' => true,
+        ])->assertSessionHasNoErrors();
+
+        $booking = \App\Models\Booking::where('lead_id', $lead->id)->firstOrFail();
+        $rows = $booking->paymentSchedules()->orderBy('installment_number')->get();
+
+        // UTJ 10jt + DP 1 100jt + DP 2 100jt + Pelunasan Sisa Cash Bertahap 790jt = 1M
+        $this->assertCount(4, $rows);
+        $this->assertEquals('Pelunasan Sisa Cash Bertahap', $rows[3]->label);
+        $this->assertEquals(790000000.0, (float) $rows[3]->amount);
+        $this->assertEquals(1000000000.0, (float) $rows->sum('amount'));
+
+        // Mark DP 1 (100jt) as paid, then regenerate remaining 890jt into 2 custom terms
+        $dp1Row = $rows[1];
+        $this->put("/payment-schedules/{$dp1Row->id}", [
+            'label' => $dp1Row->label,
+            'amount' => $dp1Row->amount,
+            'due_date' => $dp1Row->due_date->format('Y-m-d'),
+            'status' => 'paid',
+        ])->assertSessionHasNoErrors();
+
+        $this->post("/bookings/{$booking->id}/regenerate-schedule", [
+            'payment_scheme' => 'cash_installment',
+            'schedule_mode' => 'custom_terms',
+            'custom_schedules' => [
+                ['label' => 'DP 2 Besar', 'amount' => 500000000, 'due_date' => '2027-01-10'],
+                ['label' => 'Pelunasan Akhir', 'amount' => 390000000, 'due_date' => '2027-02-10'],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $afterRegen = $booking->paymentSchedules()->orderBy('installment_number')->get();
+        $this->assertCount(4, $afterRegen);
+        $this->assertEquals('paid', $afterRegen[0]->status);
+        $this->assertEquals('paid', $afterRegen[1]->status);
+        $this->assertEquals('DP 2 Besar', $afterRegen[2]->label);
+        $this->assertEquals(500000000.0, (float) $afterRegen[2]->amount);
+        $this->assertEquals('Pelunasan Akhir', $afterRegen[3]->label);
+        $this->assertEquals(390000000.0, (float) $afterRegen[3]->amount);
+        $this->assertEquals(1000000000.0, (float) $afterRegen->sum('amount'));
+    }
 }

@@ -9,25 +9,6 @@ use Illuminate\Support\Facades\Storage;
 
 class SettingController extends Controller
 {
-    private function getDefaultSignatures(): array
-    {
-        return [
-            'city' => 'Jakarta Selatan',
-            'sig1_title' => 'Sales Manager',
-            'sig1_name' => 'Dhany Nur',
-            'sig1_image' => null,
-            'sig2_title' => 'Direktur',
-            'sig2_name' => 'Luhur Wira Pramudya',
-            'sig2_image' => null,
-            'sig3_title' => 'Pemesan Utama',
-            'sig3_name' => '',
-            'sig3_image' => null,
-            'sig4_title' => 'Penanggung Jawab',
-            'sig4_name' => '',
-            'sig4_image' => null,
-        ];
-    }
-
     public function index(Request $request)
     {
         $settingsRaw = Setting::all();
@@ -54,8 +35,7 @@ class SettingController extends Controller
             ];
         }
 
-        $defaultSigs = $this->getDefaultSignatures();
-        $settings['spr_signatures'] = array_merge($defaultSigs, is_array($settings['spr_signatures'] ?? null) ? $settings['spr_signatures'] : []);
+        $settings['spr_signatures'] = Setting::getSignatureConfig();
 
         if (!isset($settings['spr_bank_info']) || !is_array($settings['spr_bank_info'])) {
             $settings['spr_bank_info'] = [
@@ -131,6 +111,7 @@ class SettingController extends Controller
             'signature_image2' => 'nullable|image|max:2048',
             'signature_image3' => 'nullable|image|max:2048',
             'signature_image4' => 'nullable|image|max:2048',
+            'signature_image_finance' => 'nullable|image|max:2048',
         ]);
 
         // 1. Company Logo Upload
@@ -140,12 +121,7 @@ class SettingController extends Controller
         }
 
         // 2. Signatures Setup & Uploads
-        $existingSigs = Setting::get('spr_signatures', []);
-        if (!is_array($existingSigs)) {
-            $existingSigs = [];
-        }
-        $defaultSigs = $this->getDefaultSignatures();
-        $existingSigs = array_merge($defaultSigs, $existingSigs);
+        $existingSigs = Setting::getSignatureConfig();
 
         $inputSig = $request->input('spr_signatures');
         if (is_string($inputSig)) {
@@ -156,6 +132,9 @@ class SettingController extends Controller
         }
 
         $mergedSigs = array_merge($existingSigs, $inputSig);
+        if (!in_array($mergedSigs['reservation_signer_slot'] ?? '', ['finance', 'sig1', 'sig2'], true)) {
+            $mergedSigs['reservation_signer_slot'] = 'sig1';
+        }
 
         foreach ([1, 2, 3, 4] as $idx) {
             $key = "signature_image{$idx}";
@@ -165,6 +144,12 @@ class SettingController extends Controller
             } elseif (!empty($existingSigs[$sigKey])) {
                 $mergedSigs[$sigKey] = $existingSigs[$sigKey];
             }
+        }
+
+        if ($request->hasFile('signature_image_finance')) {
+            $mergedSigs['finance_image'] = $request->file('signature_image_finance')->store('settings/signatures', 'public');
+        } elseif (!empty($existingSigs['finance_image'])) {
+            $mergedSigs['finance_image'] = $existingSigs['finance_image'];
         }
 
         Setting::set('spr_signatures', $mergedSigs);
@@ -230,7 +215,7 @@ class SettingController extends Controller
 
         // 7. Handle remaining settings scalar key/value pairs
         $excluded = array_merge([
-            'company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4',
+            'company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4', 'signature_image_finance',
             'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer',
             'spr_default_free_ppn', 'spr_default_free_legal', 'standard_booking_fee', '_token',
         ], $booleanSettingKeys);

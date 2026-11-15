@@ -122,6 +122,11 @@ class BookingController extends Controller
             'other_legal_fees' => 'nullable|numeric|min:0',
             'final_price' => 'required|numeric|min:0',
             'payment_scheme' => 'required|in:cash,cash_installment,kpr',
+            'schedule_mode' => 'nullable|in:standard,custom_terms',
+            'custom_schedules' => 'nullable|array|max:60',
+            'custom_schedules.*.label' => 'required|string|max:255',
+            'custom_schedules.*.amount' => 'required|numeric|min:0',
+            'custom_schedules.*.due_date' => 'nullable|date',
             'installment_months' => 'nullable|integer|min:0|max:360',
             'dp_amount' => 'nullable|numeric|min:0',
             'dp_installment_months' => 'nullable|integer|min:0|max:60',
@@ -148,8 +153,47 @@ class BookingController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        $isCustomTerms = ($validated['payment_scheme'] === 'cash_installment')
+            && (($validated['schedule_mode'] ?? 'standard') === 'custom_terms');
+
+        $customSchedules = [];
+        if ($isCustomTerms) {
+            $customSchedules = array_values(array_filter(
+                $validated['custom_schedules'] ?? [],
+                fn ($row) => isset($row['label']) && trim((string)$row['label']) !== ''
+            ));
+
+            if (empty($customSchedules)) {
+                return back()->withErrors([
+                    'custom_schedules' => 'Tambahkan minimal 1 termin pembayaran custom untuk skema Cash Bertahap.',
+                ])->withInput();
+            }
+
+            $taxLegalTotalCheck = (float)($validated['ppn_amount'] ?? 0)
+                + (float)($validated['bphtb_amount'] ?? 0)
+                + (float)($validated['ajb_bbn_amount'] ?? 0)
+                + (float)($validated['other_legal_fees'] ?? 0);
+            $basePriceCheck = (float)$validated['base_price'];
+            $finalPriceCheck = (float)$validated['final_price'];
+            $unitTargetCheck = ($taxLegalTotalCheck > 0 && $finalPriceCheck > $basePriceCheck && $basePriceCheck > 0)
+                ? $basePriceCheck
+                : ($finalPriceCheck > 0 ? $finalPriceCheck : $basePriceCheck);
+            $expectedRemaining = max(0, $unitTargetCheck - (float)$validated['booking_fee']);
+            $customSum = array_sum(array_map(fn ($r) => max(0, round((float)($r['amount'] ?? 0))), $customSchedules));
+
+            if (abs($customSum - $expectedRemaining) > 100) {
+                return back()->withErrors([
+                    'custom_schedules' => 'Total nominal termin custom (Rp ' . number_format($customSum, 0, ',', '.') . ') harus sama dengan sisa harga unit setelah UTJ (Rp ' . number_format($expectedRemaining, 0, ',', '.') . ').',
+                ])->withInput();
+            }
+
+            $validated['dp_amount'] = $customSum;
+            $validated['dp_installment_months'] = count($customSchedules);
+            $validated['installment_months'] = 0;
+        }
+
         try {
-            return DB::transaction(function () use ($validated, $request) {
+            return DB::transaction(function () use ($validated, $request, $isCustomTerms, $customSchedules) {
                 $unit = Unit::findOrFail($validated['unit_id']);
                 $agent = \App\Models\User::findOrFail($validated['booked_by']);
                 $agent->load('brokerCompany');
@@ -157,6 +201,8 @@ class BookingController extends Controller
                 $baseCommission = $validated['final_price'] * ($rate / 100);
                 $promoBonus = (float)($agent->custom_bonus ?? 0);
                 $commissionAmount = $baseCommission + $promoBonus;
+
+                $sigConfig = \App\Models\Setting::getSignatureConfig();
 
                 // 1. Create Booking safely with schema filtering
                 $bookingData = [
@@ -189,12 +235,12 @@ class BookingController extends Controller
                     'secondary_relationship' => $validated['secondary_relationship'] ?? null,
                     'secondary_address' => $validated['secondary_address'] ?? null,
                     'secondary_email' => $validated['secondary_email'] ?? null,
-                    'sig1_title' => $validated['sig1_title'] ?? null,
-                    'sig1_name' => $validated['sig1_name'] ?? null,
-                    'sig2_title' => $validated['sig2_title'] ?? null,
-                    'sig2_name' => $validated['sig2_name'] ?? null,
-                    'sig3_title' => $validated['sig3_title'] ?? null,
-                    'sig3_name' => $validated['sig3_name'] ?? null,
+                    'sig1_title' => $validated['sig1_title'] ?? ($sigConfig['sig1_title'] ?? null),
+                    'sig1_name' => $validated['sig1_name'] ?? ($sigConfig['sig1_name'] ?: null),
+                    'sig2_title' => $validated['sig2_title'] ?? ($sigConfig['sig2_title'] ?? null),
+                    'sig2_name' => $validated['sig2_name'] ?? ($sigConfig['sig2_name'] ?: null),
+                    'sig3_title' => $validated['sig3_title'] ?? ($sigConfig['sig3_title'] ?? 'SALES'),
+                    'sig3_name' => $validated['sig3_name'] ?? ($agent->name ?: null),
                     'sig4_title' => $validated['sig4_title'] ?? null,
                     'sig4_name' => $validated['sig4_name'] ?? null,
                     'special_bonus_items' => $validated['special_bonus_items'] ?? null,
@@ -283,7 +329,12 @@ class BookingController extends Controller
                     Log::warning("AuditLog recording failed: " . $ae->getMessage());
                 }
 
-                if ($request->boolean('auto_approve')) {
+                $autoApprove = $request->boolean('auto_approve');
+
+                // Always persist payment schedules on creation so Show, SPR, and SPK match the simulated terms 100%
+                $this->generateSchedules($booking, $autoApprove, $isCustomTerms ? $customSchedules : null);
+
+                if ($autoApprove) {
                     $booking->update([
                         'status' => 'approved',
                         'approved_by' => auth()->id(),
@@ -291,7 +342,6 @@ class BookingController extends Controller
                     ]);
                     $unit->update(['status' => 'booked']);
                     $booking->lead?->recalculateScore();
-                    $this->generateSchedules($booking);
                     AuditLog::record('booking_approved', $booking);
                 }
 
@@ -392,6 +442,7 @@ class BookingController extends Controller
             'booking' => $booking,
             'bank_accounts_all' => $bankAccountsAll,
             'units' => $units,
+            'signatureConfig' => \App\Models\Setting::getSignatureConfig(),
         ]);
     }
 
@@ -872,10 +923,10 @@ class BookingController extends Controller
         });
     }
 
-    private function generateSchedules(Booking $booking)
+    private function generateSchedules(Booking $booking, bool $markUtjPaid = true, ?array $customSchedules = null, bool $forceReplaceUnpaid = false)
     {
-        $basePrice = $booking->base_price ?: $booking->final_price;
-        $taxLegalTotal = ($booking->ppn_amount ?? 0) + ($booking->bphtb_amount ?? 0) + ($booking->ajb_bbn_amount ?? 0) + ($booking->other_legal_fees ?? 0);
+        $basePrice = (float)($booking->base_price ?: $booking->final_price);
+        $taxLegalTotal = (float)($booking->ppn_amount ?? 0) + (float)($booking->bphtb_amount ?? 0) + (float)($booking->ajb_bbn_amount ?? 0) + (float)($booking->other_legal_fees ?? 0);
         $bookingDate = \Carbon\Carbon::parse($booking->booking_date ?? now());
 
         // 1. Booking Fee (UTJ) - Installment 0
@@ -886,51 +937,89 @@ class BookingController extends Controller
                 'label' => 'Booking Fee (UTJ)',
                 'amount' => $booking->booking_fee,
                 'due_date' => $bookingDate->format('Y-m-d'),
-                'status' => 'paid',
+                'status' => $markUtjPaid ? 'paid' : 'upcoming',
+                'paid_date' => $markUtjPaid ? $bookingDate->format('Y-m-d') : null,
             ]);
+        } elseif ($markUtjPaid && $utjSchedule->status !== 'paid') {
+            $utjSchedule->update([
+                'status' => 'paid',
+                'paid_date' => $bookingDate->format('Y-m-d'),
+            ]);
+        }
 
-            if (!$booking->transactions()->where('payment_schedule_id', $utjSchedule->id)->exists()) {
-                $utjTx = new \App\Models\Transaction([
-                    'booking_id' => $booking->id,
-                    'payment_schedule_id' => $utjSchedule->id,
-                    'amount' => $booking->booking_fee,
-                    'payment_method' => 'transfer',
-                    'notes' => 'Otomatis dari Booking Fee (UTJ)',
-                    'recorded_by' => auth()->id() ?? $booking->booked_by,
-                ]);
-                $utjTx->created_at = $bookingDate->copy()->setTimeFrom(now());
-                $utjTx->save();
+        if ($markUtjPaid && $utjSchedule && !$booking->transactions()->where('payment_schedule_id', $utjSchedule->id)->exists()) {
+            $utjTx = new \App\Models\Transaction([
+                'booking_id' => $booking->id,
+                'payment_schedule_id' => $utjSchedule->id,
+                'amount' => $utjSchedule->amount,
+                'payment_method' => 'transfer',
+                'notes' => 'Otomatis dari Booking Fee (UTJ)',
+                'recorded_by' => auth()->id() ?? $booking->booked_by,
+            ]);
+            $utjTx->created_at = $bookingDate->copy()->setTimeFrom(now());
+            $utjTx->save();
 
+            if (empty($utjSchedule->paid_date)) {
                 $utjSchedule->update(['paid_date' => $bookingDate->format('Y-m-d')]);
             }
         }
 
         // 2. Taxes & Legal (separate item, due within 30 days)
-        if ($taxLegalTotal > 0 && !$booking->paymentSchedules()->where('installment_number', 99)->exists()) {
-            $booking->paymentSchedules()->create([
-                'installment_number' => 99,
-                'label' => 'Pajak & Biaya Legal (PPN, BPHTB, AJB)',
-                'amount' => $taxLegalTotal,
-                'due_date' => $bookingDate->copy()->addDays(30)->format('Y-m-d'),
-                'status' => 'upcoming',
-            ]);
+        $taxSchedule = $booking->paymentSchedules()->where('installment_number', 99)->first();
+        if ($taxLegalTotal > 0) {
+            if ($taxSchedule) {
+                if ($taxSchedule->status !== 'paid') {
+                    $taxSchedule->update(['amount' => $taxLegalTotal]);
+                }
+            } else {
+                $booking->paymentSchedules()->create([
+                    'installment_number' => 99,
+                    'label' => 'Pajak & Biaya Legal (PPN, BPHTB, AJB)',
+                    'amount' => $taxLegalTotal,
+                    'due_date' => $bookingDate->copy()->addDays(30)->format('Y-m-d'),
+                    'status' => 'upcoming',
+                ]);
+            }
+        } elseif ($taxSchedule && $taxSchedule->status !== 'paid') {
+            $taxSchedule->delete();
+        }
+
+        if ($forceReplaceUnpaid) {
+            $booking->paymentSchedules()
+                ->where('status', '!=', 'paid')
+                ->where('installment_number', '!=', 0)
+                ->delete();
+        }
+
+        $hasUnitSchedules = $booking->paymentSchedules()
+            ->whereNotIn('installment_number', [0, 99])
+            ->exists();
+
+        // Preserve existing schedules (e.g. custom terms saved during store() before approve())
+        if ($hasUnitSchedules && !$forceReplaceUnpaid) {
+            return;
         }
 
         // 3. Unit price installments (DP starts 1 month AFTER booking_date)
-        $targetPrice = $booking->final_price > 0 ? $booking->final_price : ($booking->base_price ?: 0);
-        $remaining = ($taxLegalTotal > 0 && $targetPrice > $basePrice)
-            ? ($basePrice - $booking->booking_fee)
-            : ($targetPrice - $booking->booking_fee);
+        $targetPrice = $booking->final_price > 0 ? (float)$booking->final_price : ($booking->base_price ?: 0);
+        $unitTarget = ($taxLegalTotal > 0 && $targetPrice > $basePrice && $basePrice > 0) ? $basePrice : $targetPrice;
+        $paidUnitAmount = $forceReplaceUnpaid
+            ? (float)$booking->paymentSchedules()->where('status', 'paid')->whereNotIn('installment_number', [0, 99])->sum('amount')
+            : 0.0;
+        $maxExistingNum = $forceReplaceUnpaid
+            ? (int)($booking->paymentSchedules()->whereNotIn('installment_number', [99])->max('installment_number') ?? 0)
+            : 0;
+        $remaining = max(0, $unitTarget - (float)$booking->booking_fee - $paidUnitAmount);
 
         if ($booking->payment_scheme === 'kpr') {
-            $dpTotal = $booking->dp_amount > 0 ? $booking->dp_amount : ($basePrice * 0.10);
+            $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : ($basePrice * 0.10);
             $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 3;
             $dpPerMonth = round($dpTotal / $dpTenor);
 
             for ($i = 1; $i <= $dpTenor; $i++) {
                 $amount = ($i === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
                 $booking->paymentSchedules()->create([
-                    'installment_number' => $i,
+                    'installment_number' => $maxExistingNum + $i,
                     'label' => $dpTenor > 1 ? "DP $i" : "DP 1",
                     'amount' => $amount,
                     'due_date' => $bookingDate->copy()->addMonths($i)->format('Y-m-d'),
@@ -938,24 +1027,38 @@ class BookingController extends Controller
                 ]);
             }
 
-            $bankAmount = $basePrice - $booking->booking_fee - $dpTotal;
+            $bankAmount = max(0, $remaining - $dpTotal);
             $booking->paymentSchedules()->create([
-                'installment_number' => $dpTenor + 1,
+                'installment_number' => $maxExistingNum + $dpTenor + 1,
                 'label' => 'Pencairan KPR (Bank)',
-                'amount' => max(0, $bankAmount),
+                'amount' => $bankAmount,
                 'due_date' => $bookingDate->copy()->addMonths($dpTenor + 1)->format('Y-m-d'),
                 'status' => 'upcoming',
             ]);
         } elseif ($booking->payment_scheme === 'cash') {
             $booking->paymentSchedules()->create([
-                'installment_number' => 1,
+                'installment_number' => $maxExistingNum + 1,
                 'label' => 'Pelunasan Cash Keras',
                 'amount' => max(0, $remaining),
                 'due_date' => $bookingDate->copy()->addDays(14)->format('Y-m-d'),
                 'status' => 'upcoming',
             ]);
+        } elseif (!empty($customSchedules)) {
+            foreach (array_values($customSchedules) as $idx => $item) {
+                $num = $maxExistingNum + $idx + 1;
+                $dueDate = !empty($item['due_date'])
+                    ? \Carbon\Carbon::parse($item['due_date'])->format('Y-m-d')
+                    : $bookingDate->copy()->addMonths($idx + 1)->format('Y-m-d');
+                $booking->paymentSchedules()->create([
+                    'installment_number' => $num,
+                    'label' => trim((string)($item['label'] ?? "DP " . ($idx + 1))),
+                    'amount' => max(0, round((float)($item['amount'] ?? 0))),
+                    'due_date' => $dueDate,
+                    'status' => 'upcoming',
+                ]);
+            }
         } else {
-            // Cash Installment / In-House
+            // Cash Installment / In-House (Standard Mode)
             $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : 0;
             $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : ($dpTotal > 0 ? 1 : 0);
             $offsetMonths = 0;
@@ -966,7 +1069,7 @@ class BookingController extends Controller
                     $amountDp = ($d === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
                     $dpLabel = $dpTenor > 1 ? "DP $d" : "DP 1";
                     $booking->paymentSchedules()->create([
-                        'installment_number' => $d,
+                        'installment_number' => $maxExistingNum + $d,
                         'label' => $dpLabel,
                         'amount' => $amountDp,
                         'due_date' => $bookingDate->copy()->addMonths($d)->format('Y-m-d'),
@@ -977,22 +1080,30 @@ class BookingController extends Controller
                 $remaining = max(0, $remaining - $dpTotal);
             }
 
-            // Tenor cicilan: only if remaining > 0 or if dpTotal was 0
+            // Tenor cicilan: jika remaining > 0 dan tenor = 0, buat 1x Pelunasan Sisa Cash Bertahap
             $tenor = $booking->installment_months !== null ? (int)$booking->installment_months : ($dpTotal > 0 ? 0 : 12);
             if ($tenor > 0 && $remaining > 0) {
                 $perMonth = round($remaining / $tenor);
 
                 for ($i = 1; $i <= $tenor; $i++) {
-                    $num = $offsetMonths + $i;
+                    $num = $maxExistingNum + $offsetMonths + $i;
                     $amount = ($i === $tenor) ? ($remaining - ($perMonth * ($tenor - 1))) : $perMonth;
                     $booking->paymentSchedules()->create([
                         'installment_number' => $num,
                         'label' => "Cicilan Ke-$i (dari $tenor Bulan)",
                         'amount' => $amount,
-                        'due_date' => $bookingDate->copy()->addMonths($num)->format('Y-m-d'),
+                        'due_date' => $bookingDate->copy()->addMonths($offsetMonths + $i)->format('Y-m-d'),
                         'status' => 'upcoming',
                     ]);
                 }
+            } elseif ($tenor === 0 && $remaining > 0) {
+                $booking->paymentSchedules()->create([
+                    'installment_number' => $maxExistingNum + $offsetMonths + 1,
+                    'label' => 'Pelunasan Sisa Cash Bertahap',
+                    'amount' => $remaining,
+                    'due_date' => $bookingDate->copy()->addMonths($offsetMonths + 1)->format('Y-m-d'),
+                    'status' => 'upcoming',
+                ]);
             }
         }
     }
@@ -1001,12 +1112,52 @@ class BookingController extends Controller
     {
         $validated = $request->validate([
             'payment_scheme' => 'required|in:cash,cash_installment,kpr',
+            'schedule_mode' => 'nullable|in:standard,custom_terms',
+            'custom_schedules' => 'nullable|array|max:60',
+            'custom_schedules.*.label' => 'required|string|max:255',
+            'custom_schedules.*.amount' => 'required|numeric|min:0',
+            'custom_schedules.*.due_date' => 'nullable|date',
             'installment_months' => 'nullable|integer|min:0|max:360',
             'dp_amount' => 'nullable|numeric|min:0',
             'dp_installment_months' => 'nullable|integer|min:0|max:60',
         ]);
 
-        DB::transaction(function () use ($booking, $validated) {
+        $isCustomTerms = ($validated['payment_scheme'] === 'cash_installment')
+            && (($validated['schedule_mode'] ?? 'standard') === 'custom_terms');
+
+        $customSchedules = [];
+        if ($isCustomTerms) {
+            $customSchedules = array_values(array_filter(
+                $validated['custom_schedules'] ?? [],
+                fn ($row) => isset($row['label']) && trim((string)$row['label']) !== ''
+            ));
+
+            if (empty($customSchedules)) {
+                return back()->withErrors([
+                    'custom_schedules' => 'Tambahkan minimal 1 termin pembayaran custom.',
+                ]);
+            }
+
+            $basePrice = (float)($booking->base_price ?: $booking->final_price);
+            $taxLegalTotal = (float)($booking->ppn_amount ?? 0) + (float)($booking->bphtb_amount ?? 0) + (float)($booking->ajb_bbn_amount ?? 0) + (float)($booking->other_legal_fees ?? 0);
+            $targetPrice = $booking->final_price > 0 ? (float)$booking->final_price : $basePrice;
+            $unitTarget = ($taxLegalTotal > 0 && $targetPrice > $basePrice && $basePrice > 0) ? $basePrice : $targetPrice;
+            $paidUnitAmount = (float)$booking->paymentSchedules()->where('status', 'paid')->whereNotIn('installment_number', [0, 99])->sum('amount');
+            $expectedRemaining = max(0, $unitTarget - (float)$booking->booking_fee - $paidUnitAmount);
+            $customSum = array_sum(array_map(fn ($r) => max(0, round((float)($r['amount'] ?? 0))), $customSchedules));
+
+            if (abs($customSum - $expectedRemaining) > 100) {
+                return back()->withErrors([
+                    'custom_schedules' => 'Total nominal termin custom (Rp ' . number_format($customSum, 0, ',', '.') . ') harus sama dengan sisa harga yang belum dibayar (Rp ' . number_format($expectedRemaining, 0, ',', '.') . ').',
+                ]);
+            }
+
+            $validated['dp_amount'] = $customSum + $paidUnitAmount;
+            $validated['dp_installment_months'] = count($customSchedules);
+            $validated['installment_months'] = 0;
+        }
+
+        DB::transaction(function () use ($booking, $validated, $isCustomTerms, $customSchedules) {
             $booking->update([
                 'payment_scheme' => $validated['payment_scheme'],
                 'installment_months' => isset($validated['installment_months']) ? (int)$validated['installment_months'] : 0,
@@ -1014,10 +1165,13 @@ class BookingController extends Controller
                 'dp_installment_months' => $validated['dp_installment_months'] ?? 0,
             ]);
 
-            // Keep paid items (like UTJ / paid installments)
-            $booking->paymentSchedules()->where('status', '!=', 'paid')->where('installment_number', '!=', 0)->delete();
-
-            $this->generateSchedules($booking);
+            $markUtjPaid = $booking->status === 'approved';
+            $this->generateSchedules(
+                $booking,
+                $markUtjPaid,
+                $isCustomTerms ? $customSchedules : null,
+                true
+            );
             AuditLog::record('booking_schedule_regenerated', $booking, null, $validated);
         });
 

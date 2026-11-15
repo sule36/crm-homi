@@ -2,11 +2,20 @@
 import { ref, watch, computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { splitCoordinatorsByRole, resolveInitialSignerKey, applySignerSelection } from '@/utils/developerSigners';
 
 const props = defineProps({
     units: Array,
     leads: Array,
     coordinators: Array,
+    developerSignatories: {
+        type: Array,
+        default: () => [],
+    },
+    defaultDeveloperSigner: {
+        type: Object,
+        default: null,
+    },
     preselectedUnitId: [String, Number],
     preselectedLeadId: [String, Number],
     preselectedNego: Object,
@@ -16,6 +25,8 @@ const props = defineProps({
         default: 17000000,
     },
 });
+
+const groupedCoordinators = computed(() => splitCoordinatorsByRole(props.coordinators));
 
 const form = useForm({
     unit_id: props.preselectedUnitId || props.preselectedNego?.unit_id || '',
@@ -29,15 +40,17 @@ const form = useForm({
     payment_method: 'transfer',
     payment_proof: null,
     company_name: props.defaultCompanyName || '',
-    agent_coordinator_id: (typeof props.preselectedNego?.lead?.assigned_to === 'object' ? props.preselectedNego?.lead?.assigned_to?.id : props.preselectedNego?.lead?.assigned_to)
-        || props.preselectedNego?.lead?.inhouse_pic?.id
-        || props.preselectedNego?.lead?.inhouse_pic_id
-        || '',
-    agent_coordinator_name: '',
-    agent_coordinator_title: 'Master Lead / Agent Coordinator',
+    signer_slot: props.defaultDeveloperSigner?.name ? (props.defaultDeveloperSigner?.slot || 'sig1') : 'user',
+    sales_pic_name: props.preselectedNego?.lead?.assigned_to?.name || props.preselectedNego?.lead?.inhouse_pic?.name || '',
+    agent_coordinator_id: '',
+    agent_coordinator_name: props.defaultDeveloperSigner?.name || '',
+    agent_coordinator_title: props.defaultDeveloperSigner?.title || 'Sales Manager',
     expires_days: 7,
     notes: props.preselectedNego ? `Dibuat dari Pengajuan Negosiasi #${props.preselectedNego.negotiation_number || props.preselectedNego.token}` : '',
 });
+
+const selectedSignerKey = ref(resolveInitialSignerKey({ defaultDeveloperSigner: props.defaultDeveloperSigner }));
+const activePresetImage = ref(props.defaultDeveloperSigner?.image || null);
 
 const selectedUnit = computed(() => {
     return props.units.find(u => u.id == form.unit_id);
@@ -57,15 +70,13 @@ watch(() => form.unit_id, () => {
     }
 }, { immediate: true });
 
-watch(() => form.agent_coordinator_id, (coordId) => {
-    if (!coordId) return;
-    const coord = props.coordinators.find(c => c.id == coordId);
-    if (coord) {
-        form.agent_coordinator_name = coord.name || '';
-        form.agent_coordinator_title = coord.agent_type === 'master_lead'
-            ? 'Master Lead / Agent Coordinator'
-            : 'Sales Coordinator / Agent Representative';
-    }
+watch(selectedSignerKey, (key) => {
+    const res = applySignerSelection(key, {
+        form,
+        developerSignatories: props.developerSignatories,
+        coordinators: props.coordinators,
+    });
+    activePresetImage.value = res.image;
 }, { immediate: true });
 
 watch(() => form.lead_id, (leadId) => {
@@ -76,11 +87,15 @@ watch(() => form.lead_id, (leadId) => {
         if (!form.client_phone) form.client_phone = lead.phone || '';
         if (!form.client_email) form.client_email = lead.email || '';
         if (!form.client_nik) form.client_nik = lead.identity_number || '';
+        const leadPicName = lead.assigned_to?.name || lead.inhouse_pic?.name || '';
+        if (leadPicName) {
+            form.sales_pic_name = leadPicName;
+        }
         const leadAgentId = (typeof lead.assigned_to === 'object' ? lead.assigned_to?.id : lead.assigned_to)
             || lead.inhouse_pic?.id
             || lead.inhouse_pic_id;
-        if (leadAgentId && !form.agent_coordinator_id) {
-            form.agent_coordinator_id = leadAgentId;
+        if (leadAgentId && !selectedSignerKey.value) {
+            selectedSignerKey.value = `user:${leadAgentId}`;
         }
     }
 }, { immediate: true });
@@ -239,14 +254,27 @@ const formatCurrency = (val) => {
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Agent Koordinator (Penandatangan Kwitansi)</label>
-                            <select v-model="form.agent_coordinator_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500">
-                                <option value="">-- Gunakan User Login Saat Ini --</option>
-                                <option v-for="c in coordinators" :key="c.id" :value="c.id">
-                                    {{ c.name }} ({{ c.agent_type === 'master_lead' ? 'Master Lead / Agent Coord' : 'Sales Representative' }})
-                                </option>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Penandatangan Resmi Pihak Developer (Kwitansi)</label>
+                            <select v-model="selectedSignerKey" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500">
+                                <optgroup v-if="developerSignatories.length" label="🏛️ Pejabat Resmi Developer (Master Settings)">
+                                    <option v-for="s in developerSignatories" :key="s.key" :value="`preset:${s.key}`">
+                                        {{ s.name ? `${s.name} — ${s.title}` : `${s.label} (${s.title})` }}{{ s.image ? ' ✓ TTD Digital' : '' }}
+                                    </option>
+                                </optgroup>
+                                <optgroup v-if="groupedCoordinators.devStaff.length" label="👔 Tim Internal Developer (User)">
+                                    <option v-for="c in groupedCoordinators.devStaff" :key="c.id" :value="`user:${c.id}`">
+                                        {{ c.name }} ({{ c.signer_title }})
+                                    </option>
+                                </optgroup>
+                                <optgroup v-if="groupedCoordinators.salesAgents.length" label="🤝 Sales / Agent Koordinator">
+                                    <option v-for="c in groupedCoordinators.salesAgents" :key="c.id" :value="`user:${c.id}`">
+                                        {{ c.name }} ({{ c.signer_title }})
+                                    </option>
+                                </optgroup>
+                                <option value="custom">✏️ Isi Manual Nama & Jabatan Penandatangan</option>
                             </select>
-                            <p class="text-[10px] text-slate-400 mt-1">Nama ini akan tercetak sebagai penandatangan pada PDF Kwitansi Reservasi.</p>
+                            <p v-if="activePresetImage" class="text-[10px] text-emerald-700 font-bold mt-1">✓ TTD Digital dari Settings akan otomatis tercetak pada PDF Kwitansi.</p>
+                            <p v-else class="text-[10px] text-slate-400 mt-1">Default mengikuti pengaturan Penandatangan Developer di Settings.</p>
                         </div>
                     </div>
                 </div>
@@ -254,20 +282,25 @@ const formatCurrency = (val) => {
                 <!-- SEKSI 4: OTENTIKASI KWITANSI & PT DEVELOPER (DINAMIS) -->
                 <div>
                     <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">4. Otentikasi Kwitansi & PT Developer (Dinamis)</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Nama PT / Perusahaan Developer</label>
                             <input v-model="form.company_name" type="text" placeholder="Contoh: PT Serangkai Roden Development" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
                             <p class="text-[10px] text-slate-400 mt-1">Dapat diubah bebas per kwitansi.</p>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Nama Penandatangan (Koordinator)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Nama Pejabat Penandatangan</label>
                             <input v-model="form.agent_coordinator_name" type="text" placeholder="Nama Penandatangan..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
-                            <p class="text-[10px] text-slate-400 mt-1">Dapat disesuaikan bebas.</p>
+                            <p class="text-[10px] text-slate-400 mt-1">Terisi otomatis sesuai pejabat yang dipilih.</p>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Jabatan Penandatangan</label>
-                            <input v-model="form.agent_coordinator_title" type="text" placeholder="Master Lead / Agent Coordinator" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                            <input v-model="form.agent_coordinator_title" type="text" placeholder="Sales Manager / Finance / Direktur" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">Sales / Agent PIC (Opsional)</label>
+                            <input v-model="form.sales_pic_name" type="text" placeholder="Nama Sales yang Closing..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                            <p class="text-[10px] text-slate-400 mt-1">Catatan referensi sales pendamping pembeli.</p>
                         </div>
                     </div>
                 </div>

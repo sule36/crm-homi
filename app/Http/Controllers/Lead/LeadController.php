@@ -270,7 +270,7 @@ class LeadController extends Controller
             'units' => $units,
             'projects' => \App\Models\Project::select('id', 'name', 'code')->get(),
             'bankAccounts' => \App\Models\BankAccount::where('is_active', true)->select('id', 'name', 'account_number', 'bank_name', 'current_balance')->get(),
-            'agents' => User::with(['brokerCompany:id,name,code', 'masterLead:id,name'])
+            'agents' => User::with(['brokerCompany:id,name,code', 'masterLead:id,name', 'roles:id,name'])
                 ->select('id', 'name', 'email', 'phone', 'agent_type', 'broker_company_id', 'master_lead_id', 'project_id')
                 ->where('status', 'active')
                 ->orderBy('name')
@@ -286,6 +286,8 @@ class LeadController extends Controller
                 'agent_type' => $dutyAgent->agent_type,
             ] : null,
             'standardBookingFee' => \App\Models\Setting::getStandardBookingFee(),
+            'developerSignatories' => \App\Models\Setting::getDeveloperSignatories(),
+            'defaultDeveloperSigner' => \App\Models\Setting::resolveDeveloperSignatory(),
         ]);
     }
 

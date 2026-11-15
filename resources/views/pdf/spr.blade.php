@@ -630,9 +630,15 @@
                         'date' => $utjDateVal,
                     ];
 
+                    $taxLegalTotal = (float)($booking->ppn_amount ?? 0) + (float)($booking->bphtb_amount ?? 0) + (float)($booking->ajb_bbn_amount ?? 0) + (float)($booking->other_legal_fees ?? 0);
+                    $basePriceVal = (float)($booking->base_price ?: $totalKesepakatan);
+                    $unitTargetTotal = ($taxLegalTotal > 0 && $totalKesepakatan > $basePriceVal && $basePriceVal > 0)
+                        ? $basePriceVal
+                        : $totalKesepakatan;
+
                     if ($booking->payment_scheme === 'kpr') {
-                        $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : ($totalKesepakatan * 0.10);
-                        $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 1;
+                        $dpTotal = $booking->dp_amount > 0 ? (float)$booking->dp_amount : ($basePriceVal * 0.10);
+                        $dpTenor = $booking->dp_installment_months > 0 ? (int)$booking->dp_installment_months : 3;
                         $dpPerMonth = round($dpTotal / $dpTenor);
 
                         $dpSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'dp') || str_contains(strtolower($s->label), 'uang muka'));
@@ -649,7 +655,7 @@
                             'date' => $dpTenor === 1 ? $dpDateVal : "{$dpDateVal} (DP1)",
                         ];
 
-                        $kprPlafon = max(0, $totalKesepakatan - $bookingFee - $dpTotal);
+                        $kprPlafon = max(0, $unitTargetTotal - $bookingFee - $dpTotal);
                         $kprSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'akad') || str_contains(strtolower($s->label), 'kpr'));
                         $kprDateVal = !empty($schedDates['installment_date'])
                             ? $fmtDate($schedDates['installment_date'])
@@ -662,7 +668,7 @@
                             'date' => $kprDateVal,
                         ];
                     } elseif ($booking->payment_scheme === 'cash') {
-                        $cashSisa = max(0, $totalKesepakatan - $bookingFee);
+                        $cashSisa = max(0, $unitTargetTotal - $bookingFee);
                         $cashSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'pelunasan') || str_contains(strtolower($s->label), 'cash'));
                         $defaultCashDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +14 days')) : now()->addDays(14)->format('Y-m-d');
                         
@@ -699,23 +705,47 @@
                             ];
                         }
 
-                        $cashTenorMonths = $booking->installment_months > 0 ? (int)$booking->installment_months : 60;
-                        $cashPlafon = max(0, $totalKesepakatan - $bookingFee - $dpTotal);
-                        $cashPerMonth = $cashTenorMonths > 0 ? round($cashPlafon / $cashTenorMonths) : $cashPlafon;
+                        $cashTenorMonths = $booking->installment_months !== null
+                            ? (int)$booking->installment_months
+                            : ($dpTotal > 0 ? 0 : 12);
+                        $cashPlafon = max(0, $unitTargetTotal - $bookingFee - $dpTotal);
 
-                        $firstCashMonth = $dpTenor > 0 ? ($dpTenor + 1) : 1;
-                        $instSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'cicilan') || str_contains(strtolower($s->label), 'angsuran'));
-                        $defaultFirstCashDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . " +{$firstCashMonth} month")) : now()->addMonths($firstCashMonth)->format('Y-m-d');
-                        
-                        $instDateVal = !empty($schedDates['installment_date'])
-                            ? $fmtDate($schedDates['installment_date'])
-                            : ($instSched ? $fmtDate($instSched->due_date) : $fmtDate($defaultFirstCashDate));
+                        if ($cashPlafon > 0) {
+                            $firstCashMonth = $dpTenor > 0 ? ($dpTenor + 1) : 1;
+                            $instSched = $schedules->first(fn($s) => str_contains(strtolower($s->label), 'cicilan') || str_contains(strtolower($s->label), 'angsuran') || str_contains(strtolower($s->label), 'pelunasan'));
+                            $defaultFirstCashDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . " +{$firstCashMonth} month")) : now()->addMonths($firstCashMonth)->format('Y-m-d');
 
+                            $instDateVal = !empty($schedDates['installment_date'])
+                                ? $fmtDate($schedDates['installment_date'])
+                                : ($instSched ? $fmtDate($instSched->due_date) : $fmtDate($defaultFirstCashDate));
+
+                            if ($cashTenorMonths > 0) {
+                                $cashPerMonth = round($cashPlafon / $cashTenorMonths);
+                                $summaryRows[] = [
+                                    'type' => 'installment',
+                                    'label' => "Cicilan Cash Bertahap ({$cashTenorMonths} Bulan @ Rp " . number_format($cashPerMonth, 0, ',', '.') . ")",
+                                    'amount' => $cashPlafon,
+                                    'date' => "Bulanan ({$instDateVal})",
+                                ];
+                            } else {
+                                $summaryRows[] = [
+                                    'type' => 'installment',
+                                    'label' => 'Pelunasan Sisa Cash Bertahap',
+                                    'amount' => $cashPlafon,
+                                    'date' => $instDateVal,
+                                ];
+                            }
+                        }
+                    }
+
+                    if ($taxLegalTotal > 0) {
+                        $defaultTaxDate = $booking->booking_date ? date('Y-m-d', strtotime($booking->booking_date . ' +30 days')) : now()->addDays(30)->format('Y-m-d');
+                        $taxSched = $schedules->first(fn($s) => (int)$s->installment_number === 99);
                         $summaryRows[] = [
                             'type' => 'installment',
-                            'label' => "Cicilan Cash Bertahap ({$cashTenorMonths} Bulan @ Rp " . number_format($cashPerMonth, 0, ',', '.') . ")",
-                            'amount' => $cashPlafon,
-                            'date' => "Bulanan ({$instDateVal})",
+                            'label' => 'Pajak & Biaya Legal (PPN, BPHTB, AJB)',
+                            'amount' => $taxLegalTotal,
+                            'date' => $taxSched ? $fmtDate($taxSched->due_date) : $fmtDate($defaultTaxDate),
                         ];
                     }
                 }
@@ -775,8 +805,9 @@
             'image' => $sig2ImageData,
         ];
         // Slot 3: SALES / MARKETING
+        $defaultSig3Title = (!empty($sigs['sig3_title']) && $sigs['sig3_title'] !== 'Pemesan Utama') ? $sigs['sig3_title'] : 'SALES';
         $sigSlots[] = [
-            'title' => !empty($booking->sig3_title) ? $booking->sig3_title : (!empty($sigs['sig3_title']) ? $sigs['sig3_title'] : 'SALES'),
+            'title' => !empty($booking->sig3_title) ? $booking->sig3_title : $defaultSig3Title,
             'name' => !empty($booking->sig3_name) ? $booking->sig3_name : (!empty($sigs['sig3_name']) ? $sigs['sig3_name'] : ($booking->bookedBy->name ?? 'Mawardi KanaProject')),
             'image' => $sig3ImageData,
         ];
