@@ -176,7 +176,8 @@ function openPdf() {
 
 function shareWhatsApp() {
     const link = `${window.location.origin}/nego/${nego.value.token}`;
-    const msg = `Halo Bapak/Ibu *${nego.value.client_name}*,\n\nSilakan isi Form Pengajuan Negosiasi untuk unit *${nego.value.unit?.code}* melalui link berikut:\n\n🔗 ${link}\n\nTerima kasih!`;
+    const unitName = nego.value.unit?.label || nego.value.unit?.code || '-';
+    const msg = `Halo Bapak/Ibu *${nego.value.client_name}*,\n\nSilakan isi Form Pengajuan Negosiasi untuk unit *${unitName}* melalui link berikut:\n\n🔗 ${link}\n\nTerima kasih!`;
     const phone = (nego.value.client_phone || '').replace(/[^0-9]/g, '');
     const waPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
     window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -297,15 +298,15 @@ function shareWhatsApp() {
                     </div>
 
                     <!-- Custom Layout Options & Notes -->
-                    <div v-if="nego.custom_layout_options && nego.custom_layout_options.length > 0" class="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
+                    <div v-if="(nego.custom_layout_options && nego.custom_layout_options.length > 0) || nego.custom_layout_notes" class="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
                         <p class="text-[10px] font-black text-indigo-700 uppercase">🏗️ Modifikasi Custom Layout & Denah</p>
-                        <div class="flex flex-wrap gap-1.5">
+                        <div v-if="nego.custom_layout_options && nego.custom_layout_options.length > 0" class="flex flex-wrap gap-1.5">
                             <span v-for="(opt, idx) in nego.custom_layout_options" :key="idx" class="px-2.5 py-1 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-slate-800">
                                 {{ opt }}
                             </span>
                         </div>
-                        <p v-if="nego.custom_layout_notes" class="text-xs text-slate-700 italic pt-1 border-t border-indigo-100">
-                            "{{ nego.custom_layout_notes }}"
+                        <p v-if="nego.custom_layout_notes" class="text-xs text-slate-700 whitespace-pre-line" :class="nego.custom_layout_options && nego.custom_layout_options.length > 0 ? 'pt-1 border-t border-indigo-100 italic' : 'font-medium'">
+                            {{ nego.custom_layout_notes }}
                         </p>
                     </div>
 
@@ -503,10 +504,10 @@ function shareWhatsApp() {
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                     <h3 class="text-xs font-black uppercase tracking-widest text-slate-900 mb-4">🏠 Unit Diminati</h3>
                     <div class="space-y-3 text-xs">
-                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Kode Unit</span><span class="font-black text-blue-600 text-sm">{{ nego.unit?.code || '-' }}</span></div>
-                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Proyek</span><span class="font-bold text-slate-800">{{ nego.project?.name || '-' }}</span></div>
-                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Tipe</span><span class="font-bold text-slate-800">{{ nego.unit?.unit_type?.name || '-' }}</span></div>
-                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Harga Listing</span><span class="font-black text-slate-900 text-sm font-mono">{{ formatCurrency(nego.unit_listed_price) }}</span></div>
+                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Kavling / Unit (Master Stock)</span><span class="font-black text-blue-600 text-sm">{{ nego.unit?.label || nego.unit?.code || '-' }}</span></div>
+                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Proyek</span><span class="font-bold text-slate-800">{{ nego.project?.name || nego.unit?.project?.name || '-' }}</span></div>
+                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Tipe & Dimensi</span><span class="font-bold text-slate-800">{{ nego.unit?.unit_type?.name || '-' }} <span v-if="nego.unit?.unit_type?.land_area || nego.unit?.unit_type?.building_area" class="text-slate-500 font-normal">(LT {{ nego.unit?.unit_type?.land_area || '-' }} / LB {{ nego.unit?.unit_type?.building_area || '-' }} m²)</span></span></div>
+                        <div><span class="font-black text-slate-400 block text-[10px] uppercase">Harga Listing</span><span class="font-black text-slate-900 text-sm font-mono">{{ formatCurrency(nego.unit_listed_price || nego.unit?.display_price) }}</span></div>
                     </div>
                 </div>
 

@@ -328,7 +328,7 @@ class Negotiation extends Model
         $luasTanah = $this->unit?->unitType?->land_area ?? ($this->unit?->land_area ?? '-');
         $luasBangunan = $this->unit?->unitType?->building_area ?? ($this->unit?->building_area ?? '-');
 
-        $listedAmount = (int)($this->unit_listed_price ?: $this->unit?->final_price ?: $this->unit?->unitType?->current_price ?: 0);
+        $listedAmount = (int)($this->unit_listed_price ?: $this->unit?->display_price ?: $this->unit?->final_price ?: $this->unit?->unitType?->current_price ?: 0);
         $priceListVal = $listedAmount > 0 ? self::formatNominal($listedAmount) : '-';
 
         $offeredAmount = (int)($this->offered_price ?? 0);

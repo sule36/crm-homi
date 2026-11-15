@@ -85,20 +85,94 @@ class Unit extends Model
         return $this->hasMany(Booking::class);
     }
 
-    public function scopeSelectableForLov($query, ?int $includeUnitId = null)
+    public function scopeSelectableForLov($query, int|array|null $includeUnitIds = null)
     {
-        return $query->where(function ($outer) use ($includeUnitId) {
+        $ids = is_array($includeUnitIds)
+            ? array_values(array_filter(array_map('intval', $includeUnitIds)))
+            : ($includeUnitIds ? [(int) $includeUnitIds] : []);
+
+        return $query->where(function ($outer) use ($ids) {
             $outer->where(function ($avail) {
-                $avail->whereRaw("LOWER(TRIM(COALESCE(status, ''))) NOT IN ('sold', 'booked')")
+                $avail->whereRaw("LOWER(TRIM(COALESCE(status, ''))) NOT IN ('sold', 'booked', 'reserved', 'hold', 'cancelled')")
                     ->whereDoesntHave('bookings', function ($bq) {
-                        $bq->whereNull('deleted_at')
-                            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('approved', 'completed', 'booked')");
+                        $bq->withoutGlobalScopes()
+                            ->whereNull('deleted_at')
+                            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('pending', 'approved', 'completed', 'booked', 'sold')");
+                    })
+                    ->whereDoesntHave('reservations', function ($rq) {
+                        $rq->withoutGlobalScopes()
+                            ->whereNull('deleted_at')
+                            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) = 'active'");
                     });
             });
-            if ($includeUnitId) {
-                $outer->orWhere('units.id', $includeUnitId);
+            if (!empty($ids)) {
+                $outer->orWhereIn('units.id', $ids);
             }
         });
+    }
+
+    /**
+     * Recompute and persist authoritative unit occupancy status from non-cancelled bookings & active reservations.
+     */
+    public function syncStatusFromRecords(?int $ignoreBookingId = null, ?int $ignoreReservationId = null): string
+    {
+        $bookings = Booking::withoutGlobalScopes()
+            ->where('unit_id', $this->id)
+            ->whereNull('deleted_at')
+            ->when($ignoreBookingId, fn ($q) => $q->where('id', '!=', $ignoreBookingId))
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) NOT IN ('cancelled', 'rejected', 'expired')")
+            ->get(['id', 'status', 'booked_by']);
+
+        $hasCompleted = $bookings->contains(fn ($b) => in_array(strtolower(trim((string) $b->status)), ['completed', 'sold'], true));
+        if ($hasCompleted) {
+            $this->update(['status' => 'sold', 'held_by' => null, 'held_until' => null]);
+            return 'sold';
+        }
+
+        $approvedBooking = $bookings->first(fn ($b) => in_array(strtolower(trim((string) $b->status)), ['approved', 'booked'], true));
+        if ($approvedBooking) {
+            $this->update(['status' => 'booked']);
+            return 'booked';
+        }
+
+        $pendingBooking = $bookings->first(fn ($b) => strtolower(trim((string) $b->status)) === 'pending');
+        if ($pendingBooking) {
+            $this->update([
+                'status' => 'hold',
+                'held_by' => $pendingBooking->booked_by ?? $this->held_by,
+                'held_until' => $this->held_until ?? now()->addDays(2),
+            ]);
+            return 'hold';
+        }
+
+        $activeReservation = Reservation::withoutGlobalScopes()
+            ->where('unit_id', $this->id)
+            ->whereNull('deleted_at')
+            ->when($ignoreReservationId, fn ($q) => $q->where('id', '!=', $ignoreReservationId))
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) = 'active'")
+            ->latest('id')
+            ->first();
+
+        if ($activeReservation) {
+            try {
+                $this->update([
+                    'status' => 'reserved',
+                    'held_by' => $activeReservation->created_by ?? $this->held_by,
+                    'held_until' => $activeReservation->expires_at ?? now()->addDays(7),
+                ]);
+                return 'reserved';
+            } catch (\Throwable $e) {
+                $this->update([
+                    'status' => 'hold',
+                    'held_by' => $activeReservation->created_by ?? $this->held_by,
+                    'held_until' => $activeReservation->expires_at ?? now()->addDays(7),
+                ]);
+                return 'hold';
+            }
+        }
+
+        $this->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+        return 'available';
     }
 
     public function reservations()

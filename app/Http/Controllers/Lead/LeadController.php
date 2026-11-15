@@ -249,8 +249,16 @@ class LeadController extends Controller
 
         $lead->load($relations);
 
+        $leadAllowedUnitIds = $lead->reservations()
+            ->where('status', 'active')
+            ->whereHas('unit', fn ($uq) => $uq->whereRaw("LOWER(TRIM(COALESCE(status, ''))) NOT IN ('sold', 'booked')"))
+            ->pluck('unit_id')
+            ->filter()
+            ->values()
+            ->all();
+
         $units = \App\Models\Unit::when($lead->project_id, fn ($q) => $q->where('project_id', $lead->project_id))
-            ->selectableForLov()
+            ->selectableForLov($leadAllowedUnitIds)
             ->select('id', 'block', 'number', 'floor', 'final_price', 'discount_amount', 'promo', 'premium_charge', 'net_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name,address,code,logo', 'unitType:id,name,land_area,building_area,current_price'])
             ->orderByUnitNumber()

@@ -1224,7 +1224,7 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
             'status' => 'approved',
         ]);
 
-        $expectedSelectableIds = [$unitAvailable->id, $unitHold->id, $unitReserved->id];
+        $expectedSelectableIds = [$unitAvailable->id];
         sort($expectedSelectableIds);
 
         // 1. Negotiations Index LOV
@@ -1756,5 +1756,353 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $sprResp->assertSee('Kredit Reservasi Rp 11.000.000');
         $sprResp->assertDontSee('15.000.000');
         $sprResp->assertDontSee('Umala Andara');
+    }
+
+    public function test_sold_booked_reserved_and_held_units_never_appear_available_or_regress(): void
+    {
+        $company = Company::create(['name' => 'PT Anti Sold Leak', 'slug' => 'pt-anti-sold-leak', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+        $this->actingAs($user);
+
+        [$project, $type, $soldUnit] = $this->createProjectUnit($company, 'ASL', 'A', '1', 'sold', 1500000000);
+        $bookedUnit = \App\Models\Unit::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_type_id' => $type->id,
+            'block' => 'A',
+            'number' => '2',
+            'floor' => 1,
+            'status' => 'available', // Simulate drifted/stale DB status despite having an approved booking!
+            'final_price' => 1500000000,
+        ]);
+        $reservedUnit = \App\Models\Unit::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_type_id' => $type->id,
+            'block' => 'A',
+            'number' => '3',
+            'floor' => 1,
+            'status' => 'reserved',
+            'final_price' => 1500000000,
+        ]);
+        $pendingHoldUnit = \App\Models\Unit::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_type_id' => $type->id,
+            'block' => 'A',
+            'number' => '4',
+            'floor' => 1,
+            'status' => 'hold',
+            'final_price' => 1500000000,
+        ]);
+        $trulyAvailableUnit = \App\Models\Unit::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_type_id' => $type->id,
+            'block' => 'A',
+            'number' => '5',
+            'floor' => 1,
+            'status' => 'available',
+            'final_price' => 1500000000,
+        ]);
+
+        $leadA = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'assigned_to' => $user->id,
+            'name' => 'Buyer A',
+            'phone' => '08120000111',
+            'source' => 'inhouse',
+            'status' => 'hot',
+        ]);
+        $leadB = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'assigned_to' => $user->id,
+            'name' => 'Buyer B',
+            'phone' => '08120000222',
+            'source' => 'inhouse',
+            'status' => 'hot',
+        ]);
+
+        // Approved booking on $bookedUnit (even though units.status was drifted to 'available')
+        $approvedBooking = Booking::create([
+            'company_id' => $company->id,
+            'spk_number' => '001/SPR-ASL/XI/2026',
+            'project_id' => $project->id,
+            'unit_id' => $bookedUnit->id,
+            'lead_id' => $leadA->id,
+            'booked_by' => $user->id,
+            'booking_date' => '2026-11-15',
+            'booking_fee' => 15000000,
+            'base_price' => 1500000000,
+            'final_price' => 1500000000,
+            'payment_scheme' => 'cash',
+            'status' => 'approved',
+        ]);
+
+        // Completed booking on $soldUnit
+        Booking::create([
+            'company_id' => $company->id,
+            'spk_number' => '002/SPR-ASL/XI/2026',
+            'project_id' => $project->id,
+            'unit_id' => $soldUnit->id,
+            'lead_id' => $leadA->id,
+            'booked_by' => $user->id,
+            'booking_date' => '2026-11-15',
+            'booking_fee' => 15000000,
+            'base_price' => 1500000000,
+            'final_price' => 1500000000,
+            'payment_scheme' => 'cash',
+            'status' => 'completed',
+        ]);
+
+        // Active reservation on $reservedUnit owned by Lead A
+        $resA = Reservation::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_id' => $reservedUnit->id,
+            'lead_id' => $leadA->id,
+            'created_by' => $user->id,
+            'client_name' => $leadA->name,
+            'client_phone' => $leadA->phone,
+            'amount' => 11000000,
+            'status' => 'active',
+        ]);
+
+        // Old active reservation lingering on $soldUnit; refunding it must NOT flip $soldUnit back to available!
+        $staleResOnSold = Reservation::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_id' => $soldUnit->id,
+            'lead_id' => $leadB->id,
+            'created_by' => $user->id,
+            'client_name' => $leadB->name,
+            'client_phone' => $leadB->phone,
+            'amount' => 10000000,
+            'status' => 'active',
+        ]);
+
+        // 1. LOV must ONLY return $trulyAvailableUnit (sold, booked-drifted, reserved, hold are ALL excluded)
+        $lovIds = \App\Models\Unit::selectableForLov()->pluck('id')->all();
+        $this->assertEquals([$trulyAvailableUnit->id], $lovIds);
+
+        // 2. Reservations/Create, Negotiations/Index, Bookings/Create must ONLY receive $trulyAvailableUnit
+        $this->get('/reservations/create')
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $p) => $p
+                ->has('units', 1)
+                ->where('units.0.id', $trulyAvailableUnit->id)
+            );
+
+        $this->get('/negotiations')
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $p) => $p
+                ->has('units', 1)
+                ->where('units.0.id', $trulyAvailableUnit->id)
+            );
+
+        $this->get('/bookings/create')
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $p) => $p
+                ->has('availableUnits', 1)
+                ->where('availableUnits.0.id', $trulyAvailableUnit->id)
+            );
+
+        // 3. Server-side POSTs block Buyer B from reserving/negotiating/booking locked units
+        $this->post('/reservations', [
+            'unit_id' => $reservedUnit->id,
+            'lead_id' => $leadB->id,
+            'client_name' => $leadB->name,
+            'client_phone' => $leadB->phone,
+            'amount' => 11000000,
+            'payment_method' => 'transfer',
+        ])->assertSessionHas('error');
+
+        $this->post('/bookings', [
+            'unit_id' => $reservedUnit->id,
+            'lead_id' => $leadB->id,
+            'booked_by' => $user->id,
+            'payment_scheme' => 'cash',
+            'booking_fee' => 11000000,
+            'base_price' => 1500000000,
+            'final_price' => 1500000000,
+        ])->assertSessionHasErrors(['unit_id']);
+
+        $this->post('/negotiations', [
+            'unit_id' => $soldUnit->id,
+            'lead_id' => $leadB->id,
+            'client_name' => $leadB->name,
+            'client_phone' => $leadB->phone,
+            'offered_price' => 1400000000,
+        ])->assertSessionHasErrors(['unit_id']);
+
+        // 4. Sync corrects drifted $bookedUnit status & refunding stale reservation on $soldUnit keeps $soldUnit = 'sold'
+        $this->assertEquals('booked', $bookedUnit->syncStatusFromRecords());
+        $this->post("/reservations/{$staleResOnSold->id}/refund", [
+            'refund_bank_name' => 'BCA',
+            'refund_account_number' => '1234567890',
+            'refund_account_name' => 'Buyer B',
+            'refund_reason' => 'Unit sudah terjual',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $soldUnit->refresh();
+        $this->assertEquals('sold', $soldUnit->status);
+
+        // 5. Buyer A (owner of $resA) CAN convert $reservedUnit -> Booking cleanly (and auto-links $resA)
+        $this->post('/bookings', [
+            'unit_id' => $reservedUnit->id,
+            'lead_id' => $leadA->id,
+            'booked_by' => $user->id,
+            'payment_scheme' => 'cash',
+            'booking_fee' => 11000000,
+            'base_price' => 1500000000,
+            'final_price' => 1500000000,
+            'auto_approve' => true,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $reservedUnit->refresh();
+        $resA->refresh();
+        $this->assertEquals('booked', $reservedUnit->status);
+        $this->assertEquals('converted', $resA->status);
+        $this->assertEquals('booked', $approvedBooking->unit->fresh()->status);
+    }
+
+    public function test_public_negotiation_form_uses_master_stock_unit_and_freetext_sync_e2e(): void
+    {
+        $company = Company::create(['name' => 'PT Master Stock Test', 'slug' => 'pt-master-stock-test', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active', 'name' => 'Sales Alonica']);
+        $this->actingAs($user);
+
+        Setting::set('standard_booking_fee', '17000000', $company->id);
+        Setting::set('company_name', 'PT Master Stock Test', $company->id);
+
+        [$project, $unitType, $unitB2] = $this->createProjectUnit($company, 'ALO', 'B', '2', 'available', 3850000000);
+        $project->update(['name' => 'Alonica Hills', 'address' => 'Jl. Cilandak KKO No. 10']);
+        $unitType->update([
+            'name' => 'Alonica Standard',
+            'land_area' => 105,
+            'building_area' => 198,
+            'bedrooms' => 4,
+            'bathrooms' => 4,
+        ]);
+
+        $lead = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'assigned_to' => $user->id,
+            'name' => 'Calon Pembeli B2',
+            'phone' => '081288899900',
+            'source' => 'inhouse',
+            'status' => 'hot',
+        ]);
+
+        // Active reservation Rp 11.000.000,- on Unit B2 (leaving Rp 6.000.000,- remaining UTJ)
+        Reservation::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'unit_id' => $unitB2->id,
+            'lead_id' => $lead->id,
+            'created_by' => $user->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'amount' => 11000000,
+            'reservation_date' => '2026-11-12',
+            'expiry_date' => '2026-11-26',
+            'status' => 'active',
+        ]);
+
+        $negotiation = Negotiation::create([
+            'company_id' => $company->id,
+            'unit_id' => $unitB2->id,
+            'project_id' => $project->id,
+            'lead_id' => $lead->id,
+            'created_by' => $user->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'unit_listed_price' => 0, // intentionally zero to verify live sync from Master Stock Unit B2
+            'payment_scheme' => 'cash_bertahap',
+            'status' => 'draft',
+            'token' => 'TestTokenB2SyncFreetext01',
+        ]);
+
+        // 1. Public GET /nego/{token} pulls live Master Stock Unit B2 specs, price & Reservation/UTJ credit
+        $this->get('/nego/TestTokenB2SyncFreetext01')
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('negotiation.unit.label', 'Blok B No. 2')
+                ->where('negotiation.unit.unit_type.land_area', 105)
+                ->where('negotiation.unit.unit_type.building_area', 198)
+                ->where('negotiation.unit_listed_price', 3850000000)
+                ->where('settings.standard_booking_fee', 17000000)
+                ->where('negotiation.form_details.linked_reservation.amount', 11000000)
+                ->where('negotiation.form_details.linked_reservation.remaining_utj', 6000000)
+            );
+
+        // 2. Public POST /nego/{token} submits freetext Bonus (Poin 3) + freetext Custom Layout (Poin 4.1) + DP/Tenor
+        $this->post('/nego/TestTokenB2SyncFreetext01', [
+            'client_name' => 'Calon Pembeli B2',
+            'client_phone' => '081288899900',
+            'offered_price' => 3650000000,
+            'payment_scheme' => 'cash_bertahap',
+            'dp_amount' => 200000000,
+            'installment_months' => 12,
+            'bonus_freetext' => "Free Kanopi Carport\nAC 2 Unit\nFree BPHTB",
+            'custom_layout_notes' => 'Dapur digeser ke taman belakang 2m dan carport diperlebar',
+            'special_requests' => 'Serah terima dipercepat 1 bulan',
+            'notes' => 'Mohon dijadwalkan survey minggu ini',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $negotiation->refresh();
+        $this->assertEquals('pending', $negotiation->status);
+        $this->assertEquals(3850000000, (int) $negotiation->unit_listed_price);
+        $this->assertEquals(200000000, (int) $negotiation->dp_amount);
+        $this->assertEquals(12, (int) $negotiation->installment_months);
+        $this->assertEquals(['Free Kanopi Carport', 'AC 2 Unit', 'Free BPHTB'], $negotiation->special_bonus_items);
+        $this->assertEquals([], $negotiation->custom_layout_options);
+        $this->assertEquals('Dapur digeser ke taman belakang 2m dan carport diperlebar', $negotiation->custom_layout_notes);
+
+        $details = $negotiation->getFormDetails();
+        $this->assertEquals('Blok B No. 2', $details['kavling']);
+        $this->assertEquals('105', $details['luas_tanah']);
+        $this->assertEquals('198', $details['luas_bangunan']);
+        $this->assertEquals('(Free Kanopi Carport, AC 2 Unit, Free BPHTB)', $details['bonus']);
+        $this->assertEquals('11.000.000,-', $details['pengajuan']['reservasi']);
+        $this->assertEquals('6.000.000,-', $details['pengajuan']['booking_fee']);
+        $this->assertEquals('(Total 17.000.000,-)', $details['pengajuan']['booking_fee_total']);
+        $this->assertEquals('200.000.000,-', $details['pengajuan']['dp1_amount']);
+
+        // 3. Public PDF HTML view reflects Master Stock Unit B2, freetext Poin 3 & Poin 4.1, and 11jt + 6jt UTJ split
+        $pdfHtml = $this->get('/nego/TestTokenB2SyncFreetext01/pdf?html=1');
+        $pdfHtml->assertStatus(200);
+        $pdfHtml->assertSee('Blok B No. 2');
+        $pdfHtml->assertSee('Free Kanopi Carport, AC 2 Unit, Free BPHTB');
+        $pdfHtml->assertSee('Dapur digeser ke taman belakang 2m dan carport diperlebar');
+        $pdfHtml->assertSee('11.000.000,-');
+        $pdfHtml->assertSee('6.000.000,-');
+
+        // 4. CRM Detail & Approve & Convert to Booking syncs downstream to Booking & SPR
+        $this->get("/negotiations/{$negotiation->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('negotiation.unit.label', 'Blok B No. 2')
+                ->where('negotiation.custom_layout_notes', 'Dapur digeser ke taman belakang 2m dan carport diperlebar')
+                ->where('negotiation.special_bonus_items.0', 'Free Kanopi Carport')
+            );
+
+        $this->post("/negotiations/{$negotiation->id}/review", [
+            'action' => 'approve',
+            'counter_notes' => 'Disetujui sesuai pengajuan',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->post("/negotiations/{$negotiation->id}/convert")
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $negotiation->refresh();
+        $this->assertNotNull($negotiation->booking_id);
+        $booking = Booking::findOrFail($negotiation->booking_id);
+        $this->assertEquals($unitB2->id, $booking->unit_id);
+        $this->assertEquals(['Free Kanopi Carport', 'AC 2 Unit', 'Free BPHTB'], $booking->special_bonus_items);
     }
 }

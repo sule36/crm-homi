@@ -46,11 +46,26 @@ const resolvedLogoUrl = computed(() => {
 });
 
 const selectableUnits = computed(() => {
+    const baseList = [...(props.units || [])];
+    const selectedLead = (props.leads || []).find(l => Number(l.id) === Number(form.lead_id)) || props.lead;
+    const leadResUnits = (selectedLead?.reservations || [])
+        .filter(r => r.status === 'active' && r.unit)
+        .map(r => r.unit);
+    for (const ru of leadResUnits) {
+        if (!baseList.some(u => Number(u.id) === Number(ru.id))) {
+            baseList.push(ru);
+        }
+    }
     const editingUnitId = props.negotiation?.unit_id ? Number(props.negotiation.unit_id) : null;
-    return (props.units || []).filter((u) => {
-        if (editingUnitId && Number(u.id) === editingUnitId) return true;
+    const preselectUnitId = props.preselect?.unit_id ? Number(props.preselect.unit_id) : null;
+    const leadResIds = new Set(leadResUnits.map(u => Number(u.id)));
+    return baseList.filter((u) => {
         const st = String(u.status || '').toLowerCase().trim();
-        return st !== 'sold' && st !== 'booked';
+        if (editingUnitId && Number(u.id) === editingUnitId) return true;
+        if (st === 'sold' || st === 'booked' || st === 'cancelled') return false;
+        if (preselectUnitId && Number(u.id) === preselectUnitId) return true;
+        if (leadResIds.has(Number(u.id))) return true;
+        return st === 'available' || st === '';
     });
 });
 

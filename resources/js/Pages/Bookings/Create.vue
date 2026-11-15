@@ -98,6 +98,7 @@ const form = useForm({
     sig4_name: '',
     special_bonus_items: initialSpecialBonusItems,
     notes: props.negotiation?.notes || '',
+    auto_approve: true,
 });
 
 const calculateTaxes = () => {
@@ -177,16 +178,30 @@ const updateTotal = () => {
 };
 
 const selectableUnits = computed(() => {
+    const baseList = [...(props.availableUnits || [])];
+    const leadResUnits = (currentLead.value?.reservations || [])
+        .map(r => r.unit)
+        .filter(Boolean);
+    for (const ru of leadResUnits) {
+        if (!baseList.some(u => Number(u.id) === Number(ru.id))) {
+            baseList.push(ru);
+        }
+    }
     const currentId = form.unit_id ? Number(form.unit_id) : null;
-    return (props.availableUnits || []).filter((u) => {
-        if (currentId && Number(u.id) === currentId) return true;
+    const leadOwnResIds = new Set(leadResUnits.map(u => Number(u.id)));
+    return baseList.filter((u) => {
         const st = String(u.status || '').toLowerCase().trim();
-        return st !== 'sold' && st !== 'booked';
+        if (st === 'sold' || st === 'booked') return false;
+        if (currentId && Number(u.id) === currentId) return true;
+        if (leadOwnResIds.has(Number(u.id))) return true;
+        return st === 'available' || st === '';
     });
 });
 
 const selectedUnit = computed(() => {
-    return (props.availableUnits || []).find(u => u.id === form.unit_id) || props.unit;
+    return selectableUnits.value.find(u => Number(u.id) === Number(form.unit_id))
+        || (props.availableUnits || []).find(u => Number(u.id) === Number(form.unit_id))
+        || props.unit;
 });
 
 const currentLead = computed(() => {
@@ -1145,9 +1160,12 @@ const formatCurrency = (value) => {
                             </div>
                         </div>
 
-                        <p class="text-[10px] text-blue-600 font-semibold bg-blue-100/70 p-2 rounded-xl">
-                            💡 Setelah booking disetujui (Approve), status unit terkunci, jadwal bayar terbit, dan SPR dapat diunduh/ditandatangani digital.
-                        </p>
+                        <label class="flex items-start gap-2.5 p-2.5 bg-white border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-50/50 transition-colors">
+                            <input v-model="form.auto_approve" type="checkbox" class="mt-0.5 rounded text-blue-600 focus:ring-blue-500" />
+                            <span class="text-[11px] font-bold text-blue-950 leading-snug">
+                                Langsung Setujui &amp; Kunci Unit <span class="font-normal text-blue-700">(Status unit langsung menjadi <strong>Booked</strong> &amp; SPR resmi siap diunduh)</span>
+                            </span>
+                        </label>
                     </div>
 
                     <!-- SUBMIT BUTTON -->

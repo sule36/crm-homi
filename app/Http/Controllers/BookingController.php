@@ -254,13 +254,44 @@ class BookingController extends Controller
         $hasBlockingBooking = Booking::withoutGlobalScopes()
             ->where('unit_id', $preCheckUnit->id)
             ->whereNull('deleted_at')
-            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('approved', 'completed', 'booked')")
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('pending', 'approved', 'completed', 'booked', 'sold')")
             ->exists();
 
         if (in_array($unitStatusNorm, ['sold', 'booked'], true) || $hasBlockingBooking) {
             return back()->withErrors([
-                'unit_id' => "Unit {$preCheckUnit->label} sudah berstatus {$preCheckUnit->status} / terjual dan tidak dapat dibooking.",
+                'unit_id' => "Unit {$preCheckUnit->label} sudah berstatus {$preCheckUnit->status} / memiliki booking aktif dan tidak dapat dibooking.",
             ])->withInput();
+        }
+
+        // Check if unit is currently held/reserved by an active reservation; only the matching lead/reservation can convert it
+        $activeUnitReservation = Reservation::withoutGlobalScopes()
+            ->where('unit_id', $preCheckUnit->id)
+            ->whereNull('deleted_at')
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) = 'active'")
+            ->latest('id')
+            ->first();
+
+        if ($activeUnitReservation) {
+            $matchesSentRes = !empty($validated['reservation_id']) && (int) $validated['reservation_id'] === (int) $activeUnitReservation->id;
+            $matchesLeadRes = (int) $activeUnitReservation->lead_id > 0 && (int) $activeUnitReservation->lead_id === (int) $validated['lead_id'];
+            if (!$matchesSentRes && !$matchesLeadRes) {
+                return back()->withErrors([
+                    'unit_id' => "Unit {$preCheckUnit->label} sedang dalam status reservasi aktif oleh konsumen lain.",
+                ])->withInput();
+            }
+            if (empty($validated['reservation_id'])) {
+                $validated['reservation_id'] = $activeUnitReservation->id;
+            }
+        } elseif (in_array($unitStatusNorm, ['reserved', 'hold'], true)) {
+            $leadOwnsPendingNego = !empty($validated['negotiation_id']) && Negotiation::withoutGlobalScopes()
+                ->where('id', $validated['negotiation_id'])
+                ->where('unit_id', $preCheckUnit->id)
+                ->exists();
+            if (!$leadOwnsPendingNego) {
+                return back()->withErrors([
+                    'unit_id' => "Unit {$preCheckUnit->label} saat ini sedang di-hold / tidak tersedia untuk dibooking.",
+                ])->withInput();
+            }
         }
 
         try {
@@ -540,33 +571,40 @@ class BookingController extends Controller
         }
 
         $newUnit = \App\Models\Unit::with('project')->findOrFail($validated['unit_id']);
-        if ($newUnit->status !== 'available') {
+        $newUnitHasLocks = Booking::withoutGlobalScopes()
+            ->where('unit_id', $newUnit->id)
+            ->whereNull('deleted_at')
+            ->where('id', '!=', $booking->id)
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('pending', 'approved', 'completed', 'booked', 'sold')")
+            ->exists()
+            || Reservation::withoutGlobalScopes()
+                ->where('unit_id', $newUnit->id)
+                ->whereNull('deleted_at')
+                ->where('status', 'active')
+                ->exists();
+
+        if ($newUnit->status !== 'available' || $newUnitHasLocks) {
             return back()->with('error', "Unit {$newUnit->code} saat ini tidak berstatus Available (Status: {$newUnit->status}).");
         }
 
         $oldUnit = \App\Models\Unit::find($booking->unit_id);
 
-        // 1. Release old unit
+        // 1. Update booking unit first, then reconcile old & new unit statuses cleanly
+        $newUnitStatus = $booking->status === 'approved' ? 'booked' : 'hold';
+        $booking->update([
+            'unit_id' => $newUnit->id,
+            'project_id' => $newUnit->project_id,
+        ]);
+
         if ($oldUnit) {
-            $oldUnit->update([
-                'status' => 'available',
-                'held_by' => null,
-                'held_until' => null,
-            ]);
+            $oldUnit->syncStatusFromRecords($booking->id);
         }
 
         // 2. Lock new unit
-        $newUnitStatus = $booking->status === 'approved' ? 'booked' : 'hold';
         $newUnit->update([
             'status' => $newUnitStatus,
             'held_by' => $booking->booked_by ?? auth()->id(),
             'held_until' => now()->addDays(7),
-        ]);
-
-        // 3. Update booking
-        $booking->update([
-            'unit_id' => $newUnit->id,
-            'project_id' => $newUnit->project_id,
         ]);
 
         // 4. Record Lead Activity
@@ -1426,9 +1464,9 @@ class BookingController extends Controller
                 'cancelled_reason' => $request->reason,
             ]);
 
-            // Kembalikan status unit ke available (siap dibooking customer lain)
+            // Kembalikan status unit sesuai sisa record aktif (tidak menimpa jika masih ada booking lain/sold)
             if ($booking->unit) {
-                $booking->unit->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+                $booking->unit->syncStatusFromRecords($booking->id);
                 $booking->unit->project?->recalculateUnits();
             }
 
@@ -1452,9 +1490,9 @@ class BookingController extends Controller
                 'cancelled_reason' => $request->reason,
             ]);
 
-            // Kembalikan status unit ke available (siap dibooking customer lain)
+            // Kembalikan status unit sesuai sisa record aktif (tidak menimpa jika masih ada booking lain/sold)
             if ($booking->unit) {
-                $booking->unit->update(['status' => 'available', 'held_by' => null, 'held_until' => null]);
+                $booking->unit->syncStatusFromRecords($booking->id);
                 $booking->unit->project?->recalculateUnits();
             }
             
@@ -1489,13 +1527,9 @@ class BookingController extends Controller
     public function destroy(Booking $booking)
     {
         return DB::transaction(function () use ($booking) {
-            // 1. Kembalikan status unit ke available (siap dibooking kembali)
+            // 1. Sinkronkan status unit (kembali ke available hanya jika tidak ada booking/reservasi aktif lain)
             if ($booking->unit) {
-                $booking->unit->update([
-                    'status' => 'available',
-                    'held_by' => null,
-                    'held_until' => null,
-                ]);
+                $booking->unit->syncStatusFromRecords($booking->id);
                 $booking->unit->project?->recalculateUnits();
             }
 

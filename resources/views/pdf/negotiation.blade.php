@@ -319,16 +319,16 @@
     @if($hasExtraClientNotes)
         <div style="margin-top: 8px; padding: 6px 8px; border: 1px solid #cbd5e1; background-color: #f8fafc; font-size: 8pt;">
             @if($hasCustomLayout)
-                <div><strong>Custom Layout:</strong> {{ implode(', ', $negotiation->custom_layout_options) }}</div>
+                <div><strong>Opsi Custom Layout:</strong> {{ implode(', ', $negotiation->custom_layout_options) }}</div>
             @endif
             @if(!empty($negotiation->custom_layout_notes))
-                <div><strong>Detail Denah:</strong> {{ $negotiation->custom_layout_notes }}</div>
+                <div><strong>Custom Layout / Detail Denah:</strong> {!! nl2br(e($negotiation->custom_layout_notes)) !!}</div>
             @endif
             @if(!empty($negotiation->special_requests))
-                <div><strong>Permintaan Khusus:</strong> {{ $negotiation->special_requests }}</div>
+                <div><strong>Permintaan Khusus:</strong> {!! nl2br(e($negotiation->special_requests)) !!}</div>
             @endif
             @if(!empty($negotiation->notes))
-                <div><strong>Catatan Tambahan:</strong> {{ $negotiation->notes }}</div>
+                <div><strong>Catatan Tambahan:</strong> {!! nl2br(e($negotiation->notes)) !!}</div>
             @endif
         </div>
     @endif

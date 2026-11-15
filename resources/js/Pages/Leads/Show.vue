@@ -104,9 +104,23 @@ const latestReservation = computed(() => props.lead.reservations?.[0] || null);
 const latestNegotiation = computed(() => props.lead.negotiations?.[0] || null);
 
 const selectableUnits = computed(() => {
+    const ownActiveResUnitIds = new Set(
+        (props.lead.reservations || [])
+            .filter(r => r.status === 'active' && r.unit_id)
+            .map(r => Number(r.unit_id))
+    );
     return (props.units || []).filter((u) => {
         const st = String(u.status || '').toLowerCase().trim();
-        return st !== 'sold' && st !== 'booked';
+        if (st === 'sold' || st === 'booked' || st === 'cancelled') return false;
+        if (ownActiveResUnitIds.has(Number(u.id))) return true;
+        return st === 'available' || st === '';
+    });
+});
+
+const reservableUnits = computed(() => {
+    return (props.units || []).filter((u) => {
+        const st = String(u.status || '').toLowerCase().trim();
+        return st === 'available' || st === '';
     });
 });
 
@@ -2125,7 +2139,7 @@ function submitChangeResUnit() {
                             <label class="block font-bold text-slate-700 mb-1">Pilih Kavling Unit <span class="text-rose-500">*</span></label>
                             <select v-model="reservationForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
                                 <option value="" disabled>-- Pilih Kavling Tersedia --</option>
-                                <option v-for="u in selectableUnits" :key="u.id" :value="u.id">
+                                <option v-for="u in reservableUnits" :key="u.id" :value="u.id">
                                     {{ u.label || `Blok ${u.block || '-'} No. ${u.number}` }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }}) [{{ u.status }}]
                                 </option>
                             </select>

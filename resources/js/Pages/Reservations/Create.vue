@@ -55,9 +55,10 @@ const activePresetImage = ref(props.defaultDeveloperSigner?.image || null);
 const selectableUnits = computed(() => {
     const preId = props.preselectedUnitId ? Number(props.preselectedUnitId) : null;
     return (props.units || []).filter((u) => {
-        if (preId && Number(u.id) === preId) return true;
         const st = String(u.status || '').toLowerCase().trim();
-        return st !== 'sold' && st !== 'booked';
+        if (st === 'sold' || st === 'booked' || st === 'cancelled') return false;
+        if (preId && Number(u.id) === preId) return true;
+        return st === 'available' || st === '';
     });
 });
 

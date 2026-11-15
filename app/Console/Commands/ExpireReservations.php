@@ -29,13 +29,9 @@ class ExpireReservations extends Command
         foreach ($expired as $reservation) {
             $reservation->update(['status' => 'cancelled']);
 
-            // Release unit back to available
-            if ($reservation->unit && in_array($reservation->unit->status, ['reserved', 'hold'])) {
-                $reservation->unit->update([
-                    'status' => 'available',
-                    'held_by' => null,
-                    'held_until' => null,
-                ]);
+            // Release unit safely back to available only if no booking/other reservation locks it
+            if ($reservation->unit) {
+                $reservation->unit->syncStatusFromRecords(null, $reservation->id);
             }
 
             // Restore lead status to negotiation so sales can follow up

@@ -64,7 +64,7 @@ class WhatsAppChatController extends Controller
         $partnerBanks = \App\Models\PartnerBank::where('is_active', true)->get();
 
         // Ambil stok unit tersedia dikelompokkan berdasarkan project_id
-        $availableUnits = \App\Models\Unit::where('status', 'available')
+        $availableUnits = \App\Models\Unit::selectableForLov()
             ->with(['unitType'])
             ->get()
             ->groupBy('project_id')

@@ -37,7 +37,7 @@ class NegotiationController extends Controller
         ];
     }
 
-    private function unitIsUnavailableForNewDeal(Unit $unit, ?int $allowUnitId = null): bool
+    private function unitIsUnavailableForNewDeal(Unit $unit, ?int $allowUnitId = null, ?int $forLeadId = null): bool
     {
         if ($allowUnitId && (int)$unit->id === $allowUnitId) {
             return false;
@@ -48,11 +48,28 @@ class NegotiationController extends Controller
             return true;
         }
 
-        return Booking::withoutGlobalScopes()
+        $hasBlockingBooking = Booking::withoutGlobalScopes()
             ->where('unit_id', $unit->id)
             ->whereNull('deleted_at')
-            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('approved', 'completed', 'booked')")
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('pending', 'approved', 'completed', 'booked', 'sold')")
             ->exists();
+
+        if ($hasBlockingBooking) {
+            return true;
+        }
+
+        $activeRes = \App\Models\Reservation::withoutGlobalScopes()
+            ->where('unit_id', $unit->id)
+            ->whereNull('deleted_at')
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) = 'active'")
+            ->latest('id')
+            ->first();
+
+        if ($activeRes) {
+            return !($forLeadId && (int) $activeRes->lead_id === $forLeadId);
+        }
+
+        return in_array($status, ['reserved', 'hold', 'cancelled'], true);
     }
 
     private function parseDigitsToInt($value): ?int
@@ -85,7 +102,40 @@ class NegotiationController extends Controller
         if ($raw === '' || $raw === '-') {
             return [];
         }
-        return array_values(array_filter(array_map('trim', explode(',', $raw))));
+        $parts = preg_split('/[\r\n,;]+/', $raw) ?: [];
+        $cleaned = array_map(function ($item) {
+            return trim(preg_replace('/^(?:[-•*]|\d+[.)])\s*/', '', trim((string) $item)));
+        }, $parts);
+        return array_values(array_filter($cleaned, fn ($v) => $v !== '' && $v !== '-'));
+    }
+
+    private function syncFormDataWithMasterUnit(array $formData, Unit $unit): array
+    {
+        $unit->loadMissing(['unitType', 'project']);
+        $project = $unit->project;
+        $unitType = $unit->unitType;
+        $listedAmount = (int) ($unit->display_price ?: $unit->final_price ?: $unitType?->current_price ?: 0);
+
+        if ($project) {
+            $formData['project_name'] = $project->name;
+            if (!empty($project->address)) {
+                $formData['project_address'] = $project->address;
+            }
+        }
+
+        $formData['kavling'] = $unit->label;
+        $formData['type'] = $unitType?->name ?? ($formData['type'] ?? '-');
+        if ($unitType?->land_area ?? $unit->land_area ?? null) {
+            $formData['luas_tanah'] = (string) ($unitType?->land_area ?? $unit->land_area);
+        }
+        if ($unitType?->building_area ?? $unit->building_area ?? null) {
+            $formData['luas_bangunan'] = (string) ($unitType?->building_area ?? $unit->building_area);
+        }
+        if ($listedAmount > 0) {
+            $formData['price_list'] = Negotiation::formatNominal($listedAmount);
+        }
+
+        return $formData;
     }
 
     private function buildSyncedFormData(
@@ -261,14 +311,26 @@ class NegotiationController extends Controller
             'converted' => (clone $statsBase)->whereNotNull('booking_id')->count(),
         ];
 
-        $units = Unit::selectableForLov()
+        $preselectUnitId = $request->query('unit_id') ? (int) $request->query('unit_id') : null;
+        $preselectLeadId = $request->query('lead_id') ? (int) $request->query('lead_id') : null;
+        $includeUnitIds = array_filter([$preselectUnitId]);
+        if ($preselectLeadId) {
+            $leadResUnitIds = \App\Models\Reservation::where('lead_id', $preselectLeadId)
+                ->where('status', 'active')
+                ->whereHas('unit', fn ($uq) => $uq->whereRaw("LOWER(TRIM(COALESCE(status, ''))) NOT IN ('sold', 'booked')"))
+                ->pluck('unit_id')
+                ->all();
+            $includeUnitIds = array_values(array_unique(array_merge($includeUnitIds, $leadResUnitIds)));
+        }
+
+        $units = Unit::selectableForLov($includeUnitIds)
             ->select('id', 'block', 'number', 'floor', 'final_price', 'discount_amount', 'promo', 'premium_charge', 'net_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name,address,code,logo', 'unitType:id,name,land_area,building_area,current_price'])
             ->orderByUnitNumber()
             ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'project_id')
-            ->with(['reservations' => fn ($q) => $q->whereIn('status', ['active', 'converted'])->latest()])
+            ->with(['reservations' => fn ($q) => $q->whereIn('status', ['active', 'converted'])->with(['unit.project:id,name,address,code,logo', 'unit.unitType:id,name,land_area,building_area,current_price'])->latest()])
             ->orderBy('name')
             ->get();
 
@@ -318,7 +380,7 @@ class NegotiationController extends Controller
         ]);
 
         $unit = Unit::with(['project', 'unitType'])->findOrFail($request->unit_id);
-        if ($this->unitIsUnavailableForNewDeal($unit)) {
+        if ($this->unitIsUnavailableForNewDeal($unit, null, $request->lead_id ? (int) $request->lead_id : null)) {
             return back()->withErrors(['unit_id' => "Unit {$unit->label} sudah berstatus {$unit->status} / memiliki booking aktif dan tidak dapat dipilih untuk negosiasi baru."])->withInput();
         }
 
@@ -418,7 +480,7 @@ class NegotiationController extends Controller
                 'lead_id' => $negotiation->lead_id,
                 'user_id' => auth()->id(),
                 'type' => 'note',
-                'description' => "📋 Form Negosiasi dibuat untuk unit {$unit->code}. Link: {$negotiation->getPublicUrl()}",
+                'description' => "📋 Form Negosiasi dibuat untuk unit {$unit->label}. Link: {$negotiation->getPublicUrl()}",
             ]);
         }
 
@@ -485,7 +547,8 @@ class NegotiationController extends Controller
 
         $oldUnitId = $negotiation->unit_id;
         $newUnit = Unit::with(['project', 'unitType'])->findOrFail($validated['unit_id']);
-        if ($this->unitIsUnavailableForNewDeal($newUnit, (int)$oldUnitId)) {
+        $targetLeadId = array_key_exists('lead_id', $validated) ? ($validated['lead_id'] ? (int) $validated['lead_id'] : null) : ($negotiation->lead_id ? (int) $negotiation->lead_id : null);
+        if ($this->unitIsUnavailableForNewDeal($newUnit, (int)$oldUnitId, $targetLeadId)) {
             return back()->withErrors(['unit_id' => "Unit {$newUnit->label} sudah berstatus {$newUnit->status} / memiliki booking aktif dan tidak dapat dipilih."])->withInput();
         }
 
@@ -567,9 +630,15 @@ class NegotiationController extends Controller
                 $linkedRes
             );
         } elseif (is_array($negotiation->form_data)) {
-            $linkedRes = $negotiation->resolveLinkedReservation();
+            $baseFd = $oldUnitId != $newUnit->id
+                ? $this->syncFormDataWithMasterUnit($negotiation->form_data, $newUnit)
+                : $negotiation->form_data;
+            $tempNego = clone $negotiation;
+            $tempNego->lead_id = $updateData['lead_id'];
+            $tempNego->unit_id = $updateData['unit_id'];
+            $linkedRes = $tempNego->resolveLinkedReservation();
             $updateData['form_data'] = $this->buildSyncedFormData(
-                $negotiation->form_data,
+                $baseFd,
                 $updateData['offered_price'] ? (int)$updateData['offered_price'] : null,
                 $updateData['payment_scheme'] ?: 'cash_bertahap',
                 $updateData['dp_amount'] ? (int)$updateData['dp_amount'] : null,
@@ -607,7 +676,7 @@ class NegotiationController extends Controller
                 'lead_id' => $negotiation->lead_id,
                 'user_id' => auth()->id(),
                 'type' => 'status_change',
-                'description' => "✅ Jawaban Developer diisi & Negosiasi DISETUJUI untuk unit {$newUnit->code}. Harga Kesepakatan: Rp " . number_format($dealPrice, 0, ',', '.'),
+                'description' => "✅ Jawaban Developer diisi & Negosiasi DISETUJUI untuk unit {$newUnit->label}. Harga Kesepakatan: Rp " . number_format($dealPrice, 0, ',', '.'),
             ]);
         }
 
@@ -618,7 +687,7 @@ class NegotiationController extends Controller
                 'lead_id' => $negotiation->lead_id,
                 'user_id' => auth()->id(),
                 'type' => 'note',
-                'description' => "🔄 Unit pada Pengajuan Negosiasi diubah dari " . ($oldUnit ? $oldUnit->code : "Unit #{$oldUnitId}") . " ke {$newUnit->code}.",
+                'description' => "🔄 Unit pada Pengajuan Negosiasi diubah dari " . ($oldUnit ? $oldUnit->label : "Unit #{$oldUnitId}") . " ke {$newUnit->label}.",
             ]);
         }
 
@@ -750,7 +819,11 @@ class NegotiationController extends Controller
         }
 
         $unit = $negotiation->unit;
-        if ($unit && $this->unitIsUnavailableForNewDeal($unit)) {
+        $linkedRes = $negotiation->resolveLinkedReservation();
+        $resOwnerLeadId = $negotiation->lead_id ? (int) $negotiation->lead_id : ($linkedRes?->lead_id ? (int) $linkedRes->lead_id : null);
+        $allowSameReservedUnit = $linkedRes && $linkedRes->status === 'active' && (int) $linkedRes->unit_id === (int) $negotiation->unit_id
+            && !in_array(strtolower(trim((string) $unit?->status)), ['sold', 'booked'], true);
+        if ($unit && !$allowSameReservedUnit && $this->unitIsUnavailableForNewDeal($unit, null, $resOwnerLeadId)) {
             return back()->with('error', "Unit {$unit->label} sudah berstatus {$unit->status} / ter-booking dan tidak dapat dikonversi lagi.");
         }
 
@@ -806,6 +879,17 @@ class NegotiationController extends Controller
             $negotiation->update(['status' => 'expired']);
         }
 
+        // Keep draft form synced with live Master Stock Unit price & project
+        if ($negotiation->status === 'draft' && $negotiation->unit) {
+            $livePrice = (int) ($negotiation->unit->display_price ?: $negotiation->unit->final_price ?: $negotiation->unit->unitType?->current_price ?: 0);
+            if ($livePrice > 0) {
+                $negotiation->unit_listed_price = $livePrice;
+            }
+            if ($negotiation->unit->project_id) {
+                $negotiation->project_id = $negotiation->unit->project_id;
+            }
+        }
+
         $negotiation->form_details = $negotiation->getFormDetails();
 
         $settings = [];
@@ -820,6 +904,7 @@ class NegotiationController extends Controller
                 'company_name' => $settings['company_name'] ?? 'Homi Developer',
                 'company_logo' => $settings['company_logo'] ?? null,
                 'spr_special_offer' => $settings['spr_special_offer'] ?? null,
+                'standard_booking_fee' => \App\Models\Setting::getStandardBookingFee(),
             ],
         ]);
     }
@@ -847,8 +932,9 @@ class NegotiationController extends Controller
             'offered_price' => 'required|numeric|min:1',
             'payment_scheme' => 'required|in:cash_keras,cash_bertahap,kpr',
             'dp_amount' => 'nullable|numeric|min:0',
-            'installment_months' => 'nullable|integer|min:1|max:360',
+            'installment_months' => 'nullable|integer|min:0|max:360',
             'special_requests' => 'nullable|string|max:2000',
+            'bonus_freetext' => 'nullable|string|max:2000',
             'special_bonus_items' => 'nullable|array',
             'custom_layout_options' => 'nullable|array',
             'custom_layout_notes' => 'nullable|string|max:2000',
@@ -856,34 +942,79 @@ class NegotiationController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
+        $negotiation->loadMissing(['unit.unitType', 'unit.project', 'project']);
+        $unit = $negotiation->unit;
+
         $existingFormData = is_array($negotiation->form_data) ? $negotiation->form_data : [];
+        if ($unit && $negotiation->status === 'draft') {
+            $existingFormData = $this->syncFormDataWithMasterUnit($existingFormData, $unit);
+        }
         if (!isset($existingFormData['pengajuan']) || !is_array($existingFormData['pengajuan'])) {
             $existingFormData['pengajuan'] = [];
         }
+
+        $dpAmount = array_key_exists('dp_amount', $validated) && $validated['dp_amount'] !== null && (int)$validated['dp_amount'] > 0
+            ? (int)$validated['dp_amount']
+            : null;
+        $installmentMonths = ($validated['payment_scheme'] !== 'cash_keras'
+            && array_key_exists('installment_months', $validated)
+            && (int)$validated['installment_months'] > 0)
+            ? (int)$validated['installment_months']
+            : null;
+
+        $existingFormData['dari'] = $validated['client_name'];
         $existingFormData['pengajuan']['cara_bayar'] = Negotiation::formatSchemeLabel(
             $validated['payment_scheme'],
-            isset($validated['installment_months']) ? (int)$validated['installment_months'] : null
+            $installmentMonths
         );
         $existingFormData['pengajuan']['price'] = Negotiation::formatNominal((int)$validated['offered_price']);
-        if (array_key_exists('dp_amount', $validated) && $validated['dp_amount'] !== null && (int)$validated['dp_amount'] > 0) {
-            $existingFormData['pengajuan']['dp1_amount'] = Negotiation::formatNominal((int)$validated['dp_amount']);
+        if ($dpAmount !== null) {
+            $existingFormData['pengajuan']['dp1_amount'] = Negotiation::formatNominal($dpAmount);
         }
-        if (array_key_exists('special_bonus_items', $validated)) {
+
+        // Support freetext bonus input (preferred) alongside structured array
+        if (array_key_exists('bonus_freetext', $validated)) {
+            $cleanBonuses = $this->parseBonusItemsFromString($validated['bonus_freetext']);
+            $existingFormData['bonus'] = count($cleanBonuses) > 0 ? '(' . implode(', ', $cleanBonuses) . ')' : '-';
+        } elseif (array_key_exists('special_bonus_items', $validated)) {
             $cleanBonuses = array_values(array_filter(array_map('trim', $validated['special_bonus_items'] ?? [])));
             $existingFormData['bonus'] = count($cleanBonuses) > 0 ? '(' . implode(', ', $cleanBonuses) . ')' : '-';
+        } else {
+            $cleanBonuses = is_array($negotiation->special_bonus_items) ? $negotiation->special_bonus_items : [];
         }
+
+        $linkedRes = $negotiation->resolveLinkedReservation();
+        $liveListedPrice = $unit
+            ? (int)($unit->display_price ?: $unit->final_price ?: $unit->unitType?->current_price ?: $negotiation->unit_listed_price ?: 0)
+            : (int)($negotiation->unit_listed_price ?? 0);
+
         $syncedFormData = $this->buildSyncedFormData(
             $existingFormData,
             (int)$validated['offered_price'],
             $validated['payment_scheme'],
-            isset($validated['dp_amount']) ? (int)$validated['dp_amount'] : null,
-            isset($validated['installment_months']) ? (int)$validated['installment_months'] : null,
-            $validated['special_bonus_items'] ?? ($negotiation->special_bonus_items ?? []),
+            $dpAmount,
+            $installmentMonths,
+            $cleanBonuses,
             $negotiation->counter_price ? (int)$negotiation->counter_price : null,
-            $validated['client_name']
+            $validated['client_name'],
+            $linkedRes
         );
 
-        $negotiation->update(array_merge($validated, [
+        $updatePayload = collect($validated)->except(['bonus_freetext'])->all();
+        $updatePayload['dp_amount'] = $dpAmount;
+        $updatePayload['installment_months'] = $installmentMonths;
+        $updatePayload['special_bonus_items'] = $cleanBonuses;
+        if (!array_key_exists('custom_layout_options', $updatePayload) || empty($updatePayload['custom_layout_options'])) {
+            $updatePayload['custom_layout_options'] = [];
+        }
+        if ($unit) {
+            $updatePayload['project_id'] = $unit->project_id ?? $negotiation->project_id;
+            if ($liveListedPrice > 0 && $negotiation->status === 'draft') {
+                $updatePayload['unit_listed_price'] = $liveListedPrice;
+            }
+        }
+
+        $negotiation->update(array_merge($updatePayload, [
             'status' => 'pending',
             'form_data' => $syncedFormData,
         ]));
@@ -1006,7 +1137,7 @@ class NegotiationController extends Controller
     public function destroy(Negotiation $negotiation)
     {
         if ($negotiation->lead_id) {
-            $unitCode = $negotiation->unit ? $negotiation->unit->code : '-';
+            $unitCode = $negotiation->unit ? $negotiation->unit->label : '-';
             LeadActivity::create([
                 'lead_id' => $negotiation->lead_id,
                 'user_id' => auth()->id(),
@@ -1070,7 +1201,7 @@ class NegotiationController extends Controller
         $negotiation->update(['pdf_generated_at' => now()]);
 
         $clientSafe = str_replace(['/', '\\', ' '], '_', $negotiation->client_name);
-        $unitCode = $negotiation->unit ? str_replace(['/', '\\', ' '], '_', $negotiation->unit->code) : 'UNIT';
+        $unitCode = $negotiation->unit ? str_replace(['/', '\\', ' '], '_', $negotiation->unit->label) : 'UNIT';
         $fileName = "Proposal_Pengajuan_{$clientSafe}_{$unitCode}.pdf";
 
         if (request()->has('html') || request()->query('view') === 'html') {

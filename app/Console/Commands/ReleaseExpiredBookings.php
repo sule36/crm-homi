@@ -47,9 +47,9 @@ class ReleaseExpiredBookings extends Command
                 'cancelled_reason' => 'Otomatis dibatalkan: Melewati batas waktu penahanan 14 hari.',
             ]);
 
-            // Release the unit
+            // Release the unit safely (only becomes available if no other active booking/reservation exists)
             if ($booking->unit_id) {
-                Unit::where('id', $booking->unit_id)->update(['status' => 'available']);
+                Unit::find($booking->unit_id)?->syncStatusFromRecords($booking->id);
             }
 
             // Log activity
