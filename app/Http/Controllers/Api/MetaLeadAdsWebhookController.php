@@ -116,6 +116,11 @@ class MetaLeadAdsWebhookController extends Controller
             $source = 'instagram';
         }
 
+        if ($source === 'instagram' && !Setting::isInstagramLeadCaptureEnabled()) {
+            Log::info('Meta Lead Ads: Instagram capture is STOPPED. Skipping Instagram Lead Ad.', ['leadgen_id' => $leadgenId]);
+            return;
+        }
+
         // Check duplicate
         if (!empty($phone)) {
             $existing = Lead::where('phone', $phone)->first();

@@ -92,11 +92,11 @@ class WhatsAppWebhookController extends Controller
                 }
             }
             
-            // Fallback to checking the message text
+            // Fallback to checking the message text (word boundary so words like "tiga"/"digital" don't match "ig")
             if ($source === 'other') {
-                if (str_contains($messageTextLower, 'instagram') || str_contains($messageTextLower, 'ig')) {
+                if (preg_match('/\b(instagram|ig)\b/i', $messageTextLower)) {
                     $source = 'instagram';
-                } elseif (str_contains($messageTextLower, 'facebook') || str_contains($messageTextLower, 'fb')) {
+                } elseif (preg_match('/\b(facebook|fb)\b/i', $messageTextLower)) {
                     $source = 'facebook';
                 }
             }

@@ -52,4 +52,47 @@ class Setting extends Model
             'value' => $encoded,
         ]);
     }
+
+    public static function isTruthy(mixed $value, bool $default = true): bool
+    {
+        if ($value === null) {
+            return $default;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (int) $value !== 0;
+        }
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['', '0', 'false', 'off', 'no', 'null'], true)) {
+                return false;
+            }
+            if (in_array($normalized, ['1', 'true', 'on', 'yes'], true)) {
+                return true;
+            }
+        }
+
+        return $default;
+    }
+
+    public static function isInstagramLeadCaptureEnabled(?int $companyId = null): bool
+    {
+        $query = static::withoutGlobalScopes()->where('key', 'instagram_lead_capture_enabled');
+
+        if ($companyId) {
+            $scoped = (clone $query)->where('company_id', $companyId)->orderByDesc('updated_at')->orderByDesc('id')->first();
+            if ($scoped) {
+                return static::isTruthy($scoped->value, true);
+            }
+        }
+
+        $latest = $query->orderByDesc('updated_at')->orderByDesc('id')->first();
+        if (!$latest) {
+            return true;
+        }
+
+        return static::isTruthy($latest->value, true);
+    }
 }

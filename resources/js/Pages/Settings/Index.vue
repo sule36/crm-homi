@@ -291,10 +291,12 @@ const form = useForm({
     meta_page_access_token: props.settings.meta_page_access_token || '',
     messenger_verify_token: props.settings.messenger_verify_token || '',
     instagram_verify_token: props.settings.instagram_verify_token || '',
-    ai_autopilot_whatsapp: props.settings.ai_autopilot_whatsapp === '1' || props.settings.ai_autopilot_whatsapp === true || props.settings.ai_autopilot_whatsapp === 'true',
-    ai_autopilot_messenger: props.settings.ai_autopilot_messenger === '1' || props.settings.ai_autopilot_messenger === true || props.settings.ai_autopilot_messenger === 'true',
-    ai_autopilot_instagram: props.settings.ai_autopilot_instagram === '1' || props.settings.ai_autopilot_instagram === true || props.settings.ai_autopilot_instagram === 'true',
-    instagram_lead_capture_enabled: props.settings.instagram_lead_capture_enabled !== undefined ? (props.settings.instagram_lead_capture_enabled === '1' || props.settings.instagram_lead_capture_enabled === true || props.settings.instagram_lead_capture_enabled === 'true') : true,
+    ai_autopilot_whatsapp: Boolean(props.settings.ai_autopilot_whatsapp === 1 || props.settings.ai_autopilot_whatsapp === '1' || props.settings.ai_autopilot_whatsapp === true || props.settings.ai_autopilot_whatsapp === 'true'),
+    ai_autopilot_messenger: Boolean(props.settings.ai_autopilot_messenger === 1 || props.settings.ai_autopilot_messenger === '1' || props.settings.ai_autopilot_messenger === true || props.settings.ai_autopilot_messenger === 'true'),
+    ai_autopilot_instagram: Boolean(props.settings.ai_autopilot_instagram === 1 || props.settings.ai_autopilot_instagram === '1' || props.settings.ai_autopilot_instagram === true || props.settings.ai_autopilot_instagram === 'true'),
+    instagram_lead_capture_enabled: props.settings.instagram_lead_capture_enabled !== undefined
+        ? Boolean(props.settings.instagram_lead_capture_enabled === 1 || props.settings.instagram_lead_capture_enabled === '1' || props.settings.instagram_lead_capture_enabled === true || props.settings.instagram_lead_capture_enabled === 'true')
+        : true,
 });
 
 const addTerm = () => {
@@ -328,7 +330,23 @@ const removePackageItem = (index) => {
 const submit = () => {
     form.post('/settings', {
         forceFormData: true,
+        preserveScroll: true,
         onSuccess: () => alert('Pengaturan berhasil diperbarui!')
+    });
+};
+
+const toggleInstagramCapture = () => {
+    form.instagram_lead_capture_enabled = !form.instagram_lead_capture_enabled;
+    form.post('/settings', {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            alert(
+                form.instagram_lead_capture_enabled
+                    ? 'Penerimaan data Instagram berhasil dijalankan kembali.'
+                    : 'Penerimaan data Instagram (DM & Lead Ads) berhasil di-STOP.'
+            );
+        },
     });
 };
 
@@ -854,15 +872,16 @@ const tabs = [
                                         </span>
                                     </div>
                                     <p class="text-xs text-slate-500 mt-1">
-                                        {{ form.instagram_lead_capture_enabled ? 'Lead otomatis masuk ke CRM saat ada pesan atau interaksi baru di Instagram.' : 'Sinkronisasi lead Instagram dihentikan sementara. Pesan baru tidak akan dibuatkan lead baru.' }}
+                                        {{ form.instagram_lead_capture_enabled ? 'Lead otomatis masuk ke CRM saat ada pesan DM atau form Lead Ads baru di Instagram.' : 'Sinkronisasi Instagram (DM, Lead Ads, re-aktivasi & AI) dihentikan total. Tidak ada data Instagram baru yang akan masuk.' }}
                                     </p>
                                 </div>
                             </div>
                             <button 
                                 type="button" 
-                                @click="form.instagram_lead_capture_enabled = !form.instagram_lead_capture_enabled"
+                                :disabled="form.processing"
+                                @click="toggleInstagramCapture"
                                 :class="form.instagram_lead_capture_enabled ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/20' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'"
-                                class="px-5 py-2.5 rounded-xl font-black text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                                class="px-5 py-2.5 rounded-xl font-black text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-60"
                             >
                                 <span>{{ form.instagram_lead_capture_enabled ? '⏸️ Jeda / Stop Instagram' : '▶️ Jalankan Kembali Instagram' }}</span>
                             </button>

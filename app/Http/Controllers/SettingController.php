@@ -99,6 +99,11 @@ class SettingController extends Controller
             $settings['spr_default_free_legal'] = filter_var($settings['spr_default_free_legal'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        foreach (['ai_autopilot_whatsapp', 'ai_autopilot_messenger', 'ai_autopilot_instagram'] as $boolKey) {
+            $settings[$boolKey] = Setting::isTruthy($settings[$boolKey] ?? null, false);
+        }
+        $settings['instagram_lead_capture_enabled'] = Setting::isTruthy($settings['instagram_lead_capture_enabled'] ?? null, true);
+
         return Inertia::render('Settings/Index', [
             'settings' => $settings,
             'tokens' => $request->user()->tokens,
@@ -195,16 +200,31 @@ class SettingController extends Controller
             }
         }
 
-        // 6. Handle boolean SPR tax defaults
+        // 6. Handle boolean SPR tax & channel switches cleanly ('1' or '0')
         if ($request->has('spr_default_free_ppn')) {
             Setting::set('spr_default_free_ppn', $request->boolean('spr_default_free_ppn'));
         }
         if ($request->has('spr_default_free_legal')) {
             Setting::set('spr_default_free_legal', $request->boolean('spr_default_free_legal'));
         }
+        $booleanSettingKeys = [
+            'instagram_lead_capture_enabled',
+            'ai_autopilot_whatsapp',
+            'ai_autopilot_messenger',
+            'ai_autopilot_instagram',
+        ];
+        foreach ($booleanSettingKeys as $boolKey) {
+            if ($request->has($boolKey)) {
+                Setting::set($boolKey, $request->boolean($boolKey) ? '1' : '0');
+            }
+        }
 
         // 7. Handle remaining settings scalar key/value pairs
-        $excluded = ['company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4', 'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer', 'spr_default_free_ppn', 'spr_default_free_legal', '_token'];
+        $excluded = array_merge([
+            'company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4',
+            'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer',
+            'spr_default_free_ppn', 'spr_default_free_legal', '_token',
+        ], $booleanSettingKeys);
         $settings = $request->except($excluded);
         foreach ($settings as $key => $value) {
             if ($value !== null) {

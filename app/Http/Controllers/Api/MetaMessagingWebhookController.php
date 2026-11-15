@@ -49,6 +49,11 @@ class MetaMessagingWebhookController extends Controller
         if (isset($body['object']) && in_array($body['object'], ['page', 'instagram'])) {
             $platform = $body['object'] === 'instagram' ? 'instagram' : 'facebook';
 
+            if ($platform === 'instagram' && !Setting::isInstagramLeadCaptureEnabled()) {
+                Log::info('[Instagram Webhook] Sinkronisasi Instagram sedang DI-STOP. Seluruh event Instagram diabaikan.');
+                return response('EVENT_RECEIVED', 200);
+            }
+
             foreach ($body['entry'] as $entry) {
                 $messaging = $entry['messaging'] ?? [];
                 
@@ -85,16 +90,12 @@ class MetaMessagingWebhookController extends Controller
         $existingLead = Lead::where('phone', $senderId)->first();
         $lead = null;
 
-        if (!$existingLead) {
-            // Cek apakah penangkapan lead otomatis dari Instagram sedang dijeda / di-stop
-            if ($platform === 'instagram') {
-                $isIgEnabled = Setting::get('instagram_lead_capture_enabled', true);
-                if ($isIgEnabled === false || $isIgEnabled === '0' || $isIgEnabled === 0 || $isIgEnabled === 'false') {
-                    Log::info("[Instagram Webhook] Penangkapan lead Instagram sedang DIJEDA/STOP. Melewati pembuatan lead baru untuk ID: {$senderId}");
-                    return;
-                }
-            }
+        if ($platform === 'instagram' && !Setting::isInstagramLeadCaptureEnabled($existingLead?->company_id)) {
+            Log::info("[Instagram Webhook] Penerimaan data Instagram sedang DIJEDA/STOP. Mengabaikan pesan dari ID: {$senderId}");
+            return;
+        }
 
+        if (!$existingLead) {
             $name = $this->getProfileName($platform, $senderId);
             
             // Create new lead
