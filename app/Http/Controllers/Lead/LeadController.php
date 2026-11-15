@@ -285,6 +285,7 @@ class LeadController extends Controller
                 'phone' => $dutyAgent->phone,
                 'agent_type' => $dutyAgent->agent_type,
             ] : null,
+            'standardBookingFee' => \App\Models\Setting::getStandardBookingFee(),
         ]);
     }
 

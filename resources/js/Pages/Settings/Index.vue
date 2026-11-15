@@ -220,6 +220,7 @@ const form = useForm({
     
     spr_default_free_ppn: props.settings.spr_default_free_ppn !== undefined ? Boolean(props.settings.spr_default_free_ppn) : true,
     spr_default_free_legal: props.settings.spr_default_free_legal !== undefined ? Boolean(props.settings.spr_default_free_legal) : true,
+    standard_booking_fee: props.settings.standard_booking_fee !== undefined && props.settings.standard_booking_fee !== null ? Number(props.settings.standard_booking_fee) : 17000000,
 
     spr_number_format: props.settings.spr_number_format || '{seq}/SPR-{code}/{month_roman}/{year}',
     spr_terms_conditions: props.settings.spr_terms_conditions || [
@@ -594,16 +595,39 @@ const tabs = [
                         </div>
                     </div>
 
-                    <!-- Section 5: Pengaturan Bebas Biaya & Pajak Default (Free PPN & BPHTB) -->
+                    <!-- Section 5: Parameter Booking Fee (UTJ) & Default Bebas Biaya Pajak -->
                     <div class="bg-white rounded-3xl border border-slate-100 p-4 sm:p-8 shadow-sm space-y-6">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600">5. Default Bebas Biaya & Pajak (Free PPN & BPHTB - All In)</h3>
-                                <p class="text-[10px] text-slate-400 mt-0.5">Pengaturan standar saat pembuatan Booking baru maupun konversi dari Form Negosiasi.</p>
+                                <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600">5. Parameter Booking Fee (UTJ) & Default Pajak SPR</h3>
+                                <p class="text-[10px] text-slate-400 mt-0.5">Nilai Booking Fee standar untuk menghitung sisa UTJ reservasi serta default biaya saat pembuatan Booking / SPR.</p>
                             </div>
                             <span class="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                                All-in Developer
+                                Parameter Booking
                             </span>
+                        </div>
+
+                        <!-- Parameter Booking Fee Standar Fix -->
+                        <div class="p-4 sm:p-5 bg-blue-50/60 rounded-2xl border border-blue-200 space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div>
+                                    <label class="block text-xs font-black text-blue-950 uppercase tracking-wider">Booking Fee (UTJ) Standar Fix (Rp)</label>
+                                    <p class="text-[11px] text-blue-700 mt-0.5">Dipakai otomatis sebagai patokan perhitungan <strong>Sisa UTJ = UTJ Standar - Nominal Reservasi</strong> pada kwitansi &amp; konversi booking.</p>
+                                </div>
+                                <span class="text-sm font-black font-mono text-blue-800 bg-white px-3 py-1.5 rounded-xl border border-blue-200 shrink-0">
+                                    {{ new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(form.standard_booking_fee || 0)) }}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                                <input v-model="form.standard_booking_fee" type="number" min="0" step="500000" placeholder="17000000" class="w-full px-4 py-2.5 bg-white border border-blue-200 rounded-xl text-sm font-black text-slate-900 font-mono focus:ring-2 focus:ring-blue-500" />
+                                <div class="flex flex-wrap gap-1.5">
+                                    <button v-for="preset in [11000000, 15000000, 17000000, 20000000]" :key="preset" type="button" @click="form.standard_booking_fee = preset"
+                                        :class="[Number(form.standard_booking_fee) === preset ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50']"
+                                        class="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer">
+                                        Rp {{ (preset / 1000000) }} Jt
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

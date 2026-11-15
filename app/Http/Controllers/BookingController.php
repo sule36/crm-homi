@@ -84,6 +84,7 @@ class BookingController extends Controller
             'reservedAmount' => $reservedAmount ? (float)$reservedAmount : null,
             'defaultFreePpn' => (bool)$defaultFreePpn,
             'defaultFreeLegal' => (bool)$defaultFreeLegal,
+            'standardBookingFee' => \App\Models\Setting::getStandardBookingFee(),
             'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderByUnitNumber()->get(),
             'leads' => Lead::whereNotIn('status', ['won', 'lost'])->with(['assignedToUser', 'inhousePic', 'brokerCompany'])->get(),
             'agents' => \App\Models\User::with('brokerCompany')->orderBy('name', 'asc')->get(),

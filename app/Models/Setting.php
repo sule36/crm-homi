@@ -95,4 +95,21 @@ class Setting extends Model
 
         return static::isTruthy($latest->value, true);
     }
+
+    /**
+     * Get the tenant's fixed standard Booking Fee (UTJ) amount in IDR.
+     */
+    public static function getStandardBookingFee(int $default = 17000000): int
+    {
+        $raw = static::get('standard_booking_fee', null);
+        if ($raw === null || $raw === '') {
+            return $default;
+        }
+        if (is_numeric($raw)) {
+            return max(0, (int) $raw);
+        }
+        $cleaned = preg_replace('/[^0-9]/', '', (string) $raw);
+
+        return $cleaned !== '' ? max(0, (int) $cleaned) : $default;
+    }
 }

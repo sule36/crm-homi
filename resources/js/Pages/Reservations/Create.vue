@@ -11,6 +11,10 @@ const props = defineProps({
     preselectedLeadId: [String, Number],
     preselectedNego: Object,
     defaultCompanyName: String,
+    standardBookingFee: {
+        type: Number,
+        default: 17000000,
+    },
 });
 
 const form = useForm({
@@ -37,6 +41,10 @@ const form = useForm({
 
 const selectedUnit = computed(() => {
     return props.units.find(u => u.id == form.unit_id);
+});
+
+const remainingUtj = computed(() => {
+    return Math.max(0, Number(props.standardBookingFee || 0) - Number(form.amount || 0));
 });
 
 watch(() => form.unit_id, () => {
@@ -194,7 +202,23 @@ const formatCurrency = (val) => {
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Nominal Biaya Reservasi (Rp) <span class="text-rose-500">*</span></label>
                             <input v-model="form.amount" type="number" step="500000" min="0" placeholder="10000000" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-emerald-700 font-mono focus:ring-2 focus:ring-blue-500" />
-                            <p class="text-[10px] text-slate-400 font-bold mt-1">Terbilang: {{ formatCurrency(form.amount) }} (Bisa diubah bebas)</p>
+                            <p class="text-[10px] text-slate-400 font-bold mt-1">Input manual: {{ formatCurrency(form.amount) }}</p>
+                            <div class="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-[11px] space-y-1">
+                                <div class="flex justify-between text-slate-600">
+                                    <span>Booking Fee (UTJ) Standar (Settings):</span>
+                                    <span class="font-bold text-slate-900 font-mono">{{ formatCurrency(standardBookingFee) }}</span>
+                                </div>
+                                <div class="flex justify-between text-emerald-700">
+                                    <span>Potongan dari Reservasi Ini:</span>
+                                    <span class="font-bold font-mono">- {{ formatCurrency(form.amount) }}</span>
+                                </div>
+                                <div class="flex justify-between border-t border-emerald-200/80 pt-1 font-black text-slate-900">
+                                    <span>Sisa UTJ Saat Naik Booking:</span>
+                                    <span :class="remainingUtj === 0 ? 'text-emerald-700' : 'text-amber-700'" class="font-mono">
+                                        {{ remainingUtj === 0 ? 'Rp 0 (Lunas UTJ)' : formatCurrency(remainingUtj) }}
+                                    </span>
+                                </div>
+                            </div>
                             <p v-if="form.errors.amount" class="text-[10px] text-rose-500 font-bold mt-1">{{ form.errors.amount }}</p>
                         </div>
 

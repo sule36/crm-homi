@@ -21,6 +21,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    standardBookingFee: {
+        type: Number,
+        default: 17000000,
+    },
     availableUnits: Array,
     leads: Array,
     agents: Array,
@@ -30,7 +34,10 @@ const page = usePage();
 const currentUser = computed(() => page.props.auth.user);
 
 const initialBasePrice = props.negotiation?.offered_price || props.negotiation?.counter_price || props.unit?.final_price || '';
-const initialBookingFee = props.reservedAmount || props.reservation?.amount || '';
+const reservedCreditAmount = Number(props.reservedAmount || props.reservation?.amount || 0);
+const initialBookingFee = props.standardBookingFee > 0
+    ? Math.max(Number(props.standardBookingFee), reservedCreditAmount)
+    : (reservedCreditAmount || '');
 const initialDpAmount = props.negotiation?.dp_amount || '';
 const initialInstallmentMonths = props.negotiation?.installment_months || 12;
 const initialSpecialBonusItems = (Array.isArray(props.negotiation?.special_bonus_items) && props.negotiation.special_bonus_items.length > 0)
@@ -241,6 +248,10 @@ const discountPercent = computed(() => {
         return ((discountSavings.value / brochurePrice.value) * 100).toFixed(1);
     }
     return 0;
+});
+
+const remainingUtjToPay = computed(() => {
+    return Math.max(0, Number(form.booking_fee || 0) - reservedCreditAmount);
 });
 
 const scheduleSimulation = computed(() => {
@@ -622,10 +633,26 @@ const formatCurrency = (value) => {
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1.5">Booking Fee / UTJ <span class="text-rose-500">*</span></label>
-                                        <input v-model="form.booking_fee" type="number" placeholder="10000000" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
-                                        <p v-if="props.reservation" class="text-[10px] text-emerald-700 font-bold mt-1">
-                                            🔖 Otomatis memotong kredit reservasi {{ formatCurrency(props.reservation.amount) }}
+                                        <input v-model="form.booking_fee" type="number" placeholder="17000000" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20" />
+                                        <p class="text-[10px] text-slate-500 font-semibold mt-1">
+                                            Parameter UTJ Standar: <span class="font-bold text-slate-800">{{ formatCurrency(standardBookingFee) }}</span> (dapat disesuaikan bila ada promo)
                                         </p>
+                                        <div v-if="reservedCreditAmount > 0" class="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] space-y-0.5">
+                                            <div class="flex justify-between text-slate-600">
+                                                <span>Total Booking Fee (SPR):</span>
+                                                <span class="font-bold font-mono">{{ formatCurrency(form.booking_fee) }}</span>
+                                            </div>
+                                            <div class="flex justify-between text-emerald-700">
+                                                <span>Kredit Reservasi Dibayar:</span>
+                                                <span class="font-bold font-mono">- {{ formatCurrency(reservedCreditAmount) }}</span>
+                                            </div>
+                                            <div class="flex justify-between border-t border-emerald-200 pt-1 font-black">
+                                                <span>Sisa UTJ Saat Naik Booking:</span>
+                                                <span :class="remainingUtjToPay === 0 ? 'text-emerald-700' : 'text-amber-700'" class="font-mono">
+                                                    {{ remainingUtjToPay === 0 ? 'Rp 0 (Lunas UTJ)' : formatCurrency(remainingUtjToPay) }}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1.5">Skema Pembayaran <span class="text-rose-500">*</span></label>

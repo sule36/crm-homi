@@ -25,6 +25,10 @@ const props = defineProps({
         type: Object,
         default: null
     },
+    standardBookingFee: {
+        type: Number,
+        default: 17000000,
+    },
 });
 
 // Active workspace tab: 'workspace' | 'timeline' | 'documents' | 'client'
@@ -646,6 +650,13 @@ function submitQuickReservation() {
 
 // --- QUICK BOOKING & SPR MODAL ---
 const showQuickBookingModal = ref(false);
+const quickBookingReservedAmount = ref(0);
+const quickBookingRemainingUtj = computed(() => {
+    return Math.max(0, Number(quickBookingForm.booking_fee || 0) - Number(quickBookingReservedAmount.value || 0));
+});
+const quickReservationRemainingUtj = computed(() => {
+    return Math.max(0, Number(props.standardBookingFee || 0) - Number(reservationForm.amount || 0));
+});
 const quickBookingForm = useForm({
     reservation_id: '',
     negotiation_id: '',
@@ -673,7 +684,11 @@ const quickBookingForm = useForm({
 function openQuickBookingModal(res = null) {
     const unitObj = res?.unit || primaryUnit.value || props.units?.[0] || null;
     const unitPrice = Number(unitObj?.final_price || unitObj?.price || 0);
-    const reservedFee = res ? Number(res.amount) : 5000000;
+    const reservedFee = res ? Number(res.amount) : 0;
+    const defaultBookingFee = Number(props.standardBookingFee || 0) > 0
+        ? Math.max(Number(props.standardBookingFee), reservedFee)
+        : (reservedFee || 5000000);
+    quickBookingReservedAmount.value = reservedFee;
 
     quickBookingForm.reservation_id = res?.id || '';
     quickBookingForm.negotiation_id = latestNegotiation.value?.id || '';
@@ -681,7 +696,7 @@ function openQuickBookingModal(res = null) {
     quickBookingForm.lead_id = props.lead.id;
     quickBookingForm.booked_by = (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || (props.agents?.[0]?.id || '');
     quickBookingForm.booking_date = new Date().toISOString().substring(0, 10);
-    quickBookingForm.booking_fee = reservedFee;
+    quickBookingForm.booking_fee = defaultBookingFee;
     quickBookingForm.base_price = unitPrice;
     quickBookingForm.final_price = unitPrice;
     quickBookingForm.payment_scheme = 'kpr';
@@ -2052,6 +2067,23 @@ function submitChangeResUnit() {
                             </div>
                         </div>
 
+                        <div class="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-[11px] space-y-1">
+                            <div class="flex justify-between text-slate-600">
+                                <span>Booking Fee (UTJ) Standar:</span>
+                                <span class="font-bold font-mono text-slate-900">{{ formatCurrency(standardBookingFee) }}</span>
+                            </div>
+                            <div class="flex justify-between text-emerald-700">
+                                <span>Potongan dari Reservasi Ini:</span>
+                                <span class="font-bold font-mono">- {{ formatCurrency(reservationForm.amount) }}</span>
+                            </div>
+                            <div class="flex justify-between border-t border-emerald-200 pt-1 font-black">
+                                <span>Sisa UTJ Saat Naik Booking:</span>
+                                <span :class="quickReservationRemainingUtj === 0 ? 'text-emerald-700' : 'text-amber-700'" class="font-mono">
+                                    {{ quickReservationRemainingUtj === 0 ? 'Rp 0 (Lunas UTJ)' : formatCurrency(quickReservationRemainingUtj) }}
+                                </span>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Metode Bayar</label>
@@ -2146,6 +2178,23 @@ function submitChangeResUnit() {
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Booking Fee / UTJ (Rp) <span class="text-rose-500">*</span></label>
                                 <input v-model="quickBookingForm.booking_fee" type="number" min="0" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-emerald-700 text-sm" />
+                            </div>
+                        </div>
+
+                        <div v-if="quickBookingReservedAmount > 0" class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] space-y-1">
+                            <div class="flex justify-between text-slate-600">
+                                <span>Total Booking Fee (SPR):</span>
+                                <span class="font-bold font-mono text-slate-900">{{ formatCurrency(quickBookingForm.booking_fee) }}</span>
+                            </div>
+                            <div class="flex justify-between text-emerald-700">
+                                <span>Sudah Dibayar Saat Reservasi:</span>
+                                <span class="font-bold font-mono">- {{ formatCurrency(quickBookingReservedAmount) }}</span>
+                            </div>
+                            <div class="flex justify-between border-t border-emerald-200 pt-1 font-black">
+                                <span>Sisa UTJ Harus Dibayar Saat Booking:</span>
+                                <span :class="quickBookingRemainingUtj === 0 ? 'text-emerald-700' : 'text-amber-700'" class="font-mono">
+                                    {{ quickBookingRemainingUtj === 0 ? 'Rp 0 (Lunas UTJ)' : formatCurrency(quickBookingRemainingUtj) }}
+                                </span>
                             </div>
                         </div>
 

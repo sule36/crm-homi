@@ -99,6 +99,8 @@ class SettingController extends Controller
             $settings['spr_default_free_legal'] = filter_var($settings['spr_default_free_legal'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        $settings['standard_booking_fee'] = Setting::getStandardBookingFee();
+
         foreach (['ai_autopilot_whatsapp', 'ai_autopilot_messenger', 'ai_autopilot_instagram'] as $boolKey) {
             $settings[$boolKey] = Setting::isTruthy($settings[$boolKey] ?? null, false);
         }
@@ -219,11 +221,18 @@ class SettingController extends Controller
             }
         }
 
+        // 6.5 Save fixed standard Booking Fee (UTJ) parameter
+        if ($request->has('standard_booking_fee')) {
+            $rawFee = $request->input('standard_booking_fee');
+            $cleanedFee = is_numeric($rawFee) ? (int) $rawFee : (int) preg_replace('/[^0-9]/', '', (string) $rawFee);
+            Setting::set('standard_booking_fee', max(0, $cleanedFee));
+        }
+
         // 7. Handle remaining settings scalar key/value pairs
         $excluded = array_merge([
             'company_logo', 'signature_image1', 'signature_image2', 'signature_image3', 'signature_image4',
             'spr_signatures', 'spr_terms_conditions', 'spr_bank_info', 'spr_special_offer',
-            'spr_default_free_ppn', 'spr_default_free_legal', '_token',
+            'spr_default_free_ppn', 'spr_default_free_legal', 'standard_booking_fee', '_token',
         ], $booleanSettingKeys);
         $settings = $request->except($excluded);
         foreach ($settings as $key => $value) {

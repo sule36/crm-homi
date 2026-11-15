@@ -275,6 +275,9 @@
         if (!$logoData && file_exists(public_path('images/logo.png'))) {
             $logoData = 'data:image/png;base64,' . base64_encode(@file_get_contents(public_path('images/logo.png')));
         }
+        $standardBookingFee = (int) ($settings['standard_booking_fee'] ?? 17000000);
+        $paidReservation = (int) $reservation->amount;
+        $remainingUtj = max(0, $standardBookingFee - $paidReservation);
     @endphp
 
     <!-- KOP SURAT / HEADER -->
@@ -360,8 +363,8 @@
             @if($reservation->terms_text)
                 {!! nl2br(e($reservation->terms_text)) !!}
             @else
-                <p style="margin: 0 0 4px 0;">• Pembayaran reservasi ini sebesar <strong>Rp {{ number_format($reservation->amount, 0, ',', '.') }}</strong> akan <strong>memotong total Booking Fee (UTJ)</strong> secara otomatis saat pengajuan disetujui dan dikonversi menjadi Surat Pemesanan Rumah (SPR).</p>
-                <p style="margin: 0;">• Contoh Kalkulasi: Apabila Booking Fee (UTJ) standar sebesar Rp 17.000.000, maka sisa pembayaran UTJ saat naik booking adalah <strong>Rp 17.000.000 - Rp {{ number_format($reservation->amount, 0, ',', '.') }} = Sisa UTJ yang harus dibayar saat booking.</strong></p>
+                <p style="margin: 0 0 4px 0;">• Pembayaran reservasi ini sebesar <strong>Rp {{ number_format($paidReservation, 0, ',', '.') }}</strong> akan <strong>memotong total Booking Fee (UTJ)</strong> secara otomatis saat pengajuan disetujui dan dikonversi menjadi Surat Pemesanan Rumah (SPR).</p>
+                <p style="margin: 0;">• Perhitungan UTJ Standar: Booking Fee (UTJ) Standar sebesar <strong>Rp {{ number_format($standardBookingFee, 0, ',', '.') }}</strong> − Pembayaran Reservasi <strong>Rp {{ number_format($paidReservation, 0, ',', '.') }}</strong> = @if($remainingUtj > 0)<strong>Sisa UTJ yang harus dibayar saat naik booking: Rp {{ number_format($remainingUtj, 0, ',', '.') }}</strong>@else<strong>Rp 0 (UTJ Standar Terpenuhi Penuh)</strong>@endif.</p>
             @endif
         </div>
     </div>

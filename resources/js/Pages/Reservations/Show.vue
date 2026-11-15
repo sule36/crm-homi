@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -13,7 +13,20 @@ const props = defineProps({
     coordinators: {
         type: Array,
         default: () => [],
-    }
+    },
+    standardBookingFee: {
+        type: Number,
+        default: null,
+    },
+});
+
+const effectiveStandardBookingFee = computed(() => {
+    const raw = props.standardBookingFee ?? props.settings?.standard_booking_fee ?? 17000000;
+    return Math.max(0, Number(raw) || 0);
+});
+
+const remainingUtj = computed(() => {
+    return Math.max(0, effectiveStandardBookingFee.value - Number(props.reservation?.amount || 0));
 });
 
 const formatUnitLabel = (unit) => {
@@ -294,11 +307,23 @@ const statusConfig = {
                         <span>🧮</span> Ketentuan Pemotongan Sisa UTJ Saat Booking
                     </h3>
                     <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-2">
-                        <p class="font-bold text-slate-900">• Kredit Biaya Reservasi: <span class="font-mono text-emerald-700 font-black text-sm">{{ formatCurrency(reservation.amount) }}</span></p>
-                        <p>• Nominal reservasi di atas akan memotong total Booking Fee (UTJ) secara otomatis saat dikonversi menjadi Surat Pemesanan Rumah (SPR).</p>
-                        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-medium text-[11px]">
-                            <strong>Contoh:</strong> Jika total UTJ standar Rp 17.000.000, maka sisa yang harus dibayar saat booking = <strong>Rp 17.000.000 - {{ formatCurrency(reservation.amount) }} = Sisa UTJ yang perlu ditagihkan.</strong>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="p-3 bg-white rounded-xl border border-slate-200">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">Parameter UTJ Standar</p>
+                                <p class="text-sm font-black font-mono text-slate-900 mt-0.5">{{ formatCurrency(effectiveStandardBookingFee) }}</p>
+                            </div>
+                            <div class="p-3 bg-white rounded-xl border border-emerald-200">
+                                <p class="text-[10px] font-bold text-emerald-600 uppercase">Sudah Dibayar (Reservasi)</p>
+                                <p class="text-sm font-black font-mono text-emerald-700 mt-0.5">- {{ formatCurrency(reservation.amount) }}</p>
+                            </div>
+                            <div class="p-3 rounded-xl border" :class="remainingUtj === 0 ? 'bg-emerald-50 border-emerald-300' : 'bg-amber-50 border-amber-300'">
+                                <p class="text-[10px] font-bold uppercase" :class="remainingUtj === 0 ? 'text-emerald-700' : 'text-amber-700'">Sisa UTJ Saat Naik Booking</p>
+                                <p class="text-sm font-black font-mono mt-0.5" :class="remainingUtj === 0 ? 'text-emerald-800' : 'text-amber-800'">
+                                    {{ remainingUtj === 0 ? 'Rp 0 (Lunas UTJ)' : formatCurrency(remainingUtj) }}
+                                </p>
+                            </div>
                         </div>
+                        <p class="text-[11px] text-slate-600">• Nominal reservasi otomatis memotong Booking Fee (UTJ) Standar sebesar <strong>{{ formatCurrency(effectiveStandardBookingFee) }}</strong> saat dikonversi menjadi Surat Pemesanan Rumah (SPR).</p>
                     </div>
                 </div>
 

@@ -524,4 +524,75 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $this->assertEquals('inhouse_master_lead', $subAgent->agent_type);
         $this->assertEquals(0.0, (float) $subAgent->commission_rate);
     }
+
+    public function test_standard_booking_fee_setting_drives_reservation_remaining_utj_and_booking_flow(): void
+    {
+        $company = Company::create(['name' => 'Parameter Booking Co', 'slug' => 'param-booking-co', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+        $this->actingAs($user);
+
+        // Default before setting saved should be 17,000,000
+        $this->assertEquals(17000000, Setting::getStandardBookingFee());
+
+        [$project, , $unit] = $this->createProjectUnit($company, 'PBC', 'A', '10', 'available');
+        $lead = Lead::create([
+            'company_id' => $company->id,
+            'project_id' => $project->id,
+            'name' => 'Konsumen Parameter Booking',
+            'phone' => '08177778888',
+            'source' => 'inhouse',
+            'status' => 'new',
+        ]);
+
+        // 1. Update fixed standard_booking_fee in /settings to Rp 20.000.000
+        $this->get('/settings')->assertStatus(200);
+        $this->post('/settings', [
+            'standard_booking_fee' => '20.000.000',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertEquals(20000000, Setting::getStandardBookingFee());
+
+        // 2. Create manual reservation of Rp 11.000.000
+        $this->post('/reservations', [
+            'unit_id' => $unit->id,
+            'lead_id' => $lead->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'amount' => 11000000,
+            'payment_method' => 'transfer',
+        ])->assertSessionHasNoErrors();
+
+        $reservation = Reservation::firstOrFail();
+
+        // 3. Receipt HTML/PDF reflects Rp 20.000.000 - Rp 11.000.000 = Rp 9.000.000
+        $htmlPartial = $this->get("/reservations/{$reservation->id}/receipt?html=1");
+        $htmlPartial->assertStatus(200);
+        $htmlPartial->assertSee('Rp 20.000.000');
+        $htmlPartial->assertSee('Rp 11.000.000');
+        $htmlPartial->assertSee('Rp 9.000.000');
+
+        // 4. Verify pages pass standardBookingFee prop cleanly
+        $this->get('/reservations/create')
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page->where('standardBookingFee', 20000000));
+        $this->get("/reservations/{$reservation->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page->where('standardBookingFee', 20000000));
+        $this->get("/leads/{$lead->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page->where('standardBookingFee', 20000000));
+        $this->get("/bookings/create?reservation_id={$reservation->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page->where('standardBookingFee', 20000000));
+
+        // 5. Update standard_booking_fee to Rp 11.000.000 (promo matches manual reservation) -> Rp 0 remaining
+        $this->post('/settings', [
+            'standard_booking_fee' => 11000000,
+        ])->assertRedirect();
+
+        $htmlSettled = $this->get("/reservations/{$reservation->id}/receipt?html=1");
+        $htmlSettled->assertStatus(200);
+        $htmlSettled->assertSee('Rp 11.000.000');
+        $htmlSettled->assertSee('Rp 0 (UTJ Standar Terpenuhi Penuh)');
+    }
 }

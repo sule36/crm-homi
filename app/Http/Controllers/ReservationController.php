@@ -31,6 +31,8 @@ class ReservationController extends Controller
         foreach ($settingsRaw as $s) {
             $settings[$s->key] = Setting::get($s->key);
         }
+        $settings['standard_booking_fee'] = Setting::getStandardBookingFee();
+
         return $settings;
     }
 
@@ -205,6 +207,7 @@ class ReservationController extends Controller
             'preselectedLeadId' => $selectedLeadId,
             'preselectedNego' => $selectedNego,
             'defaultCompanyName' => Setting::get('company_name'),
+            'standardBookingFee' => Setting::getStandardBookingFee(),
         ]);
     }
 
@@ -411,6 +414,7 @@ class ReservationController extends Controller
             'settings' => $settings,
             'units' => $units,
             'coordinators' => $coordinators,
+            'standardBookingFee' => Setting::getStandardBookingFee(),
         ]);
     }
 
