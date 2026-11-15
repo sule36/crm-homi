@@ -482,4 +482,46 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $this->assertDatabaseHas('leads', ['id' => $igReservedLead->id]);
         $this->assertDatabaseHas('reservations', ['lead_id' => $igReservedLead->id]);
     }
+
+    public function test_updating_sub_agent_with_null_commission_rate_and_inhouse_master_lead_succeeds(): void
+    {
+        $company = Company::create(['name' => 'Master Lead Update Test Co', 'slug' => 'ml-update-test', 'status' => 'active']);
+        $admin = User::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+        $masterLead = User::factory()->create([
+            'company_id' => $company->id,
+            'status' => 'active',
+            'agent_type' => 'master_lead',
+        ]);
+        $subAgent = User::factory()->create([
+            'company_id' => $company->id,
+            'status' => 'active',
+            'agent_type' => 'agency_agent',
+            'master_lead_id' => $masterLead->id,
+            'commission_rate' => 2.5,
+        ]);
+
+        // Reproduces exact MasterLeads/Index.vue PUT /users/{id} payload where blank fee sends null/0
+        $response = $this->actingAs($admin)->put("/users/{$subAgent->id}", [
+            'name' => 'Sub Agent Updated',
+            'phone' => '081234567890',
+            'email' => $subAgent->email,
+            'role' => 'sales_agent',
+            'agent_type' => 'inhouse_master_lead',
+            'broker_company_id' => null,
+            'master_lead_id' => $masterLead->id,
+            'commission_rate' => null,
+            'custom_bonus' => 0,
+            'bank_name' => 'BCA',
+            'bank_account_number' => '1234567890',
+            'bank_account_name' => 'Sub Agent Updated',
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $subAgent->refresh();
+        $this->assertEquals('Sub Agent Updated', $subAgent->name);
+        $this->assertEquals('inhouse_master_lead', $subAgent->agent_type);
+        $this->assertEquals(0.0, (float) $subAgent->commission_rate);
+    }
 }

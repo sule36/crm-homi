@@ -272,7 +272,7 @@ function openSubAgentModal(agent = null, presetMasterLeadId = null, presetBroker
         agentForm.agent_type = agent.agent_type || 'agency_agent';
         agentForm.broker_company_id = agent.broker_company_id || null;
         agentForm.master_lead_id = agent.master_lead_id || presetMasterLeadId;
-        agentForm.commission_rate = agent.commission_rate || '';
+        agentForm.commission_rate = (agent.commission_rate !== null && agent.commission_rate !== undefined && Number(agent.commission_rate) > 0) ? agent.commission_rate : '';
         agentForm.custom_bonus = agent.custom_bonus || 0;
         agentForm.bank_name = agent.bank_name || '';
         agentForm.bank_account_number = agent.bank_account_number || '';
@@ -295,7 +295,7 @@ function submitSubAgent() {
         agent_type: agentForm.agent_type,
         broker_company_id: agentForm.agent_type === 'agency_agent' ? (agentForm.broker_company_id || null) : null,
         master_lead_id: agentForm.master_lead_id || null,
-        commission_rate: (agentForm.commission_rate !== '' && agentForm.commission_rate !== null) ? Number(agentForm.commission_rate) : null,
+        commission_rate: (agentForm.commission_rate !== '' && agentForm.commission_rate !== null && Number(agentForm.commission_rate) > 0) ? Number(agentForm.commission_rate) : 0,
         custom_bonus: (agentForm.custom_bonus !== '' && agentForm.custom_bonus !== null) ? Number(agentForm.custom_bonus) : 0,
         bank_name: agentForm.bank_name || null,
         bank_account_number: agentForm.bank_account_number || null,
@@ -304,11 +304,21 @@ function submitSubAgent() {
 
     if (editingAgent.value) {
         router.put(route('users.update', editingAgent.value.id), payload, {
-            onSuccess: () => { showSubAgentModal.value = false; }
+            preserveScroll: true,
+            onSuccess: () => { showSubAgentModal.value = false; },
+            onError: (errors) => {
+                const msg = Object.values(errors || {})[0];
+                if (msg) alert(msg);
+            },
         });
     } else {
         router.post(route('users.store'), payload, {
-            onSuccess: () => { showSubAgentModal.value = false; }
+            preserveScroll: true,
+            onSuccess: () => { showSubAgentModal.value = false; },
+            onError: (errors) => {
+                const msg = Object.values(errors || {})[0];
+                if (msg) alert(msg);
+            },
         });
     }
 }
@@ -1536,6 +1546,7 @@ function submitPaySubAgent() {
                             <option value="agency_agent">🏢 Agency Sub-Agent (Bernaung di Kantor Agency)</option>
                             <option value="independent">💼 Freelance Independen (Agen Bebas)</option>
                             <option value="inhouse_master_lead">🤝 In-House Master Lead (Tim Internal ML)</option>
+                            <option value="inhouse">🏠 In-House Sales Developer</option>
                         </select>
                     </div>
 

@@ -7,7 +7,9 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules;
 
 class UserController extends Controller
@@ -36,6 +38,26 @@ class UserController extends Controller
         ]);
     }
 
+    private function ensureFlexibleAgentTypeColumn(): void
+    {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
+        try {
+            $dbName = DB::connection()->getDatabaseName();
+            $col = DB::selectOne(
+                "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'agent_type'",
+                [$dbName]
+            );
+            if ($col && strtolower((string) $col->DATA_TYPE) === 'enum') {
+                DB::statement("ALTER TABLE users MODIFY COLUMN agent_type VARCHAR(50) NULL DEFAULT 'inhouse'");
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Skipping users.agent_type enum check: ' . $e->getMessage());
+        }
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -46,7 +68,7 @@ class UserController extends Controller
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'master_lead_id' => 'nullable|exists:users,id',
-            'agent_type' => 'nullable|in:inhouse,inhouse_developer,inhouse_master_lead,agency_agent,independent,master_lead',
+            'agent_type' => 'nullable|in:inhouse,inhouse_developer,inhouse_master_lead,agency_agent,independent,master_lead,freelance',
             'phone' => 'nullable|string|max:20',
             'commission_rate' => 'nullable|numeric|min:0|max:100',
             'custom_bonus' => 'nullable|numeric|min:0',
@@ -64,6 +86,8 @@ class UserController extends Controller
         $masterLeadId = $isMasterLead ? auth()->id() : ($request->filled('master_lead_id') ? $request->master_lead_id : null);
         $brokerCompanyId = $request->filled('broker_company_id') ? $request->broker_company_id : null;
         $projectId = $request->filled('project_id') ? $request->project_id : null;
+
+        $this->ensureFlexibleAgentTypeColumn();
 
         $user = User::create([
             'name' => $request->name,
@@ -100,7 +124,7 @@ class UserController extends Controller
             'project_id' => 'nullable|exists:projects,id',
             'broker_company_id' => 'nullable|exists:broker_companies,id',
             'master_lead_id' => 'nullable|exists:users,id',
-            'agent_type' => 'nullable|in:inhouse,inhouse_developer,inhouse_master_lead,agency_agent,independent,master_lead',
+            'agent_type' => 'nullable|in:inhouse,inhouse_developer,inhouse_master_lead,agency_agent,independent,master_lead,freelance',
             'phone' => 'nullable|string|max:20',
             'status' => 'nullable|in:active,inactive',
             'password' => ['nullable', Rules\Password::defaults()],
@@ -111,12 +135,14 @@ class UserController extends Controller
             'bank_account_name' => 'nullable|string',
         ]);
 
+        $this->ensureFlexibleAgentTypeColumn();
+
         $isMasterLead = auth()->user() && (auth()->user()->hasRole('master_lead') || auth()->user()->agent_type === 'master_lead');
         $masterLeadId = $isMasterLead ? auth()->id() : ($request->has('master_lead_id') ? ($request->filled('master_lead_id') ? $request->master_lead_id : null) : $user->master_lead_id);
         $brokerCompanyId = $request->has('broker_company_id') ? ($request->filled('broker_company_id') ? $request->broker_company_id : null) : $user->broker_company_id;
         $projectId = $request->has('project_id') ? ($request->filled('project_id') ? $request->project_id : null) : $user->project_id;
 
-        $settings = $user->settings ?: [];
+        $settings = is_array($user->settings) ? $user->settings : [];
         if ($request->has('secondary_bank_name')) {
             $settings['secondary_bank_name'] = $request->secondary_bank_name;
             $settings['secondary_bank_account_number'] = $request->secondary_bank_account_number;
@@ -129,7 +155,7 @@ class UserController extends Controller
             'project_id' => $projectId,
             'broker_company_id' => $brokerCompanyId,
             'master_lead_id' => $masterLeadId,
-            'status' => $request->status ?: $user->status,
+            'status' => ($request->status ?: $user->status) ?: 'active',
             'bank_name' => $request->bank_name,
             'bank_account_number' => $request->bank_account_number,
             'bank_account_name' => $request->bank_account_name,
@@ -141,22 +167,31 @@ class UserController extends Controller
         }
 
         if ($request->has('commission_rate')) {
-            $data['commission_rate'] = (is_numeric($request->commission_rate) && $request->commission_rate > 0) ? (float)$request->commission_rate : null;
+            $data['commission_rate'] = (is_numeric($request->commission_rate) && (float) $request->commission_rate > 0)
+                ? (float) $request->commission_rate
+                : 0;
         }
 
         if ($request->has('custom_bonus')) {
-            $data['custom_bonus'] = is_numeric($request->custom_bonus) ? (float)$request->custom_bonus : 0;
+            $data['custom_bonus'] = is_numeric($request->custom_bonus) ? (float) $request->custom_bonus : 0;
         }
 
         if ($request->filled('password')) {
             $data['password'] = Hash::make($request->password);
         }
 
-        $user->update($data);
+        $safeData = [];
+        foreach ($data as $column => $value) {
+            if (Schema::hasColumn('users', $column)) {
+                $safeData[$column] = $value;
+            }
+        }
+
+        $user->update($safeData);
 
         $targetRole = ($request->agent_type === 'master_lead' || $user->agent_type === 'master_lead') ? 'master_lead' : ($request->role ?: null);
         if ($targetRole) {
-            \Spatie\Permission\Models\Role::firstOrCreate(['name' => $targetRole, 'guard_name' => 'web']);
+            Role::firstOrCreate(['name' => $targetRole, 'guard_name' => 'web']);
             $user->syncRoles([$targetRole]);
         }
 
