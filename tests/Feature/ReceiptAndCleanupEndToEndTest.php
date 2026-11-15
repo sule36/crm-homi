@@ -1977,7 +1977,7 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         Setting::set('standard_booking_fee', '17000000', $company->id);
         Setting::set('company_name', 'PT Master Stock Test', $company->id);
 
-        [$project, $unitType, $unitB2] = $this->createProjectUnit($company, 'ALO', 'B', '2', 'available', 3850000000);
+        [$project, $unitType, $unitB2] = $this->createProjectUnit($company, 'ALO', 'B', '2', 'available');
         $project->update(['name' => 'Alonica Hills', 'address' => 'Jl. Cilandak KKO No. 10']);
         $unitType->update([
             'name' => 'Alonica Standard',
@@ -1985,7 +1985,10 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
             'building_area' => 198,
             'bedrooms' => 4,
             'bathrooms' => 4,
+            'base_price' => 3850000000,
+            'current_price' => 3850000000,
         ]);
+        $unitB2->update(['final_price' => 3850000000]);
 
         $lead = Lead::create([
             'company_id' => $company->id,
@@ -2023,11 +2026,12 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
             'unit_listed_price' => 0, // intentionally zero to verify live sync from Master Stock Unit B2
             'payment_scheme' => 'cash_bertahap',
             'status' => 'draft',
-            'token' => 'TestTokenB2SyncFreetext01',
         ]);
 
+        $token = $negotiation->token;
+
         // 1. Public GET /nego/{token} pulls live Master Stock Unit B2 specs, price & Reservation/UTJ credit
-        $this->get('/nego/TestTokenB2SyncFreetext01')
+        $this->get("/nego/{$token}")
             ->assertStatus(200)
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('negotiation.unit.label', 'Blok B No. 2')
@@ -2040,7 +2044,7 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
             );
 
         // 2. Public POST /nego/{token} submits freetext Bonus (Poin 3) + freetext Custom Layout (Poin 4.1) + DP/Tenor
-        $this->post('/nego/TestTokenB2SyncFreetext01', [
+        $this->post("/nego/{$token}", [
             'client_name' => 'Calon Pembeli B2',
             'client_phone' => '081288899900',
             'offered_price' => 3650000000,
@@ -2073,7 +2077,7 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $this->assertEquals('200.000.000,-', $details['pengajuan']['dp1_amount']);
 
         // 3. Public PDF HTML view reflects Master Stock Unit B2, freetext Poin 3 & Poin 4.1, and 11jt + 6jt UTJ split
-        $pdfHtml = $this->get('/nego/TestTokenB2SyncFreetext01/pdf?html=1');
+        $pdfHtml = $this->get("/nego/{$token}/pdf?html=1");
         $pdfHtml->assertStatus(200);
         $pdfHtml->assertSee('Blok B No. 2');
         $pdfHtml->assertSee('Free Kanopi Carport, AC 2 Unit, Free BPHTB');
@@ -2099,10 +2103,34 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
+        $this->post('/bookings', [
+            'lead_id' => $lead->id,
+            'unit_id' => $unitB2->id,
+            'booked_by' => $user->id,
+            'negotiation_id' => $negotiation->id,
+            'payment_scheme' => 'cash_installment',
+            'installment_months' => 12,
+            'booking_date' => '2026-11-16',
+            'booking_fee' => 17000000,
+            'base_price' => 3850000000,
+            'final_price' => 3650000000,
+            'dp_amount' => 200000000,
+            'special_bonus_items' => $negotiation->special_bonus_items,
+            'notes' => 'Custom Layout: ' . $negotiation->custom_layout_notes,
+            'auto_approve' => true,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
         $negotiation->refresh();
         $this->assertNotNull($negotiation->booking_id);
         $booking = Booking::findOrFail($negotiation->booking_id);
         $this->assertEquals($unitB2->id, $booking->unit_id);
         $this->assertEquals(['Free Kanopi Carport', 'AC 2 Unit', 'Free BPHTB'], $booking->special_bonus_items);
+        $this->assertEquals('booked', $unitB2->fresh()->status);
+
+        $sprResp = $this->get("/bookings/{$booking->id}/spr?html=1");
+        $sprResp->assertStatus(200);
+        $sprResp->assertSee('Blok B No. 2');
+        $sprResp->assertSee('Free Kanopi Carport');
+        $sprResp->assertSee('11.000.000');
     }
 }
