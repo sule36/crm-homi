@@ -266,7 +266,7 @@
 
         // Resolve Developer / Project Logo
         $logoData = null;
-        $project = $booking->unit->project ?? null;
+        $project = $booking->unit?->project ?? $booking->project ?? null;
         
         if ($project && !empty($project->logo)) {
             $logoData = $getSafeBase64($project->logo);
@@ -275,12 +275,29 @@
             $logoData = $getSafeBase64($settings['company_logo']);
         }
         if (!$logoData && file_exists(public_path('images/logo.png'))) {
-            $logoData = 'data:image/png;base64,' . base64_encode(file_get_contents(public_path('images/logo.png')));
+            try {
+                $logoRaw = @file_get_contents(public_path('images/logo.png'));
+                if ($logoRaw) {
+                    $logoData = 'data:image/png;base64,' . base64_encode($logoRaw);
+                }
+            } catch (\Throwable $e) {}
         }
         $companyLogoData = $logoData;
 
-        // Terms and Conditions
-        $terms = $settings['spr_terms_conditions'] ?? [
+        $ensureArray = function ($val, array $default = []): array {
+            if (is_array($val)) {
+                return $val;
+            }
+            if (is_string($val) && trim($val) !== '') {
+                $decoded = json_decode($val, true);
+                if (is_array($decoded)) {
+                    return $decoded;
+                }
+            }
+            return $default;
+        };
+
+        $defaultTerms = [
             "Pembeli menyatakan telah mengerti dan menyetujui serta akan tunduk kepada persyaratan dan ketentuan serta kebijakan yang ditetapkan oleh Pengembang dalam SPR",
             "Dalam hal pembelian rumah melalui KPR, jumlah DP dan persyaratan KPR lainnya tunduk pada ketentuan Bank pemberi KPR",
             "Dalam hal terjadi penolakan dari pihak Bank atau KPR tidak disetujui, maka Uang Tanda Jadi akan dikembalikan 100%",
@@ -295,8 +312,16 @@
             "Penandatanganan SPR dilakukan setelah seluruh pasal didalamnya disepakati oleh masing-masing pihak"
         ];
 
+        // Terms and Conditions
+        $termsInput = $settings['spr_terms_conditions'] ?? null;
+        $termsRaw = $ensureArray($termsInput, []);
+        if (empty($termsRaw) && is_string($termsInput) && trim($termsInput) !== '') {
+            $termsRaw = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $termsInput))));
+        }
+        $terms = array_values(!empty($termsRaw) ? $termsRaw : $defaultTerms);
+
         // Signatures setup
-        $sigs = $settings['spr_signatures'] ?? [
+        $defaultSigs = [
             'city' => 'Jakarta Selatan',
             'sig1_title' => 'Sales Manager',
             'sig1_name' => 'Dhany Nur',
@@ -306,14 +331,20 @@
             'sig2_image' => null,
             'sig3_title' => 'Pembeli Utama',
         ];
+        $sigs = array_merge($defaultSigs, $ensureArray($settings['spr_signatures'] ?? null, []));
 
         $tenantCompanyName = $booking->company?->name ?? $booking->unit?->project?->company?->name ?? 'Developer';
-        $fallbackBank = \App\Models\BankAccount::where('is_active', true)->first();
+        $fallbackBank = null;
+        try {
+            $fallbackBank = \App\Models\BankAccount::where('is_active', true)->first();
+        } catch (\Throwable $e) {
+            $fallbackBank = null;
+        }
 
         // 1. Prioritize booking's explicit spr_bank_info
-        $bankInfo = (!empty($booking->spr_bank_info) && is_array($booking->spr_bank_info)) 
-            ? $booking->spr_bank_info 
-            : ($settings['spr_bank_info'] ?? []);
+        $bankInfo = !empty($booking->spr_bank_info)
+            ? $ensureArray($booking->spr_bank_info, [])
+            : $ensureArray($settings['spr_bank_info'] ?? null, []);
 
         // 2. If booking has a relational bank account, use it
         if ($booking->bankAccount) {
@@ -338,27 +369,30 @@
         }
 
         // Special Offer & Benefit (prioritize per-booking overrides)
-        $so = !empty($booking->spr_special_offer) && is_array($booking->spr_special_offer) 
-            ? array_merge(($settings['spr_special_offer'] ?? []), $booking->spr_special_offer) 
-            : ($settings['spr_special_offer'] ?? [
-                'enabled' => true,
-                'title' => 'Special Offer & Benefit ' . ($project->name ?? 'Umala Andara'),
-                'bonus_furniture' => [
-                    'Kitchen Set',
-                    'Kitchen Island',
-                    'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
-                    'Bench',
-                    'Wall Cabinet TV',
-                ],
-                'grand_launching_package' => [
-                    'Free BPHTB (khusus aset perolehan pertama)',
-                    'Free AJB',
-                    'Free Balik Nama',
-                    'Free Biaya Notaris',
-                    'Extra Cashback 50 Juta',
-                ],
-                'promo_valid_until' => '30 September 2026',
-            ]);
+        $defaultOffer = [
+            'enabled' => true,
+            'title' => 'Special Offer & Benefit ' . ($project->name ?? 'Umala Andara'),
+            'bonus_furniture' => [
+                'Kitchen Set',
+                'Kitchen Island',
+                'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
+                'Bench',
+                'Wall Cabinet TV',
+            ],
+            'grand_launching_package' => [
+                'Free BPHTB (khusus aset perolehan pertama)',
+                'Free AJB',
+                'Free Balik Nama',
+                'Free Biaya Notaris',
+                'Extra Cashback 50 Juta',
+            ],
+            'promo_valid_until' => '30 September 2026',
+        ];
+        $settingsOffer = $ensureArray($settings['spr_special_offer'] ?? null, $defaultOffer);
+        $bookingOffer = $ensureArray($booking->spr_special_offer ?? null, []);
+        $so = !empty($bookingOffer)
+            ? array_merge($settingsOffer, $bookingOffer)
+            : $settingsOffer;
 
         // Prepare Base64 Signature Images
         $sig1ImageData = !empty($booking->sig1_image) ? $getSafeBase64($booking->sig1_image) : $getSafeBase64($sigs['sig1_image'] ?? null);
@@ -384,9 +418,13 @@
         @endif
         <div class="document-title">Surat Pemesanan Rumah (SPR)</div>
         @php
-            $displaySpkNumber = $booking->spk_number;
-            if (str_contains($displaySpkNumber, 'HOMI') || str_starts_with($displaySpkNumber, 'SPR-2026-')) {
-                $displaySpkNumber = \App\Models\Booking::generateSprNumber($booking->project_id ?: ($booking->unit->project_id ?? null));
+            $displaySpkNumber = (string)($booking->spk_number ?? '');
+            if ($displaySpkNumber === '' || str_contains($displaySpkNumber, 'HOMI') || str_starts_with($displaySpkNumber, 'SPR-2026-')) {
+                try {
+                    $displaySpkNumber = \App\Models\Booking::generateSprNumber($booking->project_id ?: ($booking->unit?->project_id ?? null));
+                } catch (\Throwable $e) {
+                    $displaySpkNumber = $displaySpkNumber !== '' ? $displaySpkNumber : ('SPR-' . $booking->id);
+                }
             }
         @endphp
         <div class="document-number">{{ $displaySpkNumber }}</div>
@@ -401,7 +439,7 @@
                 <table class="info-table">
                     <tr>
                         <td class="lbl">Nama</td>
-                        <td class="val">: {{ $booking->lead->name }}</td>
+                        <td class="val">: {{ $booking->lead?->name ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td class="lbl">No. KTP</td>
@@ -413,7 +451,7 @@
                     </tr>
                     <tr>
                         <td class="lbl">No. Telp / WA</td>
-                        <td class="val">: {{ $booking->lead->phone }}</td>
+                        <td class="val">: {{ $booking->lead?->phone ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td class="lbl">Alamat KTP</td>
@@ -470,27 +508,27 @@
                 <table class="info-table">
                     <tr>
                         <td class="lbl">No. Unit / Kavling</td>
-                        <td class="val">: Blok {{ $booking->unit->block }} No. {{ $booking->unit->number }}</td>
+                        <td class="val">: Blok {{ $booking->unit?->block ?? '-' }} No. {{ $booking->unit?->number ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td class="lbl">Tipe Rumah</td>
-                        <td class="val">: {{ $booking->unit->unitType->name }}</td>
+                        <td class="val">: {{ $booking->unit?->unitType?->name ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td class="lbl">Luas Tanah</td>
-                        <td class="val">: {{ number_format($booking->unit->unitType->land_area ?? 0, 2) }} m²</td>
+                        <td class="val">: {{ number_format((float)($booking->unit?->unitType?->land_area ?? 0), 2) }} m²</td>
                     </tr>
                     <tr>
                         <td class="lbl">Luas Bangunan</td>
-                        <td class="val">: {{ number_format($booking->unit->unitType->building_area ?? 0, 2) }} m²</td>
+                        <td class="val">: {{ number_format((float)($booking->unit?->unitType?->building_area ?? 0), 2) }} m²</td>
                     </tr>
                     <tr>
                         <td class="lbl">Status Sertifikat</td>
-                        <td class="val">: {{ $booking->unit->certificate_status ?? 'Dalam Proses' }}</td>
+                        <td class="val">: {{ $booking->unit?->certificate_status ?? 'Dalam Proses' }}</td>
                     </tr>
                     <tr>
                         <td class="lbl">No. Sertifikat</td>
-                        <td class="val">: {{ $booking->unit->certificate_number ?? '-' }}</td>
+                        <td class="val">: {{ $booking->unit?->certificate_number ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td class="lbl">Harga Jual Unit</td>
@@ -559,9 +597,10 @@
                 $fmtDate = function($rawDate, $fallback = '-') {
                     if (empty($rawDate)) return $fallback;
                     try {
-                        return date('j F Y', strtotime($rawDate));
+                        $ts = strtotime((string)$rawDate);
+                        return $ts !== false ? date('j F Y', $ts) : (string)$rawDate;
                     } catch (\Throwable $e) {
-                        return $rawDate;
+                        return (string)$rawDate;
                     }
                 };
 
@@ -777,13 +816,13 @@
     <div class="catatan-section">
         <div class="catatan-header">Catatan-catatan</div>
         @php
-            $terms = $settings['spr_terms_conditions'] ?? [];
+            $termsDisplay = $terms;
         @endphp
         <table class="catatan-table">
-            @foreach($terms as $index => $item)
+            @foreach($termsDisplay as $index => $item)
             <tr>
-                <td style="width: 20px; font-weight: bold;">{{ $index + 1 }}</td>
-                <td>{{ $item }}</td>
+                <td style="width: 20px; font-weight: bold;">{{ (int)$index + 1 }}</td>
+                <td>{{ is_array($item) ? ($item['text'] ?? $item['label'] ?? implode(', ', array_filter($item, 'is_scalar'))) : (string)$item }}</td>
             </tr>
             @endforeach
         </table>
@@ -795,7 +834,7 @@
         // Slot 1: AGENT COORDINATOR / LEAD
         $sigSlots[] = [
             'title' => !empty($booking->sig1_title) ? $booking->sig1_title : (!empty($sigs['sig1_title']) ? $sigs['sig1_title'] : 'AGENT COORDINATOR'),
-            'name' => !empty($booking->sig1_name) ? $booking->sig1_name : (!empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($booking->bookedBy->name ?? 'Staff')),
+            'name' => !empty($booking->sig1_name) ? $booking->sig1_name : (!empty($sigs['sig1_name']) ? $sigs['sig1_name'] : ($booking->bookedBy?->name ?? 'Staff')),
             'image' => $sig1ImageData,
         ];
         // Slot 2: DIREKTUR / MANAGEMENT
@@ -808,7 +847,7 @@
         $defaultSig3Title = (!empty($sigs['sig3_title']) && $sigs['sig3_title'] !== 'Pemesan Utama') ? $sigs['sig3_title'] : 'SALES';
         $sigSlots[] = [
             'title' => !empty($booking->sig3_title) ? $booking->sig3_title : $defaultSig3Title,
-            'name' => !empty($booking->sig3_name) ? $booking->sig3_name : (!empty($sigs['sig3_name']) ? $sigs['sig3_name'] : ($booking->bookedBy->name ?? 'Mawardi KanaProject')),
+            'name' => !empty($booking->sig3_name) ? $booking->sig3_name : (!empty($sigs['sig3_name']) ? $sigs['sig3_name'] : ($booking->bookedBy?->name ?? 'Mawardi KanaProject')),
             'image' => $sig3ImageData,
         ];
         // Slot 4: PEMESAN UTAMA / PENANGGUNG JAWAB
@@ -824,10 +863,10 @@
         if ($hasSecondaryBuyer) {
             $sig4Name = !empty($booking->sig4_name) 
                 ? $booking->sig4_name 
-                : ($booking->secondary_name ?: (!empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->lead->name ?? '-')));
+                : ($booking->secondary_name ?: (!empty($sigs['sig4_name']) ? $sigs['sig4_name'] : ($booking->lead?->name ?? '-')));
         } else {
             // For primary buyer without secondary, ALWAYS use the active lead name (or fallback if empty)
-            $sig4Name = $booking->lead->name ?? (!empty($booking->sig4_name) ? $booking->sig4_name : '-');
+            $sig4Name = $booking->lead?->name ?? (!empty($booking->sig4_name) ? $booking->sig4_name : '-');
         }
 
         $sigSlots[] = [
@@ -842,9 +881,11 @@
             ? $booking->sigs_city 
             : (!empty($sigs['city']) ? $sigs['city'] : 'Jakarta Selatan');
 
-        $displaySigDate = !empty($booking->spr_date) 
-            ? date('j F Y', strtotime($booking->spr_date)) 
-            : date('j F Y', strtotime($booking->booking_date ?? $booking->created_at ?? now()));
+        $rawSigDate = !empty($booking->spr_date)
+            ? $booking->spr_date
+            : ($booking->booking_date ?? $booking->created_at ?? now());
+        $sigDateTs = strtotime((string)$rawSigDate);
+        $displaySigDate = $sigDateTs !== false ? date('j F Y', $sigDateTs) : date('j F Y');
     @endphp
 
     <div class="signature-section">
@@ -878,38 +919,45 @@
     <table class="so-meta">
         <tr>
             <td class="so-lbl">Nama</td>
-            <td>: {{ $booking->lead->name }}@if(!empty($booking->secondary_name)) / {{ $booking->secondary_name }} ({{ $booking->secondary_relationship ?? 'Penanggung Jawab' }})@endif</td>
+            <td>: {{ $booking->lead?->name ?? '-' }}@if(!empty($booking->secondary_name)) / {{ $booking->secondary_name }} ({{ $booking->secondary_relationship ?? 'Penanggung Jawab' }})@endif</td>
         </tr>
         <tr>
             <td class="so-lbl">No Unit</td>
-            <td>: Blok {{ $booking->unit->block }} No. {{ $booking->unit->number }}</td>
+            <td>: Blok {{ $booking->unit?->block ?? '-' }} No. {{ $booking->unit?->number ?? '-' }}</td>
         </tr>
         <tr>
             <td class="so-lbl">Harga</td>
-            <td>: Rp. {{ number_format($booking->final_price, 0, ',', '.') }},-</td>
+            <td>: Rp. {{ number_format((float)($booking->final_price ?? 0), 0, ',', '.') }},-</td>
         </tr>
         <tr>
             <td class="so-lbl">Cara Bayar</td>
-            <td>: {{ strtoupper(str_replace('_', ' ', $booking->payment_scheme)) }} @if($booking->payment_scheme === 'kpr') (DP {{ $booking->dp_amount > 0 ? 'Ada' : '0%' }}) @endif</td>
+            <td>: {{ strtoupper(str_replace('_', ' ', (string)$booking->payment_scheme)) }} @if($booking->payment_scheme === 'kpr') (DP {{ $booking->dp_amount > 0 ? 'Ada' : '0%' }}) @endif</td>
         </tr>
     </table>
 
     @php
-        $bonusItems = $booking->special_bonus_items ?? ($so['bonus_furniture'] ?? [
+        $defaultBonusItems = [
             'Kitchen Set',
             'Kitchen Island',
             'Dinding Feature Wall Backdrop TV (Sesuai rumah contoh)',
             'Bench',
             'Wall Cabinet TV',
-        ]);
-
-        $packageItems = $booking->special_package_items ?? ($so['grand_launching_package'] ?? [
-            'Free BPHTB ((khusus aset perolehan pertama)',
+        ];
+        $defaultPackageItems = [
+            'Free BPHTB (khusus aset perolehan pertama)',
             'Free AJB',
             'Free Balik Nama',
             'Free Biaya Notaris',
             'Extra Cashback 50 Juta',
-        ]);
+        ];
+
+        $bonusItems = !empty($booking->special_bonus_items)
+            ? $ensureArray($booking->special_bonus_items, $defaultBonusItems)
+            : $ensureArray($so['bonus_furniture'] ?? null, $defaultBonusItems);
+
+        $packageItems = !empty($booking->special_package_items)
+            ? $ensureArray($booking->special_package_items, $defaultPackageItems)
+            : $ensureArray($so['grand_launching_package'] ?? null, $defaultPackageItems);
 
         $promoValidUntil = $so['promo_valid_until'] ?? '30 September 2024';
     @endphp
@@ -917,14 +965,14 @@
     <div class="so-section-title">Special Bonus Furniture:</div>
     <ul class="so-list">
         @foreach($bonusItems as $item)
-            <li>- {{ $item }}</li>
+            <li>- {{ is_array($item) ? ($item['text'] ?? $item['label'] ?? implode(', ', array_filter($item, 'is_scalar'))) : (string)$item }}</li>
         @endforeach
     </ul>
 
     <div class="so-section-title">Special Grand Launching Package:</div>
     <ul class="so-list">
         @foreach($packageItems as $pkg)
-            <li>- {{ $pkg }}</li>
+            <li>- {{ is_array($pkg) ? ($pkg['text'] ?? $pkg['label'] ?? implode(', ', array_filter($pkg, 'is_scalar'))) : (string)$pkg }}</li>
         @endforeach
     </ul>
 

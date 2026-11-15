@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <title>Form Request Customer - {{ $negotiation->client_name }} - {{ $negotiation->unit->code ?? 'Unit' }}</title>
+    <title>Form Request Customer - {{ $negotiation->client_name }} - {{ $negotiation->unit?->label ?? $negotiation->unit?->code ?? 'Unit' }}</title>
     <style>
         @page {
             margin: 10mm 15mm 10mm 15mm;
@@ -101,26 +101,66 @@
 <body>
     @php
         $form = $negotiation->getFormDetails();
-        $logoPath = public_path('images/alonica_logo.png');
-        if (!empty($negotiation->project->logo) && file_exists(public_path('storage/' . $negotiation->project->logo))) {
-            $logoPath = public_path('storage/' . $negotiation->project->logo);
+        $resolveBase64 = function (?string $pathCandidate) {
+            if (empty($pathCandidate)) {
+                return null;
+            }
+            if (str_starts_with($pathCandidate, 'data:image/')) {
+                return $pathCandidate;
+            }
+            $rel = ltrim($pathCandidate, '/');
+            if (str_starts_with($rel, 'storage/')) {
+                $rel = substr($rel, 8);
+            }
+            $candidates = [
+                storage_path('app/public/' . $rel),
+                public_path('storage/' . $rel),
+                public_path($pathCandidate),
+            ];
+            foreach ($candidates as $fullPath) {
+                if ($fullPath && is_file($fullPath) && is_readable($fullPath)) {
+                    $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+                    $mime = match ($ext) {
+                        'jpg', 'jpeg' => 'image/jpeg',
+                        'webp' => 'image/webp',
+                        'gif' => 'image/gif',
+                        default => 'image/png',
+                    };
+                    return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($fullPath));
+                }
+            }
+            return null;
+        };
+
+        $logoBase64 = $resolveBase64($negotiation->project?->logo)
+            ?: $resolveBase64($negotiation->unit?->project?->logo)
+            ?: $resolveBase64($settings['company_logo'] ?? null)
+            ?: $resolveBase64('images/alonica_logo.png');
+
+        $sigConfig = $settings['spr_signatures'] ?? [];
+        $sigMengetahuiImg = $resolveBase64($form['jawaban']['sig_mengetahui_image'] ?? ($sigConfig['sig1_image'] ?? null));
+        if (!$sigMengetahuiImg && stripos((string)($form['jawaban']['sig_mengetahui_name'] ?? ''), 'Maulizar') !== false) {
+            $sigMengetahuiImg = $resolveBase64('images/sig_maulizar.png');
         }
-        $logoBase64 = file_exists($logoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) : null;
 
-        $sigMaulizarPath = public_path('images/sig_maulizar.png');
-        $sigMaulizarBase64 = file_exists($sigMaulizarPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($sigMaulizarPath)) : null;
-
-        $sigBramantyoPath = public_path('images/sig_bramantyo.png');
-        $sigBramantyoBase64 = file_exists($sigBramantyoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($sigBramantyoPath)) : null;
+        $sigMenyetujuiImg = $resolveBase64($form['jawaban']['sig_menyetujui_image'] ?? ($sigConfig['sig2_image'] ?? null));
+        if (!$sigMenyetujuiImg && stripos((string)($form['jawaban']['sig_menyetujui_name'] ?? ''), 'Bramantyo') !== false) {
+            $sigMenyetujuiImg = $resolveBase64('images/sig_bramantyo.png');
+        }
     @endphp
 
     <!-- ========================================== -->
     <!-- HALAMAN 1: FORM REQUEST CUSTOMER -->
     <!-- ========================================== -->
-    <div class="header-logo-container">
-        @if($logoBase64)
-            <img src="{{ $logoBase64 }}" class="header-logo" alt="Logo" />
-        @endif
+    <div class="header-logo-container" style="display: table; width: 100%;">
+        <div style="display: table-cell; vertical-align: middle;">
+            @if($logoBase64)
+                <img src="{{ $logoBase64 }}" class="header-logo" alt="Logo" />
+            @endif
+        </div>
+        <div style="display: table-cell; vertical-align: middle; text-align: right; font-size: 8pt; color: #334155;">
+            <strong>No. Ref:</strong> {{ $negotiation->getFormattedNumber() }}
+        </div>
     </div>
 
     <div class="title-box">
@@ -272,6 +312,27 @@
         @endforeach
     </ol>
 
+    @php
+        $hasCustomLayout = !empty($negotiation->custom_layout_options) && is_array($negotiation->custom_layout_options) && count($negotiation->custom_layout_options) > 0;
+        $hasExtraClientNotes = $hasCustomLayout || !empty($negotiation->custom_layout_notes) || !empty($negotiation->special_requests) || !empty($negotiation->notes);
+    @endphp
+    @if($hasExtraClientNotes)
+        <div style="margin-top: 8px; padding: 6px 8px; border: 1px solid #cbd5e1; background-color: #f8fafc; font-size: 8pt;">
+            @if($hasCustomLayout)
+                <div><strong>Custom Layout:</strong> {{ implode(', ', $negotiation->custom_layout_options) }}</div>
+            @endif
+            @if(!empty($negotiation->custom_layout_notes))
+                <div><strong>Detail Denah:</strong> {{ $negotiation->custom_layout_notes }}</div>
+            @endif
+            @if(!empty($negotiation->special_requests))
+                <div><strong>Permintaan Khusus:</strong> {{ $negotiation->special_requests }}</div>
+            @endif
+            @if(!empty($negotiation->notes))
+                <div><strong>Catatan Tambahan:</strong> {{ $negotiation->notes }}</div>
+            @endif
+        </div>
+    @endif
+
 
     <!-- ========================================== -->
     <!-- HALAMAN 2: JAWABAN (DEVELOPER COUNTER/APPROVAL) -->
@@ -354,24 +415,31 @@
                     @endif
                 </div>
                 <div>( {{ $form['jawaban']['sig_pengaju_name'] }} )</div>
+                <div style="font-size: 7.5pt; color: #475569;">Calon Pembeli</div>
             </td>
             <td>
                 <div>Mengetahui,</div>
                 <div class="sig-box">
-                    @if($sigMaulizarBase64)
-                        <img src="{{ $sigMaulizarBase64 }}" class="sig-img" />
+                    @if($sigMengetahuiImg)
+                        <img src="{{ $sigMengetahuiImg }}" class="sig-img" />
                     @endif
                 </div>
                 <div>( {{ $form['jawaban']['sig_mengetahui_name'] }} )</div>
+                @if(!empty($form['jawaban']['sig_mengetahui_title']))
+                    <div style="font-size: 7.5pt; color: #475569;">{{ $form['jawaban']['sig_mengetahui_title'] }}</div>
+                @endif
             </td>
             <td>
                 <div>Menyetujui,</div>
                 <div class="sig-box">
-                    @if($sigBramantyoBase64)
-                        <img src="{{ $sigBramantyoBase64 }}" class="sig-img" />
+                    @if($sigMenyetujuiImg)
+                        <img src="{{ $sigMenyetujuiImg }}" class="sig-img" />
                     @endif
                 </div>
                 <div>( {{ $form['jawaban']['sig_menyetujui_name'] }} )</div>
+                @if(!empty($form['jawaban']['sig_menyetujui_title']))
+                    <div style="font-size: 7.5pt; color: #475569;">{{ $form['jawaban']['sig_menyetujui_title'] }}</div>
+                @endif
             </td>
         </tr>
     </table>

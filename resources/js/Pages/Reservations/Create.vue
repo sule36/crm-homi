@@ -35,7 +35,7 @@ const form = useForm({
     client_name: props.preselectedNego?.client_name || '',
     client_phone: props.preselectedNego?.client_phone || '',
     client_email: props.preselectedNego?.client_email || '',
-    client_nik: '',
+    client_nik: props.preselectedNego?.lead?.identity_number || '',
     amount: 10000000, // Default 10 Juta (dapat diubah-ubah)
     payment_method: 'transfer',
     payment_proof: null,
@@ -52,8 +52,17 @@ const form = useForm({
 const selectedSignerKey = ref(resolveInitialSignerKey({ defaultDeveloperSigner: props.defaultDeveloperSigner }));
 const activePresetImage = ref(props.defaultDeveloperSigner?.image || null);
 
+const selectableUnits = computed(() => {
+    const preId = props.preselectedUnitId ? Number(props.preselectedUnitId) : null;
+    return (props.units || []).filter((u) => {
+        if (preId && Number(u.id) === preId) return true;
+        const st = String(u.status || '').toLowerCase().trim();
+        return st !== 'sold' && st !== 'booked';
+    });
+});
+
 const selectedUnit = computed(() => {
-    return props.units.find(u => u.id == form.unit_id);
+    return (props.units || []).find(u => u.id == form.unit_id);
 });
 
 const remainingUtj = computed(() => {
@@ -152,7 +161,7 @@ const formatCurrency = (val) => {
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Unit Properti <span class="text-rose-500">*</span></label>
                             <select v-model="form.unit_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500">
                                 <option value="" disabled>-- Pilih Unit (Available) --</option>
-                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                <option v-for="u in selectableUnits" :key="u.id" :value="u.id">
                                     {{ u.project?.name }} · {{ u.label }} (Tipe {{ u.unit_type?.name }}) - {{ formatCurrency(u.final_price || u.unit_type?.current_price) }} [{{ u.status }}]
                                 </option>
                             </select>

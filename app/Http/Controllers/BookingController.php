@@ -38,14 +38,35 @@ class BookingController extends Controller
     {
         $reservation = $request->reservation_id ? Reservation::with(['unit', 'lead'])->find($request->reservation_id) : null;
         $negotiation = $request->negotiation_id 
-            ? Negotiation::with(['unit.project', 'unit.unitType', 'lead'])->find($request->negotiation_id) 
-            : ($reservation?->negotiation_id ? Negotiation::with(['unit.project', 'unit.unitType', 'lead'])->find($reservation->negotiation_id) : null);
+            ? Negotiation::with(['unit.project', 'unit.unitType', 'lead', 'creator'])->find($request->negotiation_id) 
+            : ($reservation?->negotiation_id ? Negotiation::with(['unit.project', 'unit.unitType', 'lead', 'creator'])->find($reservation->negotiation_id) : null);
         $unitId = $request->unit_id ?? $reservation?->unit_id ?? $negotiation?->unit_id;
         $leadId = $request->lead_id ?? $reservation?->lead_id ?? $negotiation?->lead_id;
 
+        // Auto-detect active reservation if launched directly from Negotiation or Lead
+        if (!$reservation && ($leadId || $unitId || $negotiation)) {
+            $reservation = Reservation::with(['unit', 'lead'])
+                ->where('status', 'active')
+                ->where(function ($q) use ($leadId, $unitId, $negotiation) {
+                    if ($negotiation) {
+                        $q->where('negotiation_id', $negotiation->id);
+                    }
+                    if ($leadId && $unitId) {
+                        $q->orWhere(function ($sq) use ($leadId, $unitId) {
+                            $sq->where('lead_id', $leadId)->where('unit_id', $unitId);
+                        });
+                    }
+                    if ($leadId) {
+                        $q->orWhere('lead_id', $leadId);
+                    }
+                })
+                ->latest()
+                ->first();
+        }
+
         // Auto-detect matching negotiation if not explicitly provided
         if (!$negotiation && $leadId && $unitId) {
-            $negotiation = Negotiation::with(['unit.project', 'unit.unitType', 'lead'])
+            $negotiation = Negotiation::with(['unit.project', 'unit.unitType', 'lead', 'creator'])
                 ->where('lead_id', $leadId)
                 ->where('unit_id', $unitId)
                 ->whereIn('status', ['approved', 'counter_offer', 'pending'])
@@ -53,7 +74,7 @@ class BookingController extends Controller
                 ->first();
         }
         if (!$negotiation && $leadId) {
-            $negotiation = Negotiation::with(['unit.project', 'unit.unitType', 'lead'])
+            $negotiation = Negotiation::with(['unit.project', 'unit.unitType', 'lead', 'creator'])
                 ->where('lead_id', $leadId)
                 ->whereIn('status', ['approved', 'counter_offer', 'pending'])
                 ->latest()
@@ -62,7 +83,7 @@ class BookingController extends Controller
 
         // Available negotiations for this lead or unit to let developer switch/apply deal
         $availableNegotiations = ($leadId || $unitId)
-            ? Negotiation::with(['unit.project', 'unit.unitType', 'lead'])
+            ? Negotiation::with(['unit.project', 'unit.unitType', 'lead', 'creator'])
                 ->where(function($q) use ($leadId, $unitId) {
                     if ($leadId) $q->where('lead_id', $leadId);
                     if ($unitId) $q->orWhere('unit_id', $unitId);
@@ -85,7 +106,7 @@ class BookingController extends Controller
             'defaultFreePpn' => (bool)$defaultFreePpn,
             'defaultFreeLegal' => (bool)$defaultFreeLegal,
             'standardBookingFee' => \App\Models\Setting::getStandardBookingFee(),
-            'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderByUnitNumber()->get(),
+            'availableUnits' => Unit::selectableForLov($unitId ? (int) $unitId : null)->with('project', 'unitType')->orderByUnitNumber()->get(),
             'leads' => Lead::whereNotIn('status', ['won', 'lost'])->with(['assignedToUser', 'inhousePic', 'brokerCompany'])->get(),
             'agents' => \App\Models\User::with('brokerCompany')->orderBy('name', 'asc')->get(),
         ]);
@@ -102,9 +123,37 @@ class BookingController extends Controller
         }
         foreach (['booking_fee', 'base_price', 'final_price', 'ppn_amount', 'bphtb_amount', 'ajb_bbn_amount', 'other_legal_fees', 'dp_amount'] as $nField) {
             if ($request->has($nField) && is_string($request->input($nField))) {
-                $cleaned = preg_replace('/[^0-9]/', '', $request->input($nField));
-                $request->merge([$nField => $cleaned !== '' ? (float)$cleaned : 0]);
+                $rawVal = trim($request->input($nField));
+                if ($rawVal === '') {
+                    $request->merge([$nField => 0]);
+                } elseif (is_numeric($rawVal)) {
+                    $request->merge([$nField => (float)$rawVal]);
+                } else {
+                    $cleaned = preg_replace('/[^0-9]/', '', $rawVal);
+                    $request->merge([$nField => $cleaned !== '' ? (float)$cleaned : 0]);
+                }
             }
+        }
+        if ($request->has('custom_schedules') && is_array($request->input('custom_schedules'))) {
+            $normalizedSchedules = [];
+            foreach ($request->input('custom_schedules') as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                if (isset($row['amount']) && is_string($row['amount'])) {
+                    $rawAmt = trim($row['amount']);
+                    if ($rawAmt === '') {
+                        $row['amount'] = 0;
+                    } elseif (is_numeric($rawAmt)) {
+                        $row['amount'] = (float)$rawAmt;
+                    } else {
+                        $cleanedAmt = preg_replace('/[^0-9]/', '', $rawAmt);
+                        $row['amount'] = $cleanedAmt !== '' ? (float)$cleanedAmt : 0;
+                    }
+                }
+                $normalizedSchedules[] = $row;
+            }
+            $request->merge(['custom_schedules' => $normalizedSchedules]);
         }
 
         $validated = $request->validate([
@@ -192,6 +241,20 @@ class BookingController extends Controller
             $validated['installment_months'] = 0;
         }
 
+        $preCheckUnit = Unit::findOrFail($validated['unit_id']);
+        $unitStatusNorm = strtolower(trim((string) $preCheckUnit->status));
+        $hasBlockingBooking = Booking::withoutGlobalScopes()
+            ->where('unit_id', $preCheckUnit->id)
+            ->whereNull('deleted_at')
+            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('approved', 'completed', 'booked')")
+            ->exists();
+
+        if (in_array($unitStatusNorm, ['sold', 'booked'], true) || $hasBlockingBooking) {
+            return back()->withErrors([
+                'unit_id' => "Unit {$preCheckUnit->label} sudah berstatus {$preCheckUnit->status} / terjual dan tidak dapat dibooking.",
+            ])->withInput();
+        }
+
         try {
             return DB::transaction(function () use ($validated, $request, $isCustomTerms, $customSchedules) {
                 $unit = Unit::findOrFail($validated['unit_id']);
@@ -204,14 +267,18 @@ class BookingController extends Controller
 
                 $sigConfig = \App\Models\Setting::getSignatureConfig();
 
+                $leadRecord = Lead::find($validated['lead_id']);
+                $resolvedCompanyId = $unit->company_id ?? $leadRecord?->company_id ?? $agent->company_id ?? auth()->user()?->company_id;
+
                 // 1. Create Booking safely with schema filtering
                 $bookingData = [
+                    'company_id' => $resolvedCompanyId,
                     'spk_number' => Booking::generateSpkNumber($unit->project_id),
                     'unit_id' => $validated['unit_id'],
                     'lead_id' => $validated['lead_id'],
                     'project_id' => $unit->project_id,
                     'booked_by' => $validated['booked_by'],
-                    'inhouse_pic_id' => $validated['inhouse_pic_id'] ?? ($request->lead_id ? Lead::find($request->lead_id)?->inhouse_pic_id : null),
+                    'inhouse_pic_id' => $validated['inhouse_pic_id'] ?? $leadRecord?->inhouse_pic_id,
                     'booking_fee' => $validated['booking_fee'],
                     'unit_price' => ($unit->final_price > 0 ? $unit->final_price : ($unit->unitType?->current_price > 0 ? $unit->unitType->current_price : $validated['base_price'])),
                     'base_price' => $validated['base_price'],
@@ -431,7 +498,7 @@ class BookingController extends Controller
             $bankAccountsAll = [];
         }
 
-        $units = \App\Models\Unit::where('status', '!=', 'sold')
+        $units = \App\Models\Unit::selectableForLov($booking->unit_id)
             ->when($booking->project_id, fn ($q) => $q->where('project_id', $booking->project_id))
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name', 'unitType:id,name'])
@@ -513,7 +580,12 @@ class BookingController extends Controller
     public function updateSprTemplate(Request $request, Booking $booking)
     {
         $validated = $request->validate([
-            'spk_number' => 'nullable|string|max:100',
+            'spk_number' => [
+                'nullable',
+                'string',
+                'max:100',
+                \Illuminate\Validation\Rule::unique('bookings', 'spk_number')->ignore($booking->id),
+            ],
             'bank_account_id' => 'nullable|exists:bank_accounts,id',
             'bank_account_utj_id' => 'nullable|exists:bank_accounts,id',
             'bank_account_dp_id' => 'nullable|exists:bank_accounts,id',
@@ -557,112 +629,152 @@ class BookingController extends Controller
             'sync_schedules' => 'nullable|boolean',
         ]);
 
-        if (array_key_exists('unit_certificate_status', $validated) || array_key_exists('unit_certificate_number', $validated)) {
-            if ($booking->unit) {
-                $unitUpdates = [];
-                if (isset($validated['unit_certificate_status'])) {
-                    $unitUpdates['certificate_status'] = $validated['unit_certificate_status'];
+        try {
+            DB::transaction(function () use ($booking, $validated) {
+                $data = $validated;
+
+                if (array_key_exists('unit_certificate_status', $data) || array_key_exists('unit_certificate_number', $data)) {
+                    if ($booking->unit) {
+                        $unitUpdates = [];
+                        if (isset($data['unit_certificate_status'])) {
+                            $unitUpdates['certificate_status'] = $data['unit_certificate_status'];
+                        }
+                        if (isset($data['unit_certificate_number'])) {
+                            $unitUpdates['certificate_number'] = $data['unit_certificate_number'];
+                        }
+                        if (!empty($unitUpdates)) {
+                            $booking->unit->update($unitUpdates);
+                        }
+                    }
+                    unset($data['unit_certificate_status'], $data['unit_certificate_number']);
                 }
-                if (isset($validated['unit_certificate_number'])) {
-                    $unitUpdates['certificate_number'] = $validated['unit_certificate_number'];
+
+                if (isset($data['base_price']) && isset($data['final_price'])) {
+                    $priceChanged = (float)$data['final_price'] != (float)$booking->final_price || (float)$data['base_price'] != (float)$booking->base_price;
+                    $shouldSync = array_key_exists('sync_schedules', $data) ? (bool)$data['sync_schedules'] : false;
+                    if ($priceChanged || $shouldSync) {
+                        $this->applyFinancialUpdates($booking, [
+                            'base_price' => $data['base_price'],
+                            'ppn_amount' => $data['ppn_amount'] ?? 0,
+                            'bphtb_amount' => $data['bphtb_amount'] ?? 0,
+                            'ajb_bbn_amount' => $data['ajb_bbn_amount'] ?? 0,
+                            'other_legal_fees' => $data['other_legal_fees'] ?? 0,
+                            'final_price' => $data['final_price'],
+                            'sync_schedules' => $shouldSync,
+                        ]);
+                    }
                 }
-                if (!empty($unitUpdates)) {
-                    $booking->unit->update($unitUpdates);
+                unset(
+                    $data['base_price'],
+                    $data['ppn_amount'],
+                    $data['bphtb_amount'],
+                    $data['ajb_bbn_amount'],
+                    $data['other_legal_fees'],
+                    $data['final_price'],
+                    $data['sync_schedules']
+                );
+
+                // Never overwrite NOT NULL spk_number with null/empty string
+                if (array_key_exists('spk_number', $data)) {
+                    $trimmedSpk = trim((string)($data['spk_number'] ?? ''));
+                    if ($trimmedSpk === '') {
+                        unset($data['spk_number']);
+                    } else {
+                        $data['spk_number'] = $trimmedSpk;
+                    }
                 }
-            }
-            unset($validated['unit_certificate_status'], $validated['unit_certificate_number']);
-        }
 
-        if (isset($validated['base_price']) && isset($validated['final_price'])) {
-            $priceChanged = (float)$validated['final_price'] != (float)$booking->final_price || (float)$validated['base_price'] != (float)$booking->base_price;
-            $shouldSync = array_key_exists('sync_schedules', $validated) ? (bool)$validated['sync_schedules'] : false;
-            if ($priceChanged || $shouldSync) {
-                $this->applyFinancialUpdates($booking, [
-                    'base_price' => $validated['base_price'],
-                    'ppn_amount' => $validated['ppn_amount'] ?? 0,
-                    'bphtb_amount' => $validated['bphtb_amount'] ?? 0,
-                    'ajb_bbn_amount' => $validated['ajb_bbn_amount'] ?? 0,
-                    'other_legal_fees' => $validated['other_legal_fees'] ?? 0,
-                    'final_price' => $validated['final_price'],
-                    'sync_schedules' => $shouldSync,
-                ]);
-            }
-            unset($validated['base_price'], $validated['ppn_amount'], $validated['bphtb_amount'], $validated['ajb_bbn_amount'], $validated['other_legal_fees'], $validated['final_price'], $validated['sync_schedules']);
-        }
+                $sprBankInfo = is_array($booking->spr_bank_info) ? $booking->spr_bank_info : [];
+                if (isset($data['spr_bank_info']) && is_array($data['spr_bank_info'])) {
+                    $sprBankInfo = array_merge($sprBankInfo, $data['spr_bank_info']);
+                }
 
-        $sprBankInfo = is_array($booking->spr_bank_info) ? $booking->spr_bank_info : [];
-        if (isset($validated['spr_bank_info']) && is_array($validated['spr_bank_info'])) {
-            $sprBankInfo = array_merge($sprBankInfo, $validated['spr_bank_info']);
-        }
+                if (!empty($data['bank_account_id'])) {
+                    $bankAcc = \App\Models\BankAccount::find($data['bank_account_id']);
+                    if ($bankAcc) {
+                        $sprBankInfo['main'] = [
+                            'bank_name' => $bankAcc->bank_name,
+                            'account_number' => $bankAcc->account_number,
+                            'account_holder' => $bankAcc->account_holder,
+                        ];
+                        $sprBankInfo['bank_name'] = $bankAcc->bank_name;
+                        $sprBankInfo['account_number'] = $bankAcc->account_number;
+                        $sprBankInfo['account_holder'] = $bankAcc->account_holder;
+                    }
+                }
 
-        if (!empty($validated['bank_account_id'])) {
-            $bankAcc = \App\Models\BankAccount::find($validated['bank_account_id']);
-            if ($bankAcc) {
-                $sprBankInfo['main'] = [
-                    'bank_name' => $bankAcc->bank_name,
-                    'account_number' => $bankAcc->account_number,
-                    'account_holder' => $bankAcc->account_holder,
-                ];
-                $sprBankInfo['bank_name'] = $bankAcc->bank_name;
-                $sprBankInfo['account_number'] = $bankAcc->account_number;
-                $sprBankInfo['account_holder'] = $bankAcc->account_holder;
-            }
-        }
+                if (!empty($data['bank_account_utj_id'])) {
+                    $bankAccUtj = \App\Models\BankAccount::find($data['bank_account_utj_id']);
+                    if ($bankAccUtj) {
+                        $sprBankInfo['utj'] = [
+                            'bank_name' => $bankAccUtj->bank_name,
+                            'account_number' => $bankAccUtj->account_number,
+                            'account_holder' => $bankAccUtj->account_holder,
+                        ];
+                    }
+                }
 
-        if (!empty($validated['bank_account_utj_id'])) {
-            $bankAccUtj = \App\Models\BankAccount::find($validated['bank_account_utj_id']);
-            if ($bankAccUtj) {
-                $sprBankInfo['utj'] = [
-                    'bank_name' => $bankAccUtj->bank_name,
-                    'account_number' => $bankAccUtj->account_number,
-                    'account_holder' => $bankAccUtj->account_holder,
-                ];
-            }
-        }
+                if (!empty($data['bank_account_dp_id'])) {
+                    $bankAccDp = \App\Models\BankAccount::find($data['bank_account_dp_id']);
+                    if ($bankAccDp) {
+                        $sprBankInfo['dp'] = [
+                            'bank_name' => $bankAccDp->bank_name,
+                            'account_number' => $bankAccDp->account_number,
+                            'account_holder' => $bankAccDp->account_holder,
+                        ];
+                    }
+                }
 
-        if (!empty($validated['bank_account_dp_id'])) {
-            $bankAccDp = \App\Models\BankAccount::find($validated['bank_account_dp_id']);
-            if ($bankAccDp) {
-                $sprBankInfo['dp'] = [
-                    'bank_name' => $bankAccDp->bank_name,
-                    'account_number' => $bankAccDp->account_number,
-                    'account_holder' => $bankAccDp->account_holder,
-                ];
-            }
-        }
+                if (!empty($data['bank_account_installment_id'])) {
+                    $bankAccInst = \App\Models\BankAccount::find($data['bank_account_installment_id']);
+                    if ($bankAccInst) {
+                        $sprBankInfo['installment'] = [
+                            'bank_name' => $bankAccInst->bank_name,
+                            'account_number' => $bankAccInst->account_number,
+                            'account_holder' => $bankAccInst->account_holder,
+                        ];
+                    }
+                }
 
-        if (!empty($validated['bank_account_installment_id'])) {
-            $bankAccInst = \App\Models\BankAccount::find($validated['bank_account_installment_id']);
-            if ($bankAccInst) {
-                $sprBankInfo['installment'] = [
-                    'bank_name' => $bankAccInst->bank_name,
-                    'account_number' => $bankAccInst->account_number,
-                    'account_holder' => $bankAccInst->account_holder,
-                ];
-            }
-        }
+                unset($data['bank_account_utj_id'], $data['bank_account_dp_id'], $data['bank_account_installment_id']);
+                $data['spr_bank_info'] = $sprBankInfo;
 
-        $validated['spr_bank_info'] = $sprBankInfo;
-        $booking->update($validated);
+                $safeUpdates = [];
+                foreach ($data as $col => $val) {
+                    if (Schema::hasColumn('bookings', $col)) {
+                        $safeUpdates[$col] = $val;
+                    }
+                }
+                if (!empty($safeUpdates)) {
+                    $booking->update($safeUpdates);
+                }
 
-        // Pastikan update data pemesan di SPR juga tersinkronisasi ke profil lead konsumen
-        if ($booking->lead) {
-            $leadUpdates = [];
-            if (!empty($validated['buyer_address'])) {
-                $leadUpdates['address'] = $validated['buyer_address'];
-            }
-            if (!empty($validated['buyer_nik'])) {
-                $leadUpdates['identity_number'] = $validated['buyer_nik'];
-            }
-            if (!empty($validated['buyer_npwp'])) {
-                $leadUpdates['npwp'] = $validated['buyer_npwp'];
-            }
-            if (!empty($validated['buyer_job'])) {
-                $leadUpdates['job'] = $validated['buyer_job'];
-            }
-            if (!empty($leadUpdates)) {
-                $booking->lead->update($leadUpdates);
-            }
+                // Pastikan update data pemesan di SPR juga tersinkronisasi ke profil lead konsumen
+                if ($booking->lead) {
+                    $leadUpdates = [];
+                    if (!empty($data['buyer_address']) && Schema::hasColumn('leads', 'address')) {
+                        $leadUpdates['address'] = $data['buyer_address'];
+                    }
+                    if (!empty($data['buyer_nik']) && Schema::hasColumn('leads', 'identity_number')) {
+                        $leadUpdates['identity_number'] = $data['buyer_nik'];
+                    }
+                    if (!empty($data['buyer_npwp']) && Schema::hasColumn('leads', 'npwp')) {
+                        $leadUpdates['npwp'] = $data['buyer_npwp'];
+                    }
+                    if (!empty($data['buyer_job']) && Schema::hasColumn('leads', 'job')) {
+                        $leadUpdates['job'] = $data['buyer_job'];
+                    }
+                    if (!empty($leadUpdates)) {
+                        $booking->lead->update($leadUpdates);
+                    }
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error("Failed to update SPR template for booking #{$booking->id}: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withInput()->with('error', 'Gagal menyimpan template SPR: ' . $e->getMessage());
         }
 
         return back()->with('success', 'Template & Parameter SPR khusus booking ini berhasil diperbarui.');
@@ -842,85 +954,96 @@ class BookingController extends Controller
 
     public function approve(Booking $booking)
     {
-        return DB::transaction(function () use ($booking) {
-            $booking->update([
-                'status' => 'approved',
-                'approved_by' => auth()->id(),
+        try {
+            return DB::transaction(function () use ($booking) {
+                $booking->update([
+                    'status' => 'approved',
+                    'approved_by' => auth()->id(),
+                ]);
+
+                // Recalculate commission rate and bonus
+                $agent = \App\Models\User::find($booking->booked_by);
+                $effectiveRate = 2.5;
+                $promoBonus = 0;
+                if ($agent) {
+                    $agent->load(['brokerCompany', 'masterLead']);
+                    $effectiveRate = $agent->effective_commission_rate;
+                    $promoBonus = (float)($agent->custom_bonus ?? 0);
+                }
+
+                $baseCommission = $booking->final_price * ($effectiveRate / 100);
+                $totalCommission = $baseCommission + $promoBonus;
+
+                $masterLead = $agent?->masterLead ?? $agent?->brokerCompany?->masterLead;
+                if (!$masterLead && \App\Models\Setting::get('commission_schema_config.enable_master_lead', true)) {
+                    $masterLead = \App\Models\User::where('agent_type', 'master_lead')
+                        ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
+                        ->first();
+                }
+
+                $isSubAgentUnderMasterLead = ($masterLead && $masterLead->id !== $agent?->id);
+                $commissionCompanyId = $booking->company_id ?? auth()->user()?->company_id;
+
+                if ($booking->booked_by) {
+                    // Record Sub-Agent / Agency Commission
+                    \App\Models\Commission::updateOrCreate(
+                        ['booking_id' => $booking->id, 'user_id' => $booking->booked_by],
+                        [
+                            'company_id' => $commissionCompanyId,
+                            'broker_company_id' => $agent?->broker_company_id,
+                            'amount' => $totalCommission,
+                            'base_commission' => $baseCommission,
+                            'promo_bonus' => $promoBonus,
+                            'rate_used' => $effectiveRate,
+                            'payout_recipient' => $isSubAgentUnderMasterLead ? 'sub_agent' : ($agent?->broker_company_id ? 'agency' : 'agent'),
+                            'status' => 'pending',
+                        ]
+                    );
+                }
+
+                // Record Master Lead Overriding Fee if applicable
+                if ($isSubAgentUnderMasterLead) {
+                    $masterRate = (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
+                    $masterTotalGross = $booking->final_price * ($masterRate / 100);
+
+                    \App\Models\Commission::updateOrCreate(
+                        ['booking_id' => $booking->id, 'user_id' => $masterLead->id],
+                        [
+                            'company_id' => $commissionCompanyId,
+                            'broker_company_id' => null,
+                            'amount' => $masterTotalGross,
+                            'base_commission' => $masterTotalGross,
+                            'promo_bonus' => 0,
+                            'rate_used' => $masterRate,
+                            'payout_recipient' => 'master_lead',
+                            'status' => 'pending',
+                        ]
+                    );
+                }
+
+                $booking->update(['commission_amount' => $totalCommission]);
+
+                $booking->unit?->update(['status' => 'booked']);
+                // Lead tetap status 'booking' — akan berubah ke 'won' otomatis saat pembayaran lunas
+                if ($booking->lead && $booking->lead->status !== 'won') {
+                    $booking->lead->update(['status' => 'booking']);
+                }
+                $booking->lead?->recalculateScore();
+
+                // GENERATE PAYMENT SCHEDULE
+                $this->generateSchedules($booking);
+
+                AuditLog::record('booking_approved', $booking);
+
+                return back()->with('success', 'Booking telah disetujui dan jadwal pembayaran telah dibuat.');
+            });
+        } catch (\Throwable $e) {
+            Log::error("Failed to approve booking #{$booking->id}: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            // Recalculate commission rate and bonus
-            $agent = \App\Models\User::find($booking->booked_by);
-            $effectiveRate = 2.5;
-            $promoBonus = 0;
-            if ($agent) {
-                $agent->load(['brokerCompany', 'masterLead']);
-                $effectiveRate = $agent->effective_commission_rate;
-                $promoBonus = (float)($agent->custom_bonus ?? 0);
-            }
-
-            $baseCommission = $booking->final_price * ($effectiveRate / 100);
-            $totalCommission = $baseCommission + $promoBonus;
-
-            $masterLead = $agent?->masterLead ?? $agent?->brokerCompany?->masterLead;
-            if (!$masterLead && \App\Models\Setting::get('commission_schema_config.enable_master_lead', true)) {
-                $masterLead = \App\Models\User::where('agent_type', 'master_lead')
-                    ->orWhereHas('roles', fn($q) => $q->where('name', 'master_lead'))
-                    ->first();
-            }
-
-            $isSubAgentUnderMasterLead = ($masterLead && $masterLead->id !== $agent?->id);
-
-            if ($booking->booked_by) {
-                // Record Sub-Agent / Agency Commission
-                \App\Models\Commission::updateOrCreate(
-                    ['booking_id' => $booking->id, 'user_id' => $booking->booked_by],
-                    [
-                        'broker_company_id' => $agent?->broker_company_id,
-                        'amount' => $totalCommission,
-                        'base_commission' => $baseCommission,
-                        'promo_bonus' => $promoBonus,
-                        'rate_used' => $effectiveRate,
-                        'payout_recipient' => $isSubAgentUnderMasterLead ? 'sub_agent' : ($agent?->broker_company_id ? 'agency' : 'agent'),
-                        'status' => 'pending',
-                    ]
-                );
-            }
-
-            // Record Master Lead Overriding Fee if applicable
-            if ($isSubAgentUnderMasterLead) {
-                $masterRate = (float)\App\Models\Setting::get('default_commission_rates.master_lead_overriding', ($masterLead->commission_rate > 0 ? (float)$masterLead->commission_rate : 4.5));
-                $masterTotalGross = $booking->final_price * ($masterRate / 100);
-
-                \App\Models\Commission::updateOrCreate(
-                    ['booking_id' => $booking->id, 'user_id' => $masterLead->id],
-                    [
-                        'broker_company_id' => null,
-                        'amount' => $masterTotalGross,
-                        'base_commission' => $masterTotalGross,
-                        'promo_bonus' => 0,
-                        'rate_used' => $masterRate,
-                        'payout_recipient' => 'master_lead',
-                        'status' => 'pending',
-                    ]
-                );
-            }
-
-            $booking->update(['commission_amount' => $totalCommission]);
-
-            $booking->unit->update(['status' => 'booked']);
-            // Lead tetap status 'booking' — akan berubah ke 'won' otomatis saat pembayaran lunas
-            if ($booking->lead && $booking->lead->status !== 'won') {
-                $booking->lead->update(['status' => 'booking']);
-            }
-            $booking->lead?->recalculateScore();
-
-            // GENERATE PAYMENT SCHEDULE
-            $this->generateSchedules($booking);
-
-            AuditLog::record('booking_approved', $booking);
-
-            return back()->with('success', 'Booking telah disetujui dan jadwal pembayaran telah dibuat.');
-        });
+            return back()->with('error', 'Gagal menyetujui booking: ' . $e->getMessage());
+        }
     }
 
     private function generateSchedules(Booking $booking, bool $markUtjPaid = true, ?array $customSchedules = null, bool $forceReplaceUnpaid = false)
@@ -928,11 +1051,13 @@ class BookingController extends Controller
         $basePrice = (float)($booking->base_price ?: $booking->final_price);
         $taxLegalTotal = (float)($booking->ppn_amount ?? 0) + (float)($booking->bphtb_amount ?? 0) + (float)($booking->ajb_bbn_amount ?? 0) + (float)($booking->other_legal_fees ?? 0);
         $bookingDate = \Carbon\Carbon::parse($booking->booking_date ?? now());
+        $companyId = $booking->company_id ?? auth()->user()?->company_id;
 
         // 1. Booking Fee (UTJ) - Installment 0
         $utjSchedule = $booking->paymentSchedules()->where('installment_number', 0)->first();
         if (!$utjSchedule) {
             $utjSchedule = $booking->paymentSchedules()->create([
+                'company_id' => $companyId,
                 'installment_number' => 0,
                 'label' => 'Booking Fee (UTJ)',
                 'amount' => $booking->booking_fee,
@@ -949,6 +1074,7 @@ class BookingController extends Controller
 
         if ($markUtjPaid && $utjSchedule && !$booking->transactions()->where('payment_schedule_id', $utjSchedule->id)->exists()) {
             $utjTx = new \App\Models\Transaction([
+                'company_id' => $companyId,
                 'booking_id' => $booking->id,
                 'payment_schedule_id' => $utjSchedule->id,
                 'amount' => $utjSchedule->amount,
@@ -973,6 +1099,7 @@ class BookingController extends Controller
                 }
             } else {
                 $booking->paymentSchedules()->create([
+                    'company_id' => $companyId,
                     'installment_number' => 99,
                     'label' => 'Pajak & Biaya Legal (PPN, BPHTB, AJB)',
                     'amount' => $taxLegalTotal,
@@ -1019,6 +1146,7 @@ class BookingController extends Controller
             for ($i = 1; $i <= $dpTenor; $i++) {
                 $amount = ($i === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
                 $booking->paymentSchedules()->create([
+                    'company_id' => $companyId,
                     'installment_number' => $maxExistingNum + $i,
                     'label' => $dpTenor > 1 ? "DP $i" : "DP 1",
                     'amount' => $amount,
@@ -1029,6 +1157,7 @@ class BookingController extends Controller
 
             $bankAmount = max(0, $remaining - $dpTotal);
             $booking->paymentSchedules()->create([
+                'company_id' => $companyId,
                 'installment_number' => $maxExistingNum + $dpTenor + 1,
                 'label' => 'Pencairan KPR (Bank)',
                 'amount' => $bankAmount,
@@ -1037,6 +1166,7 @@ class BookingController extends Controller
             ]);
         } elseif ($booking->payment_scheme === 'cash') {
             $booking->paymentSchedules()->create([
+                'company_id' => $companyId,
                 'installment_number' => $maxExistingNum + 1,
                 'label' => 'Pelunasan Cash Keras',
                 'amount' => max(0, $remaining),
@@ -1050,6 +1180,7 @@ class BookingController extends Controller
                     ? \Carbon\Carbon::parse($item['due_date'])->format('Y-m-d')
                     : $bookingDate->copy()->addMonths($idx + 1)->format('Y-m-d');
                 $booking->paymentSchedules()->create([
+                    'company_id' => $companyId,
                     'installment_number' => $num,
                     'label' => trim((string)($item['label'] ?? "DP " . ($idx + 1))),
                     'amount' => max(0, round((float)($item['amount'] ?? 0))),
@@ -1069,6 +1200,7 @@ class BookingController extends Controller
                     $amountDp = ($d === $dpTenor) ? ($dpTotal - ($dpPerMonth * ($dpTenor - 1))) : $dpPerMonth;
                     $dpLabel = $dpTenor > 1 ? "DP $d" : "DP 1";
                     $booking->paymentSchedules()->create([
+                        'company_id' => $companyId,
                         'installment_number' => $maxExistingNum + $d,
                         'label' => $dpLabel,
                         'amount' => $amountDp,
@@ -1089,6 +1221,7 @@ class BookingController extends Controller
                     $num = $maxExistingNum + $offsetMonths + $i;
                     $amount = ($i === $tenor) ? ($remaining - ($perMonth * ($tenor - 1))) : $perMonth;
                     $booking->paymentSchedules()->create([
+                        'company_id' => $companyId,
                         'installment_number' => $num,
                         'label' => "Cicilan Ke-$i (dari $tenor Bulan)",
                         'amount' => $amount,
@@ -1098,6 +1231,7 @@ class BookingController extends Controller
                 }
             } elseif ($tenor === 0 && $remaining > 0) {
                 $booking->paymentSchedules()->create([
+                    'company_id' => $companyId,
                     'installment_number' => $maxExistingNum + $offsetMonths + 1,
                     'label' => 'Pelunasan Sisa Cash Bertahap',
                     'amount' => $remaining,

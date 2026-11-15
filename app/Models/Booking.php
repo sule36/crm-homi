@@ -113,7 +113,7 @@ class Booking extends Model
         $seq2 = sprintf('%02d', $seqVal);
 
         $projectCode = 'ALC';
-        $project = $booking->project ?? ($booking->unit->project ?? Project::first());
+        $project = $booking->project ?? ($booking->unit?->project ?? Project::withoutGlobalScopes()->first());
         if ($project) {
             if (!empty($project->code)) {
                 $projectCode = strtoupper($project->code);
@@ -151,10 +151,10 @@ class Booking extends Model
         $projectCode = 'ALC';
         $project = null;
         if ($projectId) {
-            $project = Project::find($projectId);
+            $project = Project::withoutGlobalScopes()->find($projectId);
         }
         if (!$project) {
-            $project = Project::first();
+            $project = Project::withoutGlobalScopes()->first();
         }
 
         if ($project) {
@@ -178,7 +178,7 @@ class Booking extends Model
             $format = '{seq}/SPR-{code}/{month_roman}/{year}';
         }
 
-        $seq = max(1, static::withTrashed()->whereYear('created_at', $year)->count() + 1);
+        $seq = max(1, static::withoutGlobalScopes()->withTrashed()->whereYear('created_at', $year)->count() + 1);
         $attempts = 0;
         do {
             $nextSeq3 = sprintf('%03d', $seq);
@@ -190,7 +190,7 @@ class Booking extends Model
                 $format
             );
 
-            $exists = static::withTrashed()->where('spk_number', $candidate)->exists();
+            $exists = static::withoutGlobalScopes()->withTrashed()->where('spk_number', $candidate)->exists();
             if (!$exists) {
                 return $candidate;
             }

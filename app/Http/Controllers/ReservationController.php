@@ -350,7 +350,7 @@ class ReservationController extends Controller
         $selectedLeadId = $request->query('lead_id');
         $selectedNegoId = $request->query('negotiation_id');
 
-        $units = Unit::where('status', '!=', 'sold')
+        $units = Unit::selectableForLov($selectedUnitId ? (int) $selectedUnitId : null)
             ->with(['project:id,name', 'unitType:id,name,current_price'])
             ->orderByUnitNumber()
             ->get();
@@ -554,7 +554,7 @@ class ReservationController extends Controller
         $reservation->load(['project', 'unit.unitType', 'lead.assignedTo', 'lead.inhousePic', 'negotiation', 'creator', 'agentCoordinator', 'refunder', 'booking']);
         $settings = $this->getSettings();
 
-        $units = Unit::where('status', '!=', 'sold')
+        $units = Unit::selectableForLov($reservation->unit_id)
             ->when($reservation->project_id, fn ($q) => $q->where('project_id', $reservation->project_id))
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name', 'unitType:id,name'])

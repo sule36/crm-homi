@@ -80,6 +80,27 @@ class Unit extends Model
         return $this->hasOne(Booking::class)->latestOfMany();
     }
 
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
+    }
+
+    public function scopeSelectableForLov($query, ?int $includeUnitId = null)
+    {
+        return $query->where(function ($outer) use ($includeUnitId) {
+            $outer->where(function ($avail) {
+                $avail->whereRaw("LOWER(TRIM(COALESCE(status, ''))) NOT IN ('sold', 'booked')")
+                    ->whereDoesntHave('bookings', function ($bq) {
+                        $bq->whereNull('deleted_at')
+                            ->whereRaw("LOWER(TRIM(COALESCE(status, ''))) IN ('approved', 'completed', 'booked')");
+                    });
+            });
+            if ($includeUnitId) {
+                $outer->orWhere('units.id', $includeUnitId);
+            }
+        });
+    }
+
     public function reservations()
     {
         return $this->hasMany(Reservation::class)->latest();

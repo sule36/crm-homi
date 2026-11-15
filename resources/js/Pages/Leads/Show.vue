@@ -38,6 +38,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    negotiationSettings: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 // Active workspace tab: 'workspace' | 'timeline' | 'documents' | 'client'
@@ -99,10 +103,17 @@ const latestBooking = computed(() => props.lead.bookings?.[0] || null);
 const latestReservation = computed(() => props.lead.reservations?.[0] || null);
 const latestNegotiation = computed(() => props.lead.negotiations?.[0] || null);
 
+const selectableUnits = computed(() => {
+    return (props.units || []).filter((u) => {
+        const st = String(u.status || '').toLowerCase().trim();
+        return st !== 'sold' && st !== 'booked';
+    });
+});
+
 const preferredUnit = computed(() => {
     const pId = props.lead.preferences?.preferred_unit_id;
     if (!pId) return null;
-    return (props.units || []).find(u => u.id == pId);
+    return selectableUnits.value.find(u => u.id == pId) || (props.units || []).find(u => u.id == pId);
 });
 
 const primaryUnit = computed(() => {
@@ -116,7 +127,11 @@ const brochurePrice = computed(() => {
 const agreedDealPrice = computed(() => {
     if (latestBooking.value?.final_price) return Number(latestBooking.value.final_price);
     if (latestNegotiation.value) {
-        return Number(latestNegotiation.value.offered_price || latestNegotiation.value.counter_price || brochurePrice.value);
+        const n = latestNegotiation.value;
+        if ((n.status === 'approved' || n.client_response === 'accepted' || n.status === 'counter_offer') && Number(n.counter_price) > 0) {
+            return Number(n.counter_price);
+        }
+        return Number(n.counter_price || n.offered_price || brochurePrice.value);
     }
     return brochurePrice.value;
 });
@@ -665,7 +680,7 @@ function openReservationModal(preferredUnitId = null) {
     reservationForm.client_phone = props.lead.phone || '';
     reservationForm.client_email = props.lead.email || '';
     reservationForm.client_nik = props.lead.identity_number || '';
-    reservationForm.unit_id = preferredUnitId || preferredUnit.value?.id || (props.units?.[0]?.id || '');
+    reservationForm.unit_id = preferredUnitId || preferredUnit.value?.id || (selectableUnits.value?.[0]?.id || '');
     reservationForm.amount = 5000000;
     reservationForm.payment_method = 'transfer';
     reservationForm.bank_account_id = props.bankAccounts?.[0]?.id || '';
@@ -732,29 +747,40 @@ const quickBookingForm = useForm({
 });
 
 function openQuickBookingModal(res = null) {
-    const unitObj = res?.unit || primaryUnit.value || props.units?.[0] || null;
+    const activeRes = res || (props.lead.reservations || []).find(r => r.status === 'active') || null;
+    const unitObj = activeRes?.unit || primaryUnit.value || selectableUnits.value?.[0] || null;
     const unitPrice = Number(unitObj?.final_price || unitObj?.price || 0);
-    const reservedFee = res ? Number(res.amount) : 0;
+    const reservedFee = activeRes ? Number(activeRes.amount || 0) : 0;
     const defaultBookingFee = Number(props.standardBookingFee || 0) > 0
         ? Math.max(Number(props.standardBookingFee), reservedFee)
         : (reservedFee || 5000000);
     quickBookingReservedAmount.value = reservedFee;
 
-    quickBookingForm.reservation_id = res?.id || '';
-    quickBookingForm.negotiation_id = latestNegotiation.value?.id || '';
+    const nego = latestNegotiation.value;
+    const negoApplicable = nego && ['approved', 'counter_offer', 'pending'].includes(nego.status) && (!unitObj || !nego.unit_id || Number(nego.unit_id) === Number(unitObj.id));
+    const dealPrice = negoApplicable
+        ? ((Number(nego.counter_price) > 0 && ['approved', 'counter_offer'].includes(nego.status))
+            ? Number(nego.counter_price)
+            : Number(nego.counter_price || nego.offered_price || unitPrice))
+        : unitPrice;
+    const schemeMap = { cash_keras: 'cash', cash_bertahap: 'cash_installment', kpr: 'kpr' };
+    const mappedScheme = negoApplicable && nego.payment_scheme ? (schemeMap[nego.payment_scheme] || 'kpr') : 'kpr';
+
+    quickBookingForm.reservation_id = activeRes?.id || '';
+    quickBookingForm.negotiation_id = negoApplicable ? (nego.id || '') : '';
     quickBookingForm.unit_id = unitObj?.id || '';
     quickBookingForm.lead_id = props.lead.id;
     quickBookingForm.booked_by = (typeof props.lead.assigned_to === 'object' ? props.lead.assigned_to?.id : props.lead.assigned_to) || (props.agents?.[0]?.id || '');
     quickBookingForm.booking_date = new Date().toISOString().substring(0, 10);
     quickBookingForm.booking_fee = defaultBookingFee;
-    quickBookingForm.base_price = unitPrice;
-    quickBookingForm.final_price = unitPrice;
-    quickBookingForm.payment_scheme = 'kpr';
-    quickBookingForm.dp_amount = Math.round(unitPrice * 0.10);
+    quickBookingForm.base_price = dealPrice;
+    quickBookingForm.final_price = dealPrice;
+    quickBookingForm.payment_scheme = mappedScheme;
+    quickBookingForm.dp_amount = (negoApplicable && Number(nego.dp_amount) > 0) ? Number(nego.dp_amount) : Math.round(dealPrice * 0.10);
     quickBookingForm.dp_installment_months = 3;
-    quickBookingForm.installment_months = 12;
-    quickBookingForm.free_ppn = true;
-    quickBookingForm.free_legal = true;
+    quickBookingForm.installment_months = (negoApplicable && Number(nego.installment_months) > 0) ? Number(nego.installment_months) : 12;
+    quickBookingForm.free_ppn = props.negotiationSettings?.spr_default_free_ppn ?? true;
+    quickBookingForm.free_legal = props.negotiationSettings?.spr_default_free_legal ?? true;
     quickBookingForm.buyer_nik = props.lead.identity_number || '';
     quickBookingForm.buyer_npwp = props.lead.npwp || '';
     quickBookingForm.buyer_address = props.lead.address || '';
@@ -1645,7 +1671,7 @@ function submitChangeResUnit() {
                     </div>
 
                     <div class="overflow-y-auto py-4 space-y-2 flex-1">
-                        <div v-for="u in units" :key="u.id"
+                        <div v-for="u in selectableUnits" :key="u.id"
                             @click="selectUnitForWorkspace(u)"
                             class="p-3.5 rounded-2xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer flex items-center justify-between gap-3">
                             <div>
@@ -1677,9 +1703,11 @@ function submitChangeResUnit() {
         <NegotiationTemplateModal
             :is-open="showNegoModal"
             :lead="lead"
-            :units="units"
+            :units="selectableUnits"
+            :standard-booking-fee="standardBookingFee"
+            :negotiation-settings="negotiationSettings"
             @close="showNegoModal = false"
-            @created="showNegoModal = false"
+            @saved="() => { showNegoModal = false; router.reload({ preserveScroll: true }); }"
         />
 
         <!-- MODAL: EDIT LEAD -->
@@ -2097,7 +2125,7 @@ function submitChangeResUnit() {
                             <label class="block font-bold text-slate-700 mb-1">Pilih Kavling Unit <span class="text-rose-500">*</span></label>
                             <select v-model="reservationForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
                                 <option value="" disabled>-- Pilih Kavling Tersedia --</option>
-                                <option v-for="u in units" :key="u.id" :value="u.id">
+                                <option v-for="u in selectableUnits" :key="u.id" :value="u.id">
                                     {{ u.label || `Blok ${u.block || '-'} No. ${u.number}` }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }}) [{{ u.status }}]
                                 </option>
                             </select>
@@ -2214,7 +2242,7 @@ function submitChangeResUnit() {
                         <div>
                             <label class="block font-bold text-slate-700 mb-1">Pilih Kavling Unit <span class="text-rose-500">*</span></label>
                             <select v-model="quickBookingForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" @change="e => {
-                                const sel = units.find(u => u.id == quickBookingForm.unit_id);
+                                const sel = selectableUnits.find(u => u.id == quickBookingForm.unit_id);
                                 if (sel) {
                                     const p = Number(sel.final_price || sel.price || 0);
                                     quickBookingForm.base_price = p;
@@ -2223,8 +2251,8 @@ function submitChangeResUnit() {
                                 }
                             }">
                                 <option value="" disabled>-- Pilih Kavling --</option>
-                                <option v-for="u in units" :key="u.id" :value="u.id">
-                                    Blok {{ u.block }} No. {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }})
+                                <option v-for="u in selectableUnits" :key="u.id" :value="u.id">
+                                    {{ u.label || `Blok ${u.block || '-'} No. ${u.number}` }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }}) [{{ u.status }}]
                                 </option>
                             </select>
                         </div>

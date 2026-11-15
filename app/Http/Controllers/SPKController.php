@@ -6,10 +6,12 @@ use App\Models\Booking;
 use App\Models\Setting;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SPKController extends Controller
 {
-    private function getSettingsForBooking(Booking $booking)
+    private function getSettingsForBooking(Booking $booking): array
     {
         $settingsRaw = Setting::all();
         $settings = [];
@@ -30,37 +32,56 @@ class SPKController extends Controller
         return $settings;
     }
 
-    public function download(Booking $booking)
+    private function prepareBookingForSpr(Booking $booking): array
     {
         $relations = ['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules'];
-        if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {
+        if (Schema::hasColumn('bookings', 'bank_account_id')) {
             $relations[] = 'bankAccount';
         }
         $booking->load($relations);
 
         // Auto-heal / auto-sync customer name with lead if profile was updated and no secondary signer
-        if (empty($booking->secondary_name) && $booking->lead) {
-            if ($booking->sig4_name && $booking->sig4_name !== $booking->lead->name) {
-                $booking->update([
-                    'sig4_name' => $booking->lead->name,
-                    'sig4_image' => null,
-                    'customer_signed_at' => null,
-                ]);
-            } elseif (empty($booking->sig4_name)) {
-                $booking->update(['sig4_name' => $booking->lead->name]);
+        if (empty($booking->secondary_name) && $booking->lead && Schema::hasColumn('bookings', 'sig4_name')) {
+            try {
+                if ($booking->sig4_name && $booking->sig4_name !== $booking->lead->name) {
+                    $healData = ['sig4_name' => $booking->lead->name];
+                    if (Schema::hasColumn('bookings', 'sig4_image')) {
+                        $healData['sig4_image'] = null;
+                    }
+                    if (Schema::hasColumn('bookings', 'customer_signed_at')) {
+                        $healData['customer_signed_at'] = null;
+                    }
+                    $booking->update($healData);
+                } elseif (empty($booking->sig4_name)) {
+                    $booking->update(['sig4_name' => $booking->lead->name]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning("SPK auto-heal sig4_name failed for booking #{$booking->id}: " . $e->getMessage());
             }
         }
 
         $settings = $this->getSettingsForBooking($booking);
-        $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);
+        $rawSpk = (string)($booking->spk_number ?: ('SPR-' . $booking->id));
+        $safeName = str_replace(['/', '\\', ' '], '_', $rawSpk);
 
-        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'))
+        return compact('settings', 'safeName');
+    }
+
+    private function renderSprPdf(Booking $booking, array $settings)
+    {
+        return Pdf::loadView('pdf.spr', compact('booking', 'settings'))
             ->setPaper('a4', 'portrait')
             ->setOption('isRemoteEnabled', true)
             ->setOption('isHtml5ParserEnabled', true)
             ->setOption('chroot', [public_path(), storage_path()]);
-        
-        return $pdf->download("SPR-{$safeName}.pdf");
+    }
+
+    public function download(Booking $booking)
+    {
+        $prepared = $this->prepareBookingForSpr($booking);
+        $pdf = $this->renderSprPdf($booking, $prepared['settings']);
+
+        return $pdf->download("SPR-{$prepared['safeName']}.pdf");
     }
 
     public function stream(Booking $booking)
@@ -72,30 +93,12 @@ class SPKController extends Controller
             }
         }
 
-        $relations = ['unit.project', 'unit.unitType', 'lead', 'bookedBy', 'paymentSchedules'];
-        if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {
-            $relations[] = 'bankAccount';
-        }
-        $booking->load($relations);
-
-        // Auto-heal / auto-sync customer name with lead if profile was updated and no secondary signer
-        if (empty($booking->secondary_name) && $booking->lead) {
-            if ($booking->sig4_name && $booking->sig4_name !== $booking->lead->name) {
-                $booking->update([
-                    'sig4_name' => $booking->lead->name,
-                    'sig4_image' => null,
-                    'customer_signed_at' => null,
-                ]);
-            } elseif (empty($booking->sig4_name)) {
-                $booking->update(['sig4_name' => $booking->lead->name]);
-            }
-        }
-
-        $settings = $this->getSettingsForBooking($booking);
-
         if (request()->has('download')) {
             return $this->download($booking);
         }
+
+        $prepared = $this->prepareBookingForSpr($booking);
+        $settings = $prepared['settings'];
 
         if (request()->has('html') || request()->query('view') === 'html' || !request()->has('pdf')) {
             return response(view('pdf.spr', compact('booking', 'settings')))
@@ -104,17 +107,11 @@ class SPKController extends Controller
                 ->header('Expires', '0');
         }
 
-        $safeName = str_replace(['/', '\\', ' '], '_', $booking->spk_number);
+        $pdf = $this->renderSprPdf($booking, $settings);
 
-        $pdf = Pdf::loadView('pdf.spr', compact('booking', 'settings'))
-            ->setPaper('a4', 'portrait')
-            ->setOption('isRemoteEnabled', true)
-            ->setOption('isHtml5ParserEnabled', true)
-            ->setOption('chroot', [public_path(), storage_path()]);
-        
         return response($pdf->output(), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => "inline; filename=\"SPR-{$safeName}.pdf\"",
+            'Content-Disposition' => "inline; filename=\"SPR-{$prepared['safeName']}.pdf\"",
             'Cache-Control' => 'no-cache, no-store, must-revalidate',
             'Pragma' => 'no-cache',
             'Expires' => '0',

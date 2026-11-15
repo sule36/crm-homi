@@ -13,6 +13,8 @@ const props = defineProps({
     agents: Array,
     units: { type: Array, default: () => [] },
     leads: { type: Array, default: () => [] },
+    standardBookingFee: { type: Number, default: 17000000 },
+    negotiationSettings: { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -278,6 +280,8 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
             :units="units" 
             :leads="leads" 
             :initial-tab="initialModalTab"
+            :standard-booking-fee="standardBookingFee"
+            :negotiation-settings="negotiationSettings"
             @close="showTemplateModal = false" 
             @saved="router.reload({ preserveScroll: true })" 
         />

@@ -9,6 +9,8 @@ const props = defineProps({
     units: { type: Array, default: () => [] },
     negotiation: { type: Object, default: null },
     initialTab: { type: String, default: 'page1' },
+    standardBookingFee: { type: Number, default: 17000000 },
+    negotiationSettings: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -20,23 +22,97 @@ const resultLink = ref('');
 const resultToken = ref('');
 const resultId = ref(null);
 
-// Default templates matching the uploaded PDF
-const defaultPengajuanNotes = [
-    "Harga yang diajukan sudah termasuk PPN, AJB, BPHTB, dan biaya balik nama SHM atas nama pembeli. Ketentuan ini berlaku tanpa dipengaruhi status insentif PPN DTP pemerintah pada saat serah terima",
-    "Serah terima unit paling lambat 10 (Sepuluh) bulan kalender sejak pembayaran DP. Keterlambatan dikenakan denda 1‰ (satu permil) per hari dari jumlah yang telah dibayarkan pembeli.",
-    "Spesifikasi teknis bangunan (merek, tipe, dan ukuran material) dilampirkan dan menjadi bagian tidak terpisahkan dari PPJB.",
-    "PBG dan sertifikat induk dalam kondisi bebas hak tanggungan ditunjukkan kepada pembeli sebelum pembayaran DP dilakukan.",
-    "Free legalitas (PPN, AJB, BPHTB, SHM) dan bonus (canopy carport, smart door lock) tetap berlaku atas harga yang disetujui.",
-    "Luas tanah pada form tertulis 105 m². Mohon konfirmasi angka final sesuai gambar kavling dan hasil pengukuran, untuk dicantumkan dalam PPJB.",
-    "Reservasi sebesar Rp 10.000.000,- dikembalikan penuh apabila pengajuan ini tidak disetujui atau persyaratan legalitas tidak terpenuhi."
-];
+const effectiveStandardBookingFee = computed(() => {
+    const val = props.standardBookingFee ?? props.negotiationSettings?.standard_booking_fee ?? 17000000;
+    return Number(val) > 0 ? Number(val) : 17000000;
+});
 
-const defaultJawabanNotes = [
-    "Booking Fee sebesar Rp17.000.000,- dinyatakan hangus 100% apabila setelah SPR diterbitkan, pembeli membatalkan atau tidak melanjutkan transaksi pembelian unit.",
-    "Seluruh biaya all-in mengacu pada pengajuan dan kesepakatan sebelumnya, termasuk PPN, AJB, BPHTB, balik nama SHM, serta biaya legalitas dan biaya terkait lainnya yang telah disepakati. Apabila terdapat custom layout, perubahan desain, atau permintaan khusus dari pembeli, maka seluruh biaya tambahan yang timbul atas permintaan tersebut tidak menjadi tanggungan Developer.",
-    "Apabila DP 1 sebesar Rp200.000.000,- telah diterima oleh Developer, namun pembeli membatalkan atau tidak melanjutkan transaksi sampai dengan proses PPJB pada bulan Desember 2026 sebagaimana telah disepakati, maka sebesar 20% dari DP 1 atau Rp40.000.000,- dinyatakan hangus. Potongan sebesar 20% tersebut diperhitungkan atas biaya yang telah timbul, termasuk biaya notaris, biaya desain, fee marketing, serta kehilangan potensi transaksi (lost opportunity) akibat penjadwalan pembayaran hingga Desember 2026. Sisa sebesar Rp160.000.000,- akan dikembalikan kepada pembeli setelah unit tersebut berhasil terjual kembali kepada pembeli berikutnya.",
-    "Pembeli diperbolehkan menempati Unit A3 setelah proses penandatanganan PPJB antara pembeli dan Developer telah dilaksanakan, sesuai dengan ketentuan dan kesepakatan para pihak."
-];
+const resolvedCompanyName = computed(() => {
+    if (props.negotiationSettings?.company_name) return props.negotiationSettings.company_name;
+    const selected = props.units.find(u => u.id == form.unit_id) || props.negotiation?.unit;
+    if (selected?.project?.name) return `PT. ${selected.project.name}`;
+    return 'PT. Developer Properti';
+});
+
+const resolvedLogoUrl = computed(() => {
+    const selected = props.units.find(u => u.id == form.unit_id) || props.negotiation?.unit;
+    const projLogo = selected?.project?.logo || props.negotiation?.project?.logo;
+    if (projLogo) return `/storage/${String(projLogo).replace(/^\/+/, '')}`;
+    if (props.negotiationSettings?.company_logo) {
+        return `/storage/${String(props.negotiationSettings.company_logo).replace(/^\/+/, '')}`;
+    }
+    return '/images/alonica_logo.png';
+});
+
+const selectableUnits = computed(() => {
+    const editingUnitId = props.negotiation?.unit_id ? Number(props.negotiation.unit_id) : null;
+    return (props.units || []).filter((u) => {
+        if (editingUnitId && Number(u.id) === editingUnitId) return true;
+        const st = String(u.status || '').toLowerCase().trim();
+        return st !== 'sold' && st !== 'booked';
+    });
+});
+
+function unitStatusLabel(status) {
+    const st = String(status || '').toLowerCase().trim();
+    const map = { available: 'Tersedia', hold: 'Hold', reserved: 'Reservasi', booked: 'Booked', sold: 'Sold Out' };
+    return map[st] || (status || 'Tersedia');
+}
+
+function formatNum(val) {
+    if (val === null || val === undefined || val === '') return '0';
+    return Number(val).toLocaleString('id-ID');
+}
+
+function formatNominal(val) {
+    const num = Number(val || 0);
+    if (!Number.isFinite(num) || num <= 0) return '-';
+    return `${Math.round(num).toLocaleString('id-ID')},-`;
+}
+
+function parseDigits(val) {
+    if (val === null || val === undefined || val === '' || val === '-') return 0;
+    const cleaned = String(val).replace(/[^0-9]/g, '');
+    return cleaned ? Number(cleaned) : 0;
+}
+
+function formatIndoDate(dateInput) {
+    const d = dateInput ? new Date(dateInput) : new Date();
+    if (Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function getDefaultLegalText() {
+    const ppn = props.negotiationSettings?.spr_default_free_ppn ?? true;
+    const legal = props.negotiationSettings?.spr_default_free_legal ?? true;
+    const parts = [];
+    if (ppn) parts.push('PPN');
+    if (legal) parts.push('AJB', 'BPHTB', 'SHM');
+    return parts.length > 0 ? `(${parts.join(', ')})` : '-';
+}
+
+function buildDefaultPengajuanNotes(ltText = '-', reservasiText = 'sesuai tanda jadi', bonusText = 'promo unit') {
+    const legalRaw = getDefaultLegalText().replace(/[()]/g, '');
+    return [
+        `Harga yang diajukan sudah termasuk ${legalRaw !== '-' ? legalRaw + ' atas nama pembeli' : 'ketentuan pajak dan legalitas sesuai SPR'}.`,
+        'Serah terima unit dilaksanakan sesuai jadwal pada Surat Pemesanan Rumah (SPR) dan PPJB yang disepakati.',
+        'Spesifikasi teknis bangunan (merek, tipe, dan ukuran material) dilampirkan dan menjadi bagian tidak terpisahkan dari PPJB.',
+        'PBG/IMB dan sertifikat induk ditunjukkan kepada pembeli sebelum pembayaran DP dilakukan.',
+        `Fasilitas legalitas (${legalRaw !== '-' ? legalRaw : 'sesuai kesepakatan'}) dan bonus ${bonusText !== '-' ? bonusText : 'promo unit'} berlaku atas harga yang disetujui.`,
+        `Luas tanah pada form tertulis ${ltText} m². Konfirmasi angka final mengacu pada gambar kavling dan hasil pengukuran BPN untuk dicantumkan dalam PPJB.`,
+        `Tanda jadi/reservasi sebesar Rp ${reservasiText} dikembalikan 100% apabila pengajuan ini tidak disetujui oleh Developer.`
+    ];
+}
+
+function buildDefaultJawabanNotes(unitCode = '-', dp1Text = 'yang disepakati') {
+    const utjText = formatNominal(effectiveStandardBookingFee.value);
+    return [
+        `Booking Fee (UTJ) sebesar Rp ${utjText} dinyatakan hangus apabila setelah SPR diterbitkan pembeli membatalkan transaksi secara sepihak.`,
+        'Seluruh komponen biaya mengacu pada kesepakatan akhir di SPR. Apabila terdapat permintaan custom layout atau perubahan desain di luar standar, biaya tambahan menjadi tanggungan Pembeli.',
+        `Pembayaran Uang Muka (DP 1) sebesar Rp ${dp1Text} dan termin pelunasan mengikuti jadwal pembayaran resmi pada Surat Pemesanan Rumah (SPR).`,
+        `Pembeli diperbolehkan menempati Unit ${unitCode} setelah proses penandatanganan PPJB antara Pembeli dan Developer dilaksanakan sesuai ketentuan.`
+    ];
+}
 
 const form = useForm({
     unit_id: '',
@@ -45,69 +121,136 @@ const form = useForm({
     client_phone: '',
     client_email: '',
     status: 'draft',
+    offered_price: null,
+    counter_price: null,
+    payment_scheme: 'cash_bertahap',
+    dp_amount: null,
+    installment_months: null,
+    special_bonus_items: [],
+    developer_sig_name: '',
+    developer_sig_title: '',
 
-    // Form data structure matching the PDF
     form_data: {
-        kepada: 'PT. Serangkai Roden Development – Alonica Hills',
+        kepada: '',
         dari: '',
-        cc: 'KanaHomi – Agent Coordinator',
-        tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        cc: props.negotiationSettings?.sig1_title || 'Agent Coordinator',
+        tanggal: formatIndoDate(),
 
-        project_name: 'Alonica Hills',
-        project_address: 'Jl. Bhakti, RT.002/RW.007, Cilandak Tim, Ps Minggu, Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta. 12560',
-        kavling: 'Blok A3',
-        type: 'Badan',
-        luas_tanah: '105',
-        luas_bangunan: '198',
-        price_list: '3.840.921.600,-',
-        reservasi: '10,000,000,-',
-        reservasi_date: '8 Sept 2026',
-        diskon: '45,000,000,- + 5,000,000,-',
-        free_legalitas: '(PPN, AJB, BPHTB, SHM)',
-        bonus: '(Canopy Carport, SmartdoorLock)',
+        project_name: '',
+        project_address: '',
+        kavling: '-',
+        type: '-',
+        luas_tanah: '-',
+        luas_bangunan: '-',
+        price_list: '-',
+        reservasi: '-',
+        reservasi_date: '-',
+        diskon: '-',
+        free_legalitas: getDefaultLegalText(),
+        bonus: '-',
 
         pengajuan: {
-            cara_bayar: 'Cash Bertahap 3X',
-            price: '3,550,921,600,-',
-            reservasi: '10,000,000,-',
-            reservasi_date: '08 Sept 2026',
-            booking_fee: '7,000,000,-',
-            booking_fee_total: '(Total 17,000,000,-)',
-            booking_fee_date: '24 Sept 2026',
+            cara_bayar: 'Cash Bertahap',
+            price: '-',
+            reservasi: '-',
+            reservasi_date: '-',
+            booking_fee: formatNominal(effectiveStandardBookingFee.value),
+            booking_fee_total: `(Total ${formatNominal(effectiveStandardBookingFee.value)})`,
+            booking_fee_date: formatIndoDate(),
             dp1_pct: '%',
-            dp1_amount: '200,000,000,-',
-            dp1_date: '1 Okt 2026',
-            dp2_amount: '1,666,960,800,-',
-            dp2_date: '25 Des 2026',
-            pelunasan_amount: '1,666,960,800,-',
-            pelunasan_date: '25 Des 2027',
-            notes: [...defaultPengajuanNotes],
+            dp1_amount: '-',
+            dp1_date: '-',
+            dp2_amount: '-',
+            dp2_date: '-',
+            pelunasan_amount: '-',
+            pelunasan_date: '-',
+            notes: buildDefaultPengajuanNotes(),
         },
 
         jawaban: {
             show_jawaban: true,
-            cara_bayar: 'Cash Bertahap 3X',
-            price: '3,700,000,000,-',
-            reservasi: '10,000,000,-',
-            reservasi_date: '08 Sept 2026',
-            booking_fee: '7,000,000,-',
-            booking_fee_total: '(Total 17,000,000,-)',
-            booking_fee_date: '24 Sept 2026',
+            cara_bayar: 'Cash Bertahap',
+            price: '-',
+            reservasi: '-',
+            reservasi_date: '-',
+            booking_fee: formatNominal(effectiveStandardBookingFee.value),
+            booking_fee_total: `(Total ${formatNominal(effectiveStandardBookingFee.value)})`,
+            booking_fee_date: formatIndoDate(),
             dp1_pct: '%',
-            dp1_amount: '200,000,000,-',
-            dp1_date: '1 Okt 2026',
-            dp2_amount: '1,741,500,000,-',
-            dp2_date: '25 Des 2026',
-            pelunasan_amount: '1,741,500,000,-',
-            pelunasan_date: '25 Des 2027',
-            notes: [...defaultJawabanNotes],
-            sig_city_date: 'Jakarta, ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+            dp1_amount: '-',
+            dp1_date: '-',
+            dp2_amount: '-',
+            dp2_date: '-',
+            pelunasan_amount: '-',
+            pelunasan_date: '-',
+            notes: buildDefaultJawabanNotes(),
+            sig_city_date: `${props.negotiationSettings?.city || 'Jakarta'}, ${formatIndoDate()}`,
             sig_pengaju_name: '',
-            sig_mengetahui_name: 'Maulizar',
-            sig_menyetujui_name: 'Ch. Bramantyo P.',
+            sig_mengetahui_name: props.negotiationSettings?.sig1_name || 'Sales Coordinator',
+            sig_menyetujui_name: props.negotiationSettings?.sig2_name || 'Direktur',
         }
     }
 });
+
+function applyReservationCredit(res) {
+    const utj = effectiveStandardBookingFee.value;
+    const resAmt = res ? Number(res.amount || 0) : 0;
+    const resText = resAmt > 0 ? formatNominal(resAmt) : '-';
+    const resDate = res?.created_at ? formatIndoDate(res.created_at) : '-';
+    const remainingUtj = Math.max(0, utj - resAmt);
+    const bfText = remainingUtj > 0 ? formatNominal(remainingUtj) : (utj > 0 ? '0,- (Lunas UTJ)' : '-');
+    const bfTotalText = `(Total ${formatNominal(utj)})`;
+
+    form.form_data.reservasi = resText;
+    form.form_data.reservasi_date = resDate;
+    form.form_data.pengajuan.reservasi = resText;
+    form.form_data.pengajuan.reservasi_date = resDate;
+    form.form_data.pengajuan.booking_fee = bfText;
+    form.form_data.pengajuan.booking_fee_total = bfTotalText;
+
+    form.form_data.jawaban.reservasi = resText;
+    form.form_data.jawaban.reservasi_date = resDate;
+    form.form_data.jawaban.booking_fee = bfText;
+    form.form_data.jawaban.booking_fee_total = bfTotalText;
+
+    if (form.form_data.pengajuan?.notes && form.form_data.pengajuan.notes.length >= 7) {
+        form.form_data.pengajuan.notes[6] = `Tanda jadi/reservasi sebesar Rp ${resAmt > 0 ? resText : 'sesuai tanda jadi'} dikembalikan 100% apabila pengajuan ini tidak disetujui oleh Developer.`;
+    }
+}
+
+function recalculatePengajuanAndJawaban() {
+    const listed = parseDigits(form.form_data.price_list);
+    const offer = parseDigits(form.form_data.pengajuan.price) || listed;
+    const utj = effectiveStandardBookingFee.value;
+    const resAmt = parseDigits(form.form_data.reservasi);
+    const remainingUtj = Math.max(0, utj - resAmt);
+
+    form.form_data.pengajuan.booking_fee = remainingUtj > 0 ? formatNominal(remainingUtj) : '0,- (Lunas UTJ)';
+    form.form_data.pengajuan.booking_fee_total = `(Total ${formatNominal(utj)})`;
+    form.form_data.pengajuan.reservasi = resAmt > 0 ? formatNominal(resAmt) : '-';
+    form.form_data.pengajuan.reservasi_date = form.form_data.reservasi_date || '-';
+
+    if (listed > 0 && offer > 0 && listed > offer) {
+        form.form_data.diskon = formatNominal(listed - offer);
+    }
+
+    const dp1 = parseDigits(form.form_data.pengajuan.dp1_amount);
+    const dp2 = parseDigits(form.form_data.pengajuan.dp2_amount);
+    if (offer > 0) {
+        const pelunasan = Math.max(0, offer - utj - dp1 - dp2);
+        form.form_data.pengajuan.pelunasan_amount = pelunasan > 0 ? formatNominal(pelunasan) : '0,-';
+    }
+
+    const jwbOffer = parseDigits(form.form_data.jawaban.price) || offer;
+    const jwbDp1 = parseDigits(form.form_data.jawaban.dp1_amount) || dp1;
+    const jwbDp2 = parseDigits(form.form_data.jawaban.dp2_amount) || dp2;
+    form.form_data.jawaban.booking_fee = form.form_data.pengajuan.booking_fee;
+    form.form_data.jawaban.booking_fee_total = form.form_data.pengajuan.booking_fee_total;
+    if (jwbOffer > 0) {
+        const jwbPelunasan = Math.max(0, jwbOffer - utj - jwbDp1 - jwbDp2);
+        form.form_data.jawaban.pelunasan_amount = jwbPelunasan > 0 ? formatNominal(jwbPelunasan) : '0,-';
+    }
+}
 
 // Watch isOpen & initialize data
 watch(() => props.isOpen, (open) => {
@@ -128,9 +271,29 @@ watch(() => props.isOpen, (open) => {
         if (fd && Object.keys(fd).length > 0) {
             form.form_data = JSON.parse(JSON.stringify(fd));
         }
+        // Keep top-level columns in sync on load
+        if (n.offered_price > 0 && (!form.form_data.pengajuan?.price || form.form_data.pengajuan.price === '-')) {
+            form.form_data.pengajuan.price = formatNominal(n.offered_price);
+        }
+        if (n.counter_price > 0 && (!form.form_data.jawaban?.price || form.form_data.jawaban.price === '-')) {
+            form.form_data.jawaban.price = formatNominal(n.counter_price);
+        }
+        if (n.payment_scheme && !form.form_data.pengajuan?.cara_bayar) {
+            const labelMap = { cash_keras: 'Cash Keras', kpr: 'KPR Bank', cash_bertahap: n.installment_months ? `Cash Bertahap ${n.installment_months}X` : 'Cash Bertahap' };
+            form.form_data.pengajuan.cara_bayar = labelMap[n.payment_scheme] || 'Cash Bertahap';
+        }
     } else {
         // Create new
         form.reset();
+        form.form_data.kepada = `${resolvedCompanyName.value}`;
+        form.form_data.cc = props.negotiationSettings?.sig1_title || 'Agent Coordinator';
+        form.form_data.tanggal = formatIndoDate();
+        form.form_data.free_legalitas = getDefaultLegalText();
+        form.form_data.jawaban.sig_city_date = `${props.negotiationSettings?.city || 'Jakarta'}, ${formatIndoDate()}`;
+        form.form_data.jawaban.sig_mengetahui_name = props.negotiationSettings?.sig1_name || 'Sales Coordinator';
+        form.form_data.jawaban.sig_menyetujui_name = props.negotiationSettings?.sig2_name || 'Direktur';
+        applyReservationCredit(null);
+
         if (props.lead) {
             form.lead_id = props.lead.id;
             form.client_name = props.lead.name || '';
@@ -138,21 +301,24 @@ watch(() => props.isOpen, (open) => {
             form.client_email = props.lead.email || '';
             form.form_data.dari = props.lead.name || '';
             form.form_data.jawaban.sig_pengaju_name = props.lead.name || '';
+            const activeRes = (props.lead.reservations || []).find(r => r.status === 'active') || props.lead.reservations?.[0] || null;
+            if (activeRes) {
+                applyReservationCredit(activeRes);
+            }
+            const resUnit = activeRes?.unit_id ? selectableUnits.value.find(u => u.id == activeRes.unit_id) : null;
+            if (resUnit) {
+                selectUnit(resUnit);
+                return;
+            }
         }
-        if (props.units.length > 0) {
-            const firstUnit = props.units[0];
-            selectUnit(firstUnit);
+        if (selectableUnits.value.length > 0) {
+            selectUnit(selectableUnits.value[0]);
         }
     }
 }, { immediate: true });
 
-function formatNum(val) {
-    if (!val) return '0';
-    return Number(val).toLocaleString('id-ID');
-}
-
 function onUnitChange() {
-    const selected = props.units.find(u => u.id == form.unit_id);
+    const selected = selectableUnits.value.find(u => u.id == form.unit_id) || props.units.find(u => u.id == form.unit_id);
     if (selected) {
         selectUnit(selected);
     }
@@ -169,6 +335,14 @@ function onLeadChange() {
         if (form.form_data.jawaban) {
             form.form_data.jawaban.sig_pengaju_name = l.name || '';
         }
+        const activeRes = (l.reservations || []).find(r => r.status === 'active') || l.reservations?.[0] || null;
+        if (activeRes) {
+            applyReservationCredit(activeRes);
+            if (!props.negotiation && activeRes.unit_id) {
+                const resUnit = selectableUnits.value.find(u => u.id == activeRes.unit_id);
+                if (resUnit) selectUnit(resUnit);
+            }
+        }
     }
 }
 
@@ -177,38 +351,49 @@ function selectUnit(u) {
     form.unit_id = u.id;
     const block = u.block || '';
     const num = u.number || '';
-    const unitLabel = u.unit_number || (block ? `Blok ${block}${num ? ' ' + num : ''}` : (num ? `Unit ${num}` : 'Blok A3'));
-    const shortCode = u.unit_number || (block ? `${block}${num}` : (num || 'A3'));
-    const typeName = u.unit_type?.name || u.unitType?.name || 'Badan';
-    const lt = u.surface_area || u.unit_type?.land_area || u.unitType?.land_area || '105';
-    const lb = u.building_area || u.unit_type?.building_area || u.unitType?.building_area || '198';
-    const price = u.final_price || u.price || 0;
-    const projName = u.project?.name || 'Alonica Hills';
-    const projAddr = u.project?.address || 'Jl. Bhakti, RT.002/RW.007, Cilandak Tim, Ps Minggu, Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta. 12560';
+    const unitLabel = u.label || u.unit_number || (block ? `Blok ${block}${num ? ' No. ' + num : ''}` : (num ? `No. ${num}` : '-'));
+    const shortCode = block ? `${block}${num ? ' ' + num : ''}` : (num || '-');
+    const typeName = u.unit_type?.name || u.unitType?.name || 'Standard';
+    const lt = u.unit_type?.land_area ?? u.unitType?.land_area ?? u.surface_area ?? '-';
+    const lb = u.unit_type?.building_area ?? u.unitType?.building_area ?? u.building_area ?? '-';
+    const price = Number(u.display_price || u.final_price || u.unit_type?.current_price || u.unitType?.current_price || u.price || 0);
+    const projName = u.project?.name || 'Proyek Perumahan';
+    const projAddr = u.project?.address || '-';
+    const compName = props.negotiationSettings?.company_name || `PT. ${projName}`;
 
     form.form_data.project_name = projName;
     form.form_data.project_address = projAddr;
-    form.form_data.kepada = `PT. Serangkai Roden Development – ${projName}`;
+    form.form_data.kepada = `${compName} – ${projName}`;
     form.form_data.kavling = unitLabel;
-    form.form_data.type = typeName;
+    form.form_data.type = (lb && lb !== '-' && lt && lt !== '-') ? `${typeName} (LB ${lb} / LT ${lt})` : typeName;
     form.form_data.luas_tanah = String(lt);
     form.form_data.luas_bangunan = String(lb);
-    if (price > 0) {
-        form.form_data.price_list = `${formatNum(price)},-`;
+    form.form_data.price_list = price > 0 ? formatNominal(price) : '-';
+
+    if (!props.negotiation) {
+        if (u.discount_amount && Number(u.discount_amount) > 0) {
+            form.form_data.diskon = formatNominal(u.discount_amount);
+        } else {
+            form.form_data.diskon = '-';
+        }
+        form.form_data.pengajuan.price = price > 0 ? formatNominal(Math.max(0, price - Number(u.discount_amount || 0))) : '-';
+        form.form_data.jawaban.price = '-';
+        recalculatePengajuanAndJawaban();
     }
 
-    // Auto-update note #6 regarding LT and note #4 regarding Unit code
     if (form.form_data.pengajuan?.notes && form.form_data.pengajuan.notes.length >= 6) {
-        form.form_data.pengajuan.notes[5] = `Luas tanah pada form tertulis ${lt} m². Mohon konfirmasi angka final sesuai gambar kavling dan hasil pengukuran, untuk dicantumkan dalam PPJB.`;
+        form.form_data.pengajuan.notes[5] = `Luas tanah pada form tertulis ${lt} m². Konfirmasi angka final mengacu pada gambar kavling dan hasil pengukuran BPN untuk dicantumkan dalam PPJB.`;
     }
     if (form.form_data.jawaban?.notes && form.form_data.jawaban.notes.length >= 4) {
-        form.form_data.jawaban.notes[3] = `Pembeli diperbolehkan menempati Unit ${shortCode} setelah proses penandatanganan PPJB antara pembeli dan Developer telah dilaksanakan, sesuai dengan ketentuan dan kesepakatan para pihak.`;
+        form.form_data.jawaban.notes[3] = `Pembeli diperbolehkan menempati Unit ${shortCode} setelah proses penandatanganan PPJB antara Pembeli dan Developer dilaksanakan sesuai ketentuan.`;
     }
 }
 
 watch(() => form.client_name, (val) => {
     form.form_data.dari = val;
-    form.form_data.jawaban.sig_pengaju_name = val;
+    if (form.form_data.jawaban) {
+        form.form_data.jawaban.sig_pengaju_name = val;
+    }
 });
 
 function addPengajuanNote() {
@@ -228,17 +413,46 @@ function removeJawabanNote(idx) {
 }
 
 function resetPengajuanNotes() {
-    form.form_data.pengajuan.notes = [...defaultPengajuanNotes];
+    form.form_data.pengajuan.notes = buildDefaultPengajuanNotes(
+        form.form_data.luas_tanah,
+        form.form_data.reservasi,
+        form.form_data.bonus
+    );
 }
 
 function resetJawabanNotes() {
-    form.form_data.jawaban.notes = [...defaultJawabanNotes];
+    form.form_data.jawaban.notes = buildDefaultJawabanNotes(
+        form.form_data.kavling,
+        form.form_data.jawaban?.dp1_amount || form.form_data.pengajuan?.dp1_amount
+    );
+}
+
+function syncFormTopLevelFields() {
+    const pPrice = parseDigits(form.form_data.pengajuan?.price);
+    const jPrice = parseDigits(form.form_data.jawaban?.price);
+    const dp1 = parseDigits(form.form_data.pengajuan?.dp1_amount);
+    const cb = String(form.form_data.pengajuan?.cara_bayar || '').toLowerCase();
+
+    form.offered_price = pPrice > 0 ? pPrice : null;
+    form.counter_price = jPrice > 0 ? jPrice : null;
+    form.dp_amount = dp1 > 0 ? dp1 : null;
+    form.payment_scheme = cb.includes('keras') ? 'cash_keras' : (cb.includes('kpr') ? 'kpr' : 'cash_bertahap');
+
+    const tenorMatch = String(form.form_data.pengajuan?.cara_bayar || '').match(/(\d+)\s*[xX]/);
+    form.installment_months = tenorMatch ? Number(tenorMatch[1]) : null;
+
+    const bonusRaw = String(form.form_data.bonus || '').replace(/[()]/g, '').trim();
+    form.special_bonus_items = (bonusRaw && bonusRaw !== '-')
+        ? bonusRaw.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+    form.developer_sig_name = form.form_data.jawaban?.sig_menyetujui_name || '';
 }
 
 function submitForm(asStatus = null) {
     if (asStatus) {
         form.status = asStatus;
     }
+    syncFormTopLevelFields();
     if (props.negotiation) {
         form.put(`/negotiations/${props.negotiation.id}`, {
             preserveScroll: true,
@@ -281,7 +495,7 @@ function copyLink() {
 
 function shareWa() {
     const url = resultLink.value || `${window.location.origin}/nego/${resultToken.value}`;
-    const msg = `Halo Bapak/Ibu *${form.client_name || 'Client'}*,\n\nBerikut kami lampirkan Surat & Form Pengajuan Negosiasi untuk unit *${form.form_data.kavling}* di *${form.form_data.project_name}*:\n\n🔗 ${url}\n\nSilakan dibuka dan disesuaikan. Dokumen PDF resmi juga dapat langsung diunduh melalui link tersebut.\n\nTerima kasih!\n*PT. Serangkai Roden Development*`;
+    const msg = `Halo Bapak/Ibu *${form.client_name || 'Client'}*,\n\nBerikut kami lampirkan Surat & Form Pengajuan Negosiasi untuk unit *${form.form_data.kavling}* di *${form.form_data.project_name}*:\n\n🔗 ${url}\n\nSilakan dibuka dan disesuaikan. Dokumen PDF resmi juga dapat langsung diunduh melalui link tersebut.\n\nTerima kasih!\n*${resolvedCompanyName.value}*`;
     const phone = (form.client_phone || '').replace(/[^0-9]/g, '');
     const wa = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
     window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -359,6 +573,9 @@ function openPdf() {
                     <!-- TAB 1: HALAMAN 1 (FORM REQUEST CUSTOMER) -->
                     <!-- ========================================== -->
                     <div v-show="activeTab === 'page1'" class="space-y-6">
+                        <div v-if="Object.keys(form.errors).length > 0" class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold space-y-1">
+                            <p v-for="(err, field) in form.errors" :key="field">⚠️ {{ err }}</p>
+                        </div>
                         
                         <!-- 1. IDENTITAS UNIT & CLIENT -->
                         <div class="p-4 bg-blue-50/60 border border-blue-200/80 rounded-2xl space-y-3">
@@ -383,10 +600,11 @@ function openPdf() {
                                     <label class="block font-bold text-slate-600 mb-1">Pilih Unit Properti <span class="text-rose-500">*</span></label>
                                     <select v-model="form.unit_id" @change="onUnitChange" required class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs focus:ring-2 focus:ring-blue-500">
                                         <option value="">-- Pilih Unit --</option>
-                                        <option v-for="u in units" :key="u.id" :value="u.id">
-                                            {{ u.unit_number ? ('Unit ' + u.unit_number) : ('Blok ' + (u.block || '') + ' ' + (u.number || '')) }} - {{ u.unit_type?.name || u.unitType?.name || 'Tipe Standar' }} (Rp {{ formatNum(u.final_price || u.price) }})
+                                        <option v-for="u in selectableUnits" :key="u.id" :value="u.id">
+                                            {{ u.project?.name ? u.project.name + ' · ' : '' }}{{ u.label || u.unit_number || ('Blok ' + (u.block || '') + ' No. ' + (u.number || '')) }} ({{ u.unit_type?.name || u.unitType?.name || 'Standar' }}) — Rp {{ formatNum(u.display_price || u.final_price || u.unit_type?.current_price || u.price) }} [{{ unitStatusLabel(u.status) }}]
                                         </option>
                                     </select>
+                                    <p v-if="form.errors.unit_id" class="text-[10px] text-rose-600 font-bold mt-1">{{ form.errors.unit_id }}</p>
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-600 mb-1">Nama Calon Pembeli <span class="text-rose-500">*</span></label>
@@ -483,9 +701,19 @@ function openPdf() {
 
                         <!-- 4. RINCIAN PENGAJUAN (TERMIN PEMBAYARAN) -->
                         <div class="p-4 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-3">
-                            <span class="font-black text-amber-950 text-xs uppercase tracking-wider block">
-                                💰 4. Rincian Termin Pengajuan Pembayaran
-                            </span>
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="font-black text-amber-950 text-xs uppercase tracking-wider block">
+                                    💰 4. Rincian Termin Pengajuan Pembayaran
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200">
+                                        UTJ Standar Settings: Rp {{ formatNum(effectiveStandardBookingFee) }}
+                                    </span>
+                                    <button type="button" @click="recalculatePengajuanAndJawaban" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg transition-colors">
+                                        ↻ Sinkron UTJ &amp; Pelunasan
+                                    </button>
+                                </div>
+                            </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block font-bold text-slate-600 text-[11px] mb-1">Cara Bayar</label>
@@ -730,14 +958,14 @@ function openPdf() {
                                     <input v-model="form.form_data.jawaban.sig_pengaju_name" type="text" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs" placeholder="Nama Client" />
                                 </div>
                                 <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">2. Mengetahui</span>
-                                    <input v-model="form.form_data.jawaban.sig_mengetahui_name" type="text" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs" placeholder="Maulizar" />
-                                    <p class="text-[9px] text-emerald-600 font-semibold">✓ TTD Digital terlampir di PDF</p>
+                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">2. Mengetahui ({{ negotiationSettings?.sig1_title || 'Koordinator' }})</span>
+                                    <input v-model="form.form_data.jawaban.sig_mengetahui_name" type="text" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs" placeholder="Nama Pejabat Mengetahui" />
+                                    <p class="text-[9px] text-emerald-600 font-semibold">✓ Mengikuti TTD Digital di Settings</p>
                                 </div>
                                 <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">3. Menyetujui (Developer)</span>
-                                    <input v-model="form.form_data.jawaban.sig_menyetujui_name" type="text" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs" placeholder="Ch. Bramantyo P." />
-                                    <p class="text-[9px] text-emerald-600 font-semibold">✓ TTD Digital terlampir di PDF</p>
+                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">3. Menyetujui ({{ negotiationSettings?.sig2_title || 'Direktur' }})</span>
+                                    <input v-model="form.form_data.jawaban.sig_menyetujui_name" type="text" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs" placeholder="Nama Pejabat Menyetujui" />
+                                    <p class="text-[9px] text-emerald-600 font-semibold">✓ Mengikuti TTD Digital di Settings</p>
                                 </div>
                             </div>
                         </div>
@@ -750,7 +978,7 @@ function openPdf() {
                         <div class="bg-slate-100 p-4 rounded-2xl flex items-center justify-between">
                             <div>
                                 <h4 class="font-bold text-slate-800 text-xs">Simulasi Tampilan Dokumen PDF Resmi</h4>
-                                <p class="text-[11px] text-slate-500">Hasil cetak PDF akan dirender persis seperti lembar di bawah ini.</p>
+                                <p class="text-[11px] text-slate-500">Hasil cetak PDF akan dirender persis seperti 2 lembar di bawah ini.</p>
                             </div>
                             <span class="px-3 py-1 bg-white border border-slate-200 text-slate-700 font-bold rounded-lg text-xs">
                                 2 Halaman (A4 Portrait)
@@ -759,8 +987,11 @@ function openPdf() {
 
                         <!-- Sheet 1 Preview -->
                         <div class="bg-white border-2 border-slate-300 rounded-xl p-8 shadow-sm max-w-2xl mx-auto space-y-4 font-sans text-[11px] text-slate-900 leading-normal">
-                            <div class="w-20 mb-2">
-                                <img src="/images/alonica_logo.png" class="h-12 object-contain" alt="Alonica" />
+                            <div class="flex items-center justify-between mb-2">
+                                <img :src="resolvedLogoUrl" class="h-12 object-contain" alt="Logo" />
+                                <span class="text-[10px] text-slate-500 font-semibold">
+                                    No. Ref: {{ negotiation?.negotiation_number || '(Auto-Generate)' }}
+                                </span>
                             </div>
 
                             <div class="bg-[#b8cce4] border border-[#5b7999] py-1 text-center font-black tracking-wider uppercase text-xs">
@@ -901,8 +1132,97 @@ function openPdf() {
 
                             <div class="font-bold text-xs mb-1">Note :</div>
                             <ol class="list-decimal pl-5 space-y-1 text-[10px] text-slate-700 text-justify">
-                                <li v-for="(n, i) in form.form_data.pengajuan.notes" :key="i">{{ n }}</li>
+                                <li v-for="(n, i) in form.form_data.pengajuan.notes" :key="i">
+                                    <span v-if="n && n.trim()">{{ n }}</span>
+                                </li>
                             </ol>
+                        </div>
+
+                        <!-- Sheet 2 Preview -->
+                        <div class="bg-white border-2 border-slate-300 rounded-xl p-8 shadow-sm max-w-2xl mx-auto space-y-4 font-sans text-[11px] text-slate-900 leading-normal">
+                            <div class="w-20 mb-2">
+                                <img :src="resolvedLogoUrl" class="h-12 object-contain" alt="Logo" />
+                            </div>
+                            <div class="border-b-2 border-black my-2"></div>
+
+                            <div class="font-black text-xs uppercase">JAWABAN</div>
+                            <table class="w-full text-xs leading-relaxed">
+                                <tr>
+                                    <td class="w-28 text-slate-700">Cara bayar</td>
+                                    <td class="w-4">:</td>
+                                    <td class="font-bold" colspan="2">{{ form.form_data.jawaban.cara_bayar }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-slate-700">Pengajuan Price</td>
+                                    <td>:</td>
+                                    <td class="font-bold" colspan="2">{{ form.form_data.jawaban.price }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-slate-700">Reservasi</td>
+                                    <td>:</td>
+                                    <td class="w-44">{{ form.form_data.jawaban.reservasi }}</td>
+                                    <td>Tanggal : {{ form.form_data.jawaban.reservasi_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-slate-700">Booking Fee</td>
+                                    <td>:</td>
+                                    <td>{{ form.form_data.jawaban.booking_fee }} {{ form.form_data.jawaban.booking_fee_total }}</td>
+                                    <td>Tanggal : {{ form.form_data.jawaban.booking_fee_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-slate-700">DP1 %</td>
+                                    <td>:</td>
+                                    <td>{{ form.form_data.jawaban.dp1_amount }}</td>
+                                    <td>Tanggal : {{ form.form_data.jawaban.dp1_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-slate-700">DP2</td>
+                                    <td>:</td>
+                                    <td>{{ form.form_data.jawaban.dp2_amount }}</td>
+                                    <td>Tanggal : {{ form.form_data.jawaban.dp2_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-slate-700">Pelunasan</td>
+                                    <td>:</td>
+                                    <td>{{ form.form_data.jawaban.pelunasan_amount }}</td>
+                                    <td>Tanggal : {{ form.form_data.jawaban.pelunasan_date }}</td>
+                                </tr>
+                            </table>
+
+                            <div class="border-b-2 border-black my-2"></div>
+
+                            <div class="font-bold text-xs mb-1">Note :</div>
+                            <ol class="list-decimal pl-5 space-y-1 text-[10px] text-slate-700 text-justify">
+                                <li v-for="(jn, idx) in form.form_data.jawaban.notes" :key="'jn-' + idx">{{ jn }}</li>
+                            </ol>
+
+                            <div class="pt-4 text-[11px]">{{ form.form_data.jawaban.sig_city_date }}</div>
+                            <div class="grid grid-cols-3 gap-4 text-center text-[11px] pt-2">
+                                <div>
+                                    <div>Yang Mengajukan,</div>
+                                    <div class="h-16 flex items-center justify-center">
+                                        <img v-if="negotiation?.client_signature" :src="negotiation.client_signature" class="max-h-14 object-contain" />
+                                    </div>
+                                    <div class="font-bold">( {{ form.form_data.jawaban.sig_pengaju_name || form.client_name || '-' }} )</div>
+                                    <div class="text-[9px] text-slate-500">Calon Pembeli</div>
+                                </div>
+                                <div>
+                                    <div>Mengetahui,</div>
+                                    <div class="h-16 flex items-center justify-center">
+                                        <img v-if="negotiationSettings?.sig1_image" :src="`/storage/${negotiationSettings.sig1_image}`" class="max-h-14 object-contain" />
+                                    </div>
+                                    <div class="font-bold">( {{ form.form_data.jawaban.sig_mengetahui_name || '-' }} )</div>
+                                    <div class="text-[9px] text-slate-500">{{ negotiationSettings?.sig1_title || '' }}</div>
+                                </div>
+                                <div>
+                                    <div>Menyetujui,</div>
+                                    <div class="h-16 flex items-center justify-center">
+                                        <img v-if="negotiationSettings?.sig2_image" :src="`/storage/${negotiationSettings.sig2_image}`" class="max-h-14 object-contain" />
+                                    </div>
+                                    <div class="font-bold">( {{ form.form_data.jawaban.sig_menyetujui_name || '-' }} )</div>
+                                    <div class="text-[9px] text-slate-500">{{ negotiationSettings?.sig2_title || '' }}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

@@ -34,7 +34,15 @@ const props = defineProps({
 const page = usePage();
 const currentUser = computed(() => page.props.auth.user);
 
-const initialBasePrice = props.negotiation?.offered_price || props.negotiation?.counter_price || props.unit?.final_price || '';
+function resolveNegotiationDealPrice(nego) {
+    if (!nego) return '';
+    if ((nego.status === 'approved' || nego.client_response === 'accepted' || nego.status === 'counter_offer') && Number(nego.counter_price) > 0) {
+        return Number(nego.counter_price);
+    }
+    return Number(nego.counter_price || nego.offered_price || 0) || '';
+}
+
+const initialBasePrice = resolveNegotiationDealPrice(props.negotiation) || props.unit?.final_price || '';
 const reservedCreditAmount = Number(props.reservedAmount || props.reservation?.amount || 0);
 const initialBookingFee = props.standardBookingFee > 0
     ? Math.max(Number(props.standardBookingFee), reservedCreditAmount)
@@ -50,7 +58,7 @@ const form = useForm({
     negotiation_id: props.negotiation?.id || '',
     unit_id: props.unit?.id || props.reservation?.unit_id || props.negotiation?.unit_id || '',
     lead_id: props.lead?.id || props.reservation?.lead_id || props.negotiation?.lead_id || '',
-    booked_by: props.lead?.assigned_to || props.negotiation?.creator_id || page.props.auth.user.id || '',
+    booked_by: props.lead?.assigned_to || props.negotiation?.created_by || page.props.auth.user.id || '',
     inhouse_pic_id: props.lead?.inhouse_pic_id || '',
     booking_date: new Date().toISOString().substring(0, 10),
     booking_fee: initialBookingFee,
@@ -139,8 +147,17 @@ const updateTotal = () => {
                        Number(form.other_legal_fees);
 };
 
+const selectableUnits = computed(() => {
+    const currentId = form.unit_id ? Number(form.unit_id) : null;
+    return (props.availableUnits || []).filter((u) => {
+        if (currentId && Number(u.id) === currentId) return true;
+        const st = String(u.status || '').toLowerCase().trim();
+        return st !== 'sold' && st !== 'booked';
+    });
+});
+
 const selectedUnit = computed(() => {
-    return props.availableUnits.find(u => u.id === form.unit_id) || props.unit;
+    return (props.availableUnits || []).find(u => u.id === form.unit_id) || props.unit;
 });
 
 const currentLead = computed(() => {
@@ -197,21 +214,25 @@ const applyNegotiation = (nego) => {
     if (!nego) return;
     form.negotiation_id = nego.id;
     if (nego.unit_id) form.unit_id = nego.unit_id;
-    const agreedPrice = nego.offered_price || nego.counter_price || '';
+    const agreedPrice = resolveNegotiationDealPrice(nego);
     if (agreedPrice) {
         form.base_price = agreedPrice;
     }
     if (nego.payment_scheme) form.payment_scheme = mapNegoSchemeToBooking(nego.payment_scheme);
-    if (nego.dp_amount) form.dp_amount = nego.dp_amount;
+    if (nego.dp_amount) {
+        form.dp_amount = nego.dp_amount;
+    }
     if (nego.installment_months) {
         form.installment_months = nego.installment_months;
-        form.dp_installment_months = Math.min(nego.installment_months, 3);
+        form.dp_installment_months = nego.dp_amount > 0 ? Math.min(nego.installment_months, 3) : 0;
     }
     if (Array.isArray(nego.special_bonus_items) && nego.special_bonus_items.length > 0) {
         form.special_bonus_items = [...nego.special_bonus_items];
     }
     if (nego.notes) form.notes = nego.notes;
-    setAllFree();
+    form.free_ppn = props.defaultFreePpn !== undefined ? props.defaultFreePpn : true;
+    form.free_legal = props.defaultFreeLegal !== undefined ? props.defaultFreeLegal : true;
+    calculateTaxes();
 };
 
 const resetToBrochurePrice = () => {
@@ -437,8 +458,8 @@ const formatCurrency = (value) => {
                                 <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Unit Properti <span class="text-rose-500">*</span></label>
                                 <select v-model="form.unit_id" @change="handleUnitChange" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
                                     <option value="">Pilih Unit...</option>
-                                    <option v-for="u in availableUnits" :key="u.id" :value="u.id">
-                                        {{ u.project?.code }} - {{ u.block }}{{ u.number }} (Brosur: {{ formatCurrency(u.final_price) }})
+                                    <option v-for="u in selectableUnits" :key="u.id" :value="u.id">
+                                        {{ u.project?.code }} - {{ u.block }}{{ u.number }} (Brosur: {{ formatCurrency(u.final_price) }}) [{{ u.status }}]
                                     </option>
                                 </select>
                                 <p v-if="form.errors.unit_id" class="text-xs text-rose-500 mt-1">{{ form.errors.unit_id }}</p>

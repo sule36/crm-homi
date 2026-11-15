@@ -250,11 +250,27 @@ class LeadController extends Controller
         $lead->load($relations);
 
         $units = \App\Models\Unit::when($lead->project_id, fn ($q) => $q->where('project_id', $lead->project_id))
-            ->where('status', '!=', 'sold')
-            ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
-            ->with(['project:id,name,address', 'unitType:id,name,land_area,building_area'])
+            ->selectableForLov()
+            ->select('id', 'block', 'number', 'floor', 'final_price', 'discount_amount', 'promo', 'premium_charge', 'net_price', 'project_id', 'unit_type_id', 'status')
+            ->with(['project:id,name,address,code,logo', 'unitType:id,name,land_area,building_area,current_price'])
             ->orderByUnitNumber()
             ->get();
+
+        $sigConfig = \App\Models\Setting::getSignatureConfig();
+        $negotiationSettings = [
+            'company_name' => \App\Models\Setting::get('company_name') ?: null,
+            'company_logo' => \App\Models\Setting::get('company_logo') ?: null,
+            'standard_booking_fee' => \App\Models\Setting::getStandardBookingFee(),
+            'spr_default_free_ppn' => (bool) \App\Models\Setting::get('spr_default_free_ppn', true),
+            'spr_default_free_legal' => (bool) \App\Models\Setting::get('spr_default_free_legal', true),
+            'city' => $sigConfig['city'] ?? 'Jakarta Selatan',
+            'sig1_name' => $sigConfig['sig1_name'] ?? '',
+            'sig1_title' => $sigConfig['sig1_title'] ?? 'Sales Manager',
+            'sig1_image' => $sigConfig['sig1_image'] ?? null,
+            'sig2_name' => $sigConfig['sig2_name'] ?? '',
+            'sig2_title' => $sigConfig['sig2_title'] ?? 'Direktur',
+            'sig2_image' => $sigConfig['sig2_image'] ?? null,
+        ];
 
         $dutyAgent = null;
         try {
@@ -288,6 +304,7 @@ class LeadController extends Controller
             'standardBookingFee' => \App\Models\Setting::getStandardBookingFee(),
             'developerSignatories' => \App\Models\Setting::getDeveloperSignatories(),
             'defaultDeveloperSigner' => \App\Models\Setting::resolveDeveloperSignatory(),
+            'negotiationSettings' => $negotiationSettings,
         ]);
     }
 

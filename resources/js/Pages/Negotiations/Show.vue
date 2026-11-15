@@ -9,7 +9,19 @@ const props = defineProps({
     units: {
         type: Array,
         default: () => [],
-    }
+    },
+    leads: {
+        type: Array,
+        default: () => [],
+    },
+    standardBookingFee: {
+        type: Number,
+        default: 17000000,
+    },
+    negotiationSettings: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 const nego = computed(() => props.negotiation);
 
@@ -192,6 +204,12 @@ function shareWhatsApp() {
                     {{ (statusConfig[nego.status] || statusConfig.draft).icon }}
                     {{ (statusConfig[nego.status] || statusConfig.draft).label }}
                 </span>
+                <Link v-if="(nego.status === 'approved' || nego.client_response === 'accepted') && !nego.booking_id" :href="`/negotiations/${nego.id}/convert`" method="post" as="button" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                    <span>🚀</span> Naik ke Booking (SPR)
+                </Link>
+                <Link v-if="nego.booking_id" :href="`/bookings/${nego.booking_id}`" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                    <span>📄</span> Lihat Booking / SPR
+                </Link>
                 <Link v-if="nego.status === 'approved' || nego.client_response === 'accepted'" :href="`/reservations/create?negotiation_id=${nego.id}&unit_id=${nego.unit_id}&lead_id=${nego.lead_id}`" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5">
                     <span>🔖</span> Buat Reservasi Unit
                 </Link>
@@ -342,12 +360,12 @@ function shareWhatsApp() {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
                             <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Skema Cara Bayar Disetujui</p>
-                            <p class="text-sm font-black text-slate-900 mt-1">{{ jawaban.cara_bayar || paymentLabels[nego.payment_scheme] || 'Cash Bertahap 3X' }}</p>
+                            <p class="text-sm font-black text-slate-900 mt-1">{{ jawaban.cara_bayar || paymentLabels[nego.payment_scheme] || '-' }}</p>
                         </div>
                         <div class="p-3.5 bg-purple-50/70 rounded-xl border border-purple-200">
                             <p class="text-[10px] font-black text-purple-600 uppercase tracking-wider">Harga Kesepakatan (Deal Price)</p>
                             <p class="text-lg font-black text-purple-900 font-mono mt-1">
-                                {{ jawaban.price || (nego.counter_price ? formatCurrency(nego.counter_price) : formatCurrency(nego.offered_price)) }}
+                                {{ (jawaban.price && jawaban.price !== '-') ? jawaban.price : (nego.counter_price ? formatCurrency(nego.counter_price) : formatCurrency(nego.offered_price)) }}
                             </p>
                         </div>
                     </div>
@@ -365,28 +383,28 @@ function shareWhatsApp() {
                             </div>
                             <div class="grid grid-cols-12 p-2.5 items-center">
                                 <div class="col-span-4 font-bold text-slate-800">1. Tanda Jadi (Reservasi)</div>
-                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.reservasi || '10.000.000,-' }}</div>
-                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.reservasi_date || '08 Sept 2026' }}</div>
+                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.reservasi || '-' }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.reservasi_date || '-' }}</div>
                             </div>
                             <div class="grid grid-cols-12 p-2.5 items-center">
                                 <div class="col-span-4 font-bold text-slate-800">2. Booking Fee (UTJ)</div>
-                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.booking_fee || '7.000.000,-' }} <span class="text-[10px] text-slate-400 font-normal">{{ jawaban.booking_fee_total }}</span></div>
-                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.booking_fee_date || '24 Sept 2026' }}</div>
+                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.booking_fee || '-' }} <span class="text-[10px] text-slate-400 font-normal">{{ jawaban.booking_fee_total }}</span></div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.booking_fee_date || '-' }}</div>
                             </div>
                             <div class="grid grid-cols-12 p-2.5 items-center">
                                 <div class="col-span-4 font-bold text-slate-800">3. Uang Muka (DP 1)</div>
-                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.dp1_amount || '200.000.000,-' }}</div>
-                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.dp1_date || '1 Okt 2026' }}</div>
+                                <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.dp1_amount || '-' }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.dp1_date || '-' }}</div>
                             </div>
-                            <div v-if="jawaban.dp2_amount" class="grid grid-cols-12 p-2.5 items-center">
+                            <div v-if="jawaban.dp2_amount && jawaban.dp2_amount !== '-'" class="grid grid-cols-12 p-2.5 items-center">
                                 <div class="col-span-4 font-bold text-slate-800">4. Uang Muka (DP 2)</div>
                                 <div class="col-span-4 text-right font-black font-mono text-slate-900">{{ jawaban.dp2_amount }}</div>
-                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.dp2_date || '25 Des 2026' }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.dp2_date || '-' }}</div>
                             </div>
                             <div class="grid grid-cols-12 p-2.5 items-center bg-purple-50/40">
                                 <div class="col-span-4 font-black text-purple-950">5. Pelunasan Sisa</div>
                                 <div class="col-span-4 text-right font-black font-mono text-purple-900">{{ jawaban.pelunasan_amount || '-' }}</div>
-                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.pelunasan_date || '25 Des 2027' }}</div>
+                                <div class="col-span-4 text-right text-slate-500 font-medium">{{ jawaban.pelunasan_date || '-' }}</div>
                             </div>
                         </div>
                     </div>
@@ -560,6 +578,9 @@ function shareWhatsApp() {
             :is-open="showEditModal" 
             :negotiation="nego" 
             :units="units" 
+            :leads="leads"
+            :standard-booking-fee="standardBookingFee"
+            :negotiation-settings="negotiationSettings"
             :initial-tab="initialModalTab"
             @close="showEditModal = false" 
             @saved="router.reload({ preserveScroll: true })" 
