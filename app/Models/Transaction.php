@@ -65,7 +65,7 @@ class Transaction extends Model
         return ['amount' => 'integer'];
     }
 
-    public function booking() { return $this->belongsTo(Booking::class); }
+    public function booking() { return $this->belongsTo(Booking::class)->withTrashed(); }
     public function paymentSchedule() { return $this->belongsTo(PaymentSchedule::class); }
     public function recordedBy() { return $this->belongsTo(User::class, 'recorded_by'); }
     public function bankAccount() { return $this->belongsTo(BankAccount::class); }

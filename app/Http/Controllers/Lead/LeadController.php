@@ -253,8 +253,7 @@ class LeadController extends Controller
             ->where('status', '!=', 'sold')
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name,address', 'unitType:id,name,land_area,building_area'])
-            ->orderBy('block')
-            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->orderByUnitNumber()
             ->get();
 
         $dutyAgent = null;

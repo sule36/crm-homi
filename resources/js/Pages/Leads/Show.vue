@@ -1218,7 +1218,7 @@ function submitChangeResUnit() {
                                             </span>
                                         </div>
                                         <p class="text-xs text-slate-600 mt-1">
-                                            Unit: <strong>{{ res.unit?.code || '-' }}</strong> · Uang Tanda Jadi: <strong class="text-emerald-700">{{ formatCurrency(res.amount) }}</strong>
+                                            Unit: <strong>{{ res.unit?.label || (res.unit?.block ? `Blok ${res.unit.block} No. ${res.unit.number}` : (res.unit?.number ? `No. ${res.unit.number}` : '-')) }}</strong> · Uang Tanda Jadi: <strong class="text-emerald-700">{{ formatCurrency(res.amount) }}</strong>
                                         </p>
                                     </div>
                                     <div class="flex items-center gap-1.5 flex-wrap">
@@ -2033,19 +2033,22 @@ function submitChangeResUnit() {
                             <select v-model="reservationForm.unit_id" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
                                 <option value="" disabled>-- Pilih Kavling Tersedia --</option>
                                 <option v-for="u in units" :key="u.id" :value="u.id">
-                                    Blok {{ u.block }} No. {{ u.number }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }}) [{{ u.status }}]
+                                    {{ u.label || `Blok ${u.block || '-'} No. ${u.number}` }} - {{ u.unit_type?.name || 'Standard' }} ({{ formatCurrency(u.final_price || u.price) }}) [{{ u.status }}]
                                 </option>
                             </select>
+                            <p v-if="reservationForm.errors.unit_id" class="text-[11px] text-rose-500 font-bold mt-1">{{ reservationForm.errors.unit_id }}</p>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Nominal UTJ (Rp) <span class="text-rose-500">*</span></label>
                                 <input v-model="reservationForm.amount" type="number" min="0" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-700 text-sm" />
+                                <p v-if="reservationForm.errors.amount" class="text-[11px] text-rose-500 font-bold mt-1">{{ reservationForm.errors.amount }}</p>
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">Masa Berlaku Hold (Hari)</label>
                                 <input v-model="reservationForm.expires_days" type="number" min="1" max="30" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800" />
+                                <p v-if="reservationForm.errors.expires_days" class="text-[11px] text-rose-500 font-bold mt-1">{{ reservationForm.errors.expires_days }}</p>
                             </div>
                         </div>
 

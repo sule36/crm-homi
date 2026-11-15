@@ -133,6 +133,44 @@ class ReservationController extends Controller
         ]);
     }
 
+    private function sanitizeReservationInput(Request $request): void
+    {
+        foreach (['agent_coordinator_id', 'lead_id', 'negotiation_id', 'unit_id'] as $nullableKey) {
+            if ($request->has($nullableKey) && empty($request->input($nullableKey))) {
+                $request->merge([$nullableKey => null]);
+            }
+        }
+
+        if ($request->has('amount') && is_string($request->input('amount'))) {
+            $cleaned = preg_replace('/[^0-9]/', '', $request->input('amount'));
+            if ($cleaned !== '') {
+                $request->merge(['amount' => (int) $cleaned]);
+            }
+        }
+    }
+
+    private function ensureFlexibleStatusColumns(): void
+    {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
+        try {
+            $dbName = DB::connection()->getDatabaseName();
+            foreach (['units' => 'available', 'leads' => 'new'] as $table => $default) {
+                $col = DB::selectOne(
+                    "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = 'status'",
+                    [$dbName, $table]
+                );
+                if ($col && strtolower((string) $col->DATA_TYPE) === 'enum') {
+                    DB::statement("ALTER TABLE {$table} MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT '{$default}'");
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Skipping pre-transaction status column check: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Show form to create reservation
      */
@@ -143,10 +181,9 @@ class ReservationController extends Controller
         $selectedNegoId = $request->query('negotiation_id');
 
         $units = Unit::where('status', '!=', 'sold')
-        ->with(['project:id,name', 'unitType:id,name,current_price'])
-        ->orderBy('block')
-        ->orderByRaw('CAST(number AS UNSIGNED) ASC')
-        ->get();
+            ->with(['project:id,name', 'unitType:id,name,current_price'])
+            ->orderByUnitNumber()
+            ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'identity_number', 'assigned_to', 'inhouse_pic_id')
             ->with(['assignedTo:id,name', 'inhousePic:id,name'])
@@ -154,10 +191,8 @@ class ReservationController extends Controller
             ->get();
 
         $coordinators = User::select('id', 'name', 'agent_type')
-            ->where(function ($q) {
-                $q->whereIn('agent_type', ['master_lead', 'inhouse', 'freelance'])
-                  ->orWhereHas('roles', fn ($rq) => $rq->whereIn('name', ['super_admin', 'admin', 'developer', 'master_lead', 'sales_agent']));
-            })
+            ->where('status', 'active')
+            ->orderBy('name')
             ->get();
 
         $selectedNego = $selectedNegoId ? Negotiation::with(['unit', 'lead.assignedTo', 'lead.inhousePic'])->find($selectedNegoId) : null;
@@ -169,6 +204,7 @@ class ReservationController extends Controller
             'preselectedUnitId' => $selectedUnitId,
             'preselectedLeadId' => $selectedLeadId,
             'preselectedNego' => $selectedNego,
+            'defaultCompanyName' => Setting::get('company_name'),
         ]);
     }
 
@@ -177,22 +213,7 @@ class ReservationController extends Controller
      */
     public function store(Request $request)
     {
-        // 1. Sanitize empty string values for foreign keys and clean amount
-        if ($request->has('agent_coordinator_id') && empty($request->input('agent_coordinator_id'))) {
-            $request->merge(['agent_coordinator_id' => null]);
-        }
-        if ($request->has('lead_id') && empty($request->input('lead_id'))) {
-            $request->merge(['lead_id' => null]);
-        }
-        if ($request->has('negotiation_id') && empty($request->input('negotiation_id'))) {
-            $request->merge(['negotiation_id' => null]);
-        }
-        if ($request->has('amount') && is_string($request->input('amount'))) {
-            $cleaned = preg_replace('/[^0-9]/', '', $request->input('amount'));
-            if ($cleaned !== '') {
-                $request->merge(['amount' => (int) $cleaned]);
-            }
-        }
+        $this->sanitizeReservationInput($request);
 
         $validated = $request->validate([
             'unit_id' => 'required|exists:units,id',
@@ -219,10 +240,18 @@ class ReservationController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
+        // Ensure MySQL ENUM columns (if any legacy schema remains) are widened OUTSIDE DB::beginTransaction()
+        // because DDL statements cause an implicit commit in MySQL.
+        $this->ensureFlexibleStatusColumns();
+
         try {
             DB::beginTransaction();
 
             $unit = Unit::with('project')->findOrFail($validated['unit_id']);
+            if (in_array($unit->status, ['sold', 'booked'], true)) {
+                DB::rollBack();
+                return back()->withInput()->with('error', "Unit {$unit->label} sudah berstatus {$unit->status} dan tidak dapat direservasi.");
+            }
             $lead = !empty($validated['lead_id'])
                 ? Lead::with(['assignedTo', 'inhousePic'])->find($validated['lead_id'])
                 : null;
@@ -250,9 +279,10 @@ class ReservationController extends Controller
                 ? $validated['company_name']
                 : null;
 
-            $expiresAt = now()->addDays($validated['expires_days'] ?? 7);
+            $expiresAt = now()->addDays((int) ($validated['expires_days'] ?? 7));
 
             $reservationData = [
+                'company_id' => auth()->user()?->company_id ?: ($unit->company_id ?: $unit->project?->company_id),
                 'reservation_number' => Reservation::generateReservationNumber($unit->project_id),
                 'project_id' => $unit->project_id,
                 'unit_id' => $unit->id,
@@ -292,7 +322,7 @@ class ReservationController extends Controller
 
             $reservation = Reservation::create($safeData);
 
-            // Lock unit status to 'reserved' (with self-healing fallback for MySQL ENUM)
+            // Lock unit status to 'reserved' (with safe fallback to 'hold' if status constraint rejects 'reserved')
             try {
                 $unit->update([
                     'status' => 'reserved',
@@ -300,39 +330,23 @@ class ReservationController extends Controller
                     'held_until' => $expiresAt,
                 ]);
             } catch (\Throwable $ue) {
-                Log::warning("Direct unit update to reserved failed: " . $ue->getMessage());
-                try {
-                    DB::statement("ALTER TABLE units MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'available'");
-                    $unit->update([
-                        'status' => 'reserved',
-                        'held_by' => auth()->id(),
-                        'held_until' => $expiresAt,
-                    ]);
-                } catch (\Throwable $ue2) {
-                    Log::warning("Fallback unit update to hold: " . $ue2->getMessage());
-                    $unit->update([
-                        'status' => 'hold',
-                        'held_by' => auth()->id(),
-                        'held_until' => $expiresAt,
-                    ]);
-                }
+                Log::warning("Direct unit update to reserved failed, falling back to hold: " . $ue->getMessage());
+                $unit->update([
+                    'status' => 'hold',
+                    'held_by' => auth()->id(),
+                    'held_until' => $expiresAt,
+                ]);
             }
 
-            // If linked to lead, record activity and set status to 'reservation' (with self-healing fallback for MySQL ENUM)
+            // If linked to lead, record activity and set status to 'reservation' (with safe fallback to 'negotiation')
             if ($reservation->lead_id) {
                 $lead = Lead::find($reservation->lead_id);
                 if ($lead) {
                     try {
                         $lead->update(['status' => 'reservation']);
                     } catch (\Throwable $le) {
-                        Log::warning("Direct lead update to reservation failed: " . $le->getMessage());
-                        try {
-                            DB::statement("ALTER TABLE leads MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'new'");
-                            $lead->update(['status' => 'reservation']);
-                        } catch (\Throwable $le2) {
-                            Log::warning("Fallback lead update to negotiation: " . $le2->getMessage());
-                            $lead->update(['status' => 'negotiation']);
-                        }
+                        Log::warning("Direct lead update to reservation failed, falling back to negotiation: " . $le->getMessage());
+                        $lead->update(['status' => 'negotiation']);
                     }
 
                     try {
@@ -361,7 +375,9 @@ class ReservationController extends Controller
             return redirect()->route('reservations.show', $reservation->id)
                 ->with('success', "Reservasi unit berhasil dibuat dengan No. {$reservation->reservation_number}.");
         } catch (\Throwable $e) {
-            DB::rollBack();
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
             Log::error("Failed to store reservation: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -382,8 +398,7 @@ class ReservationController extends Controller
             ->when($reservation->project_id, fn ($q) => $q->where('project_id', $reservation->project_id))
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name', 'unitType:id,name'])
-            ->orderBy('block')
-            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->orderByUnitNumber()
             ->get();
 
         $coordinators = User::select('id', 'name', 'agent_type')
@@ -440,10 +455,16 @@ class ReservationController extends Controller
             'held_until' => $reservation->expires_at ?? now()->addDays(7),
         ]);
 
-        // 3. Update reservation
+        // 3. Update reservation and clear stale unit-specific custom overrides
+        $overrides = is_array($reservation->custom_overrides) ? $reservation->custom_overrides : [];
+        foreach (['unit_code', 'unit_type_name', 'spec_text', 'project_name'] as $staleKey) {
+            unset($overrides[$staleKey]);
+        }
+
         $reservation->update([
             'unit_id' => $newUnit->id,
             'project_id' => $newUnit->project_id,
+            'custom_overrides' => !empty($overrides) ? $overrides : null,
         ]);
 
         // 4. Record Lead Activity
@@ -467,9 +488,7 @@ class ReservationController extends Controller
      */
     public function update(Request $request, Reservation $reservation)
     {
-        if ($request->has('agent_coordinator_id') && empty($request->input('agent_coordinator_id'))) {
-            $request->merge(['agent_coordinator_id' => null]);
-        }
+        $this->sanitizeReservationInput($request);
 
         $validated = $request->validate([
             'unit_id' => 'nullable|exists:units,id',

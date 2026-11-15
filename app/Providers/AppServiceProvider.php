@@ -31,9 +31,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Self-healing migration for production deployment (Hostinger/VPS)
         try {
-            if (!\Illuminate\Support\Facades\Schema::hasTable('project_duty_schedules') || 
+            if (!\Illuminate\Support\Facades\Schema::hasTable('project_duty_schedules') ||
                 !\Illuminate\Support\Facades\Schema::hasColumn('leads', 'inhouse_pic_id') ||
-                !\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'inhouse_pic_id')) {
+                !\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'inhouse_pic_id') ||
+                !\Illuminate\Support\Facades\Schema::hasColumn('transactions', 'receipt_number')) {
                 \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
             }
         } catch (\Throwable $e) {

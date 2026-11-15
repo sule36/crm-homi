@@ -65,6 +65,15 @@ const bookingPaymentSchemeLabel = computed(() => {
     return null;
 });
 
+// Company / Project branding constants (must be declared before computeEffectiveBankAccount)
+const bookingReceiptSettings = props.transaction.booking?.receipt_settings || {};
+const projectLogo = props.transaction.booking?.unit?.project?.logo || null;
+const logoImage = projectLogo || props.settings?.company_logo || null;
+const companyName = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Developer Properti';
+const projectCode = props.transaction.booking?.unit?.project?.code || 'ALN';
+const txYear = new Date(props.transaction.created_at).getFullYear();
+const paddedId = String(props.transaction.id).padStart(4, '0');
+
 // Determine Effective Destination Bank Account
 const computeEffectiveBankAccount = () => {
     const getHolder = (ba) => {
@@ -165,15 +174,6 @@ const submitWetReceipt = () => {
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
 };
-
-const bookingReceiptSettings = props.transaction.booking?.receipt_settings || {};
-
-const projectLogo = props.transaction.booking?.unit?.project?.logo || null;
-const logoImage = projectLogo || props.settings?.company_logo || null;
-const companyName = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Developer Properti';
-const projectCode = props.transaction.booking?.unit?.project?.code || 'ALN';
-const txYear = new Date(props.transaction.created_at).getFullYear();
-const paddedId = String(props.transaction.id).padStart(4, '0');
 
 // Dynamic schedule tag detection (UTJ, DP1, DP2, CICILAN-1, CICILAN-2, PELUNASAN, etc.)
 const getScheduleCode = () => {

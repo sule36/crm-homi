@@ -74,6 +74,7 @@ class AdIntegrationTest extends TestCase
 
     public function test_meta_lead_ads_webhook_creates_lead(): void
     {
+        Setting::updateOrCreate(['key' => 'instagram_lead_capture_enabled'], ['value' => '1']);
         Setting::updateOrCreate(['key' => 'meta_leadads_access_token'], ['value' => 'meta_graph_token']);
 
         // Mock Meta Graph API lead details endpoint
@@ -126,6 +127,44 @@ class AdIntegrationTest extends TestCase
         
         $lead = Lead::where('phone', '081299998888')->first();
         $this->assertNotNull($lead->assigned_to);
+    }
+
+    public function test_meta_lead_ads_webhook_is_blocked_when_instagram_capture_disabled(): void
+    {
+        Setting::updateOrCreate(['key' => 'instagram_lead_capture_enabled'], ['value' => '0']);
+        Setting::updateOrCreate(['key' => 'meta_leadads_access_token'], ['value' => 'meta_graph_token']);
+
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => '98765',
+                'platform' => 'instagram',
+                'field_data' => [
+                    ['name' => 'full_name', 'values' => ['Blocked IG Lead']],
+                    ['name' => 'phone_number', 'values' => ['081200009999']],
+                    ['name' => 'email', 'values' => ['blocked.ig@gmail.com']],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->postJson('/api/webhooks/meta-leads', [
+            'object' => 'page',
+            'entry' => [[
+                'id' => 'page_id_1',
+                'changes' => [[
+                    'field' => 'leadgen',
+                    'value' => [
+                        'leadgen_id' => '98765',
+                        'form_id' => 'form_id_1',
+                        'page_id' => 'page_id_1',
+                    ],
+                ]],
+            ]],
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseMissing('leads', [
+            'phone' => '081200009999',
+        ]);
     }
 
     public function test_complete_reminder_marks_completed(): void

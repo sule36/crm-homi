@@ -243,21 +243,35 @@
         $specText = !empty($overrides['spec_text']) ? $overrides['spec_text'] : ('LB ' . $lb . ' m² / LT ' . $lt . ' m²');
 
         $getSafeBase64 = function($path) {
-            if (empty($path)) return null;
-            $fullPath = str_starts_with($path, '/') ? $path : public_path('storage/' . $path);
-            if (file_exists($fullPath) && is_file($fullPath)) {
-                try {
-                    $content = @file_get_contents($fullPath);
-                    if ($content) {
-                        $mime = @mime_content_type($fullPath) ?: 'image/png';
-                        return 'data:' . $mime . ';base64,' . base64_encode($content);
-                    }
-                } catch (\Throwable $e) {}
+            if (empty($path) || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+                return null;
+            }
+            $relative = ltrim(preg_replace('#^/?storage/#', '', $path), '/');
+            $candidates = array_unique(array_filter([
+                str_starts_with($path, '/') && file_exists($path) ? $path : null,
+                public_path(ltrim($path, '/')),
+                public_path('storage/' . $relative),
+                storage_path('app/public/' . $relative),
+            ]));
+            foreach ($candidates as $fullPath) {
+                if (file_exists($fullPath) && is_file($fullPath)) {
+                    try {
+                        $content = @file_get_contents($fullPath);
+                        if ($content) {
+                            $mime = @mime_content_type($fullPath) ?: 'image/png';
+                            return 'data:' . $mime . ';base64,' . base64_encode($content);
+                        }
+                    } catch (\Throwable $e) {}
+                }
             }
             return null;
         };
 
-        $logoData = !empty($settings['company_logo']) ? $getSafeBase64($settings['company_logo']) : null;
+        $projectLogoPath = $reservation->project?->logo;
+        $logoData = !empty($projectLogoPath) ? $getSafeBase64($projectLogoPath) : null;
+        if (!$logoData && !empty($settings['company_logo'])) {
+            $logoData = $getSafeBase64($settings['company_logo']);
+        }
         if (!$logoData && file_exists(public_path('images/logo.png'))) {
             $logoData = 'data:image/png;base64,' . base64_encode(@file_get_contents(public_path('images/logo.png')));
         }
@@ -325,13 +339,13 @@
                 </tr>
                 <tr>
                     <td class="data-label">Email</td>
-                    <td class="data-value">: {{ $reservation->client_email ?? '-' }}</td>
+                    <td class="data-value">: {{ $reservation->client_email ?: '-' }}</td>
                     <td class="data-label">Tipe Properti</td>
                     <td class="data-value">: Tipe {{ $unitTypeName }}</td>
                 </tr>
                 <tr>
                     <td class="data-label">NIK Pemohon</td>
-                    <td class="data-value">: {{ $reservation->client_nik ?? '-' }}</td>
+                    <td class="data-value">: {{ $reservation->client_nik ?: '-' }}</td>
                     <td class="data-label">Spesifikasi Unit</td>
                     <td class="data-value">: {{ $specText }}</td>
                 </tr>

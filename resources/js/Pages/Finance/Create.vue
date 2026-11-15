@@ -46,7 +46,7 @@ const submit = () => {
                     <select v-model="form.booking_id" required class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
                         <option value="">Cari Konsumen...</option>
                         <option v-for="b in bookings" :key="b.id" :value="b.id">
-                            {{ b.booking_number }} - {{ b.lead?.name }} ({{ b.unit?.project?.code }}-{{ b.unit?.block }}{{ b.unit?.number }})
+                            {{ b.spk_number || b.booking_number || `#${b.id}` }} - {{ b.lead?.name }} ({{ b.unit?.label || `${b.unit?.project?.code || ''}-${b.unit?.block || ''}${b.unit?.number || ''}` }})
                         </option>
                     </select>
                     <p v-if="form.errors.booking_id" class="text-xs text-rose-500 mt-1">{{ form.errors.booking_id }}</p>

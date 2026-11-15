@@ -25,7 +25,7 @@ class Reservation extends Model
     }
 
     protected $fillable = [
-        'reservation_number', 'project_id', 'unit_id', 'lead_id', 'negotiation_id', 'created_by',
+        'company_id', 'reservation_number', 'project_id', 'unit_id', 'lead_id', 'negotiation_id', 'created_by',
         'client_name', 'client_phone', 'client_email', 'client_nik',
         'amount', 'payment_method', 'payment_proof', 'status', 'refundable_policy', 'company_name',
         'receipt_title', 'city', 'terms_text', 'policy_title', 'policy_text', 'custom_overrides',
@@ -113,10 +113,10 @@ class Reservation extends Model
         $projectCode = 'ALC';
         $project = null;
         if ($projectId) {
-            $project = Project::find($projectId);
+            $project = Project::withoutGlobalScopes()->find($projectId);
         }
         if (!$project) {
-            $project = Project::first();
+            $project = Project::first() ?: Project::withoutGlobalScopes()->first();
         }
 
         if ($project) {
@@ -140,7 +140,7 @@ class Reservation extends Model
             $format = '{seq}/RSV-{code}/{month_roman}/{year}';
         }
 
-        $seq = max(1, static::withTrashed()->whereYear('created_at', $year)->count() + 1);
+        $seq = max(1, static::withoutGlobalScopes()->withTrashed()->whereYear('created_at', $year)->count() + 1);
         $attempts = 0;
         do {
             $nextSeq3 = sprintf('%03d', $seq);
@@ -152,7 +152,7 @@ class Reservation extends Model
                 $format
             );
 
-            $exists = static::withTrashed()->where('reservation_number', $candidate)->exists();
+            $exists = static::withoutGlobalScopes()->withTrashed()->where('reservation_number', $candidate)->exists();
             if (!$exists) {
                 return $candidate;
             }

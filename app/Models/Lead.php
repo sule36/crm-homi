@@ -62,6 +62,11 @@ class Lead extends Model
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    public function assignedToUser()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
     public function inhousePic()
     {
         return $this->belongsTo(User::class, 'inhouse_pic_id');

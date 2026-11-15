@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use App\Traits\BelongsToTenant;
 
 class Unit extends Model
@@ -127,5 +128,15 @@ class Unit extends Model
     public function getDisplayPriceAttribute(): int
     {
         return $this->final_price ?: ($this->unitType?->current_price ?? 0) + $this->premium_charge;
+    }
+
+    /**
+     * Order units cleanly across both MySQL and SQLite by block and numeric unit number.
+     */
+    public function scopeOrderByUnitNumber($query)
+    {
+        $castType = DB::connection()->getDriverName() === 'sqlite' ? 'INTEGER' : 'UNSIGNED';
+
+        return $query->orderBy('block')->orderByRaw("CAST(number AS {$castType}) ASC");
     }
 }

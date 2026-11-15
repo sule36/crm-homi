@@ -10,6 +10,7 @@ const props = defineProps({
     preselectedUnitId: [String, Number],
     preselectedLeadId: [String, Number],
     preselectedNego: Object,
+    defaultCompanyName: String,
 });
 
 const form = useForm({
@@ -23,7 +24,7 @@ const form = useForm({
     amount: 10000000, // Default 10 Juta (dapat diubah-ubah)
     payment_method: 'transfer',
     payment_proof: null,
-    company_name: '',
+    company_name: props.defaultCompanyName || '',
     agent_coordinator_id: (typeof props.preselectedNego?.lead?.assigned_to === 'object' ? props.preselectedNego?.lead?.assigned_to?.id : props.preselectedNego?.lead?.assigned_to)
         || props.preselectedNego?.lead?.inhouse_pic?.id
         || props.preselectedNego?.lead?.inhouse_pic_id
@@ -39,8 +40,12 @@ const selectedUnit = computed(() => {
 });
 
 watch(() => form.unit_id, () => {
-    if (selectedUnit.value?.project?.name && !form.company_name) {
-        form.company_name = `PT ${selectedUnit.value.project.name} Development`;
+    if (!form.company_name) {
+        if (props.defaultCompanyName) {
+            form.company_name = props.defaultCompanyName;
+        } else if (selectedUnit.value?.project?.name) {
+            form.company_name = `PT ${selectedUnit.value.project.name} Development`;
+        }
     }
 }, { immediate: true });
 
@@ -125,7 +130,7 @@ const formatCurrency = (val) => {
                             <select v-model="form.unit_id" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500">
                                 <option value="" disabled>-- Pilih Unit (Available) --</option>
                                 <option v-for="u in units" :key="u.id" :value="u.id">
-                                    {{ u.project?.name }} · {{ u.label }} (Tipe {{ u.unit_type?.name }}) - {{ formatCurrency(u.final_price || u.unit_type?.current_price) }}
+                                    {{ u.project?.name }} · {{ u.label }} (Tipe {{ u.unit_type?.name }}) - {{ formatCurrency(u.final_price || u.unit_type?.current_price) }} [{{ u.status }}]
                                 </option>
                             </select>
                             <p v-if="form.errors.unit_id" class="text-[10px] text-rose-500 font-bold mt-1">{{ form.errors.unit_id }}</p>
@@ -145,7 +150,7 @@ const formatCurrency = (val) => {
                     <!-- PREVIEW UNIT DIPILIH -->
                     <div v-if="selectedUnit" class="mt-3 p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between text-xs text-blue-900">
                         <div>
-                            <p class="font-black">🏠 {{ selectedUnit.project?.name }} — Unit {{ selectedUnit.code || selectedUnit.number }}</p>
+                            <p class="font-black">🏠 {{ selectedUnit.project?.name }} — {{ selectedUnit.label || (`Unit ${selectedUnit.number || '-'}`) }}</p>
                             <p class="text-[10px] text-blue-700 font-semibold">Tipe {{ selectedUnit.unit_type?.name }} · Harga Listing: {{ formatCurrency(selectedUnit.final_price || selectedUnit.unit_type?.current_price) }}</p>
                         </div>
                         <span class="px-2 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-lg">Siap Di-Hold</span>
@@ -171,11 +176,13 @@ const formatCurrency = (val) => {
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Email (Opsional)</label>
                             <input v-model="form.client_email" type="email" placeholder="email@domain.com" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                            <p v-if="form.errors.client_email" class="text-[10px] text-rose-500 font-bold mt-1">{{ form.errors.client_email }}</p>
                         </div>
 
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">NIK KTP Pemohon (Opsional)</label>
                             <input v-model="form.client_nik" type="text" placeholder="16 Digit NIK KTP..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500" />
+                            <p v-if="form.errors.client_nik" class="text-[10px] text-rose-500 font-bold mt-1">{{ form.errors.client_nik }}</p>
                         </div>
                     </div>
                 </div>
@@ -204,6 +211,7 @@ const formatCurrency = (val) => {
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Upload Bukti Transfer / Pembayaran</label>
                             <input @change="handleProofChange" type="file" accept="image/*,.pdf" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500" />
                             <p class="text-[10px] text-slate-400 mt-1">Format JPG, PNG, PDF max 5MB.</p>
+                            <p v-if="form.errors.payment_proof" class="text-[10px] text-rose-500 font-bold mt-1">{{ form.errors.payment_proof }}</p>
                         </div>
 
                         <div>

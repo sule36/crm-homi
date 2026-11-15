@@ -101,8 +101,8 @@ class FinanceController extends Controller
     public function create()
     {
         return Inertia::render('Finance/Create', [
-            'bookings' => Booking::with(['lead', 'unit'])->where('status', 'approved')->get(),
-            'bank_accounts' => \App\Models\BankAccount::where('is_active', true)->get(['id', 'name']),
+            'bookings' => Booking::with(['lead', 'unit.project'])->where('status', 'approved')->get(),
+            'bank_accounts' => \App\Models\BankAccount::where('is_active', true)->get(['id', 'name', 'bank_name', 'account_number', 'account_holder']),
         ]);
     }
 
@@ -129,7 +129,10 @@ class FinanceController extends Controller
                 $totalPaid = Transaction::where('payment_schedule_id', $schedule->id)->sum('amount');
 
                 if ($totalPaid >= $schedule->amount) {
-                    $schedule->update(['status' => 'paid']);
+                    $schedule->update([
+                        'status' => 'paid',
+                        'paid_date' => $schedule->paid_date ?: now()->toDateString(),
+                    ]);
                 }
             }
 

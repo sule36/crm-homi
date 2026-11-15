@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class TransactionController extends Controller
@@ -162,8 +163,10 @@ class TransactionController extends Controller
             }
 
             if (array_key_exists('receipt_number', $validated)) {
-                $transaction->receipt_number = $validated['receipt_number'];
-                
+                if (Schema::hasColumn('transactions', 'receipt_number')) {
+                    $transaction->receipt_number = $validated['receipt_number'];
+                }
+
                 // Also update booking receipt_settings if present
                 if ($transaction->booking) {
                     $bSettings = $transaction->booking->receipt_settings ?? [];

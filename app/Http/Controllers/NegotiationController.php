@@ -99,8 +99,7 @@ class NegotiationController extends Controller
         $units = Unit::where('status', '!=', 'sold')
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name,address', 'unitType:id,name,land_area,building_area'])
-            ->orderBy('block')
-            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->orderByUnitNumber()
             ->get();
 
         $leads = Lead::select('id', 'name', 'phone', 'email', 'project_id')
@@ -216,8 +215,7 @@ class NegotiationController extends Controller
             ->when($negotiation->project_id, fn ($q) => $q->where('project_id', $negotiation->project_id))
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name,address', 'unitType:id,name,land_area,building_area'])
-            ->orderBy('block')
-            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->orderByUnitNumber()
             ->get();
 
         return Inertia::render('Negotiations/Show', [

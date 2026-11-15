@@ -84,7 +84,7 @@ class BookingController extends Controller
             'reservedAmount' => $reservedAmount ? (float)$reservedAmount : null,
             'defaultFreePpn' => (bool)$defaultFreePpn,
             'defaultFreeLegal' => (bool)$defaultFreeLegal,
-            'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderBy('block')->orderByRaw('CAST(number AS UNSIGNED) ASC')->get(),
+            'availableUnits' => Unit::where('status', '!=', 'sold')->with('project', 'unitType')->orderByUnitNumber()->get(),
             'leads' => Lead::whereNotIn('status', ['won', 'lost'])->with(['assignedToUser', 'inhousePic', 'brokerCompany'])->get(),
             'agents' => \App\Models\User::with('brokerCompany')->orderBy('name', 'asc')->get(),
         ]);
@@ -384,8 +384,7 @@ class BookingController extends Controller
             ->when($booking->project_id, fn ($q) => $q->where('project_id', $booking->project_id))
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
             ->with(['project:id,name', 'unitType:id,name'])
-            ->orderBy('block')
-            ->orderByRaw('CAST(number AS UNSIGNED) ASC')
+            ->orderByUnitNumber()
             ->get();
 
         return Inertia::render('Bookings/Show', [

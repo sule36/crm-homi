@@ -64,7 +64,7 @@ const editForm = useForm({
     client_phone: props.reservation.client_phone || '',
     client_email: props.reservation.client_email || '',
     client_nik: props.reservation.client_nik || '',
-    amount: props.reservation.amount || 10000000,
+    amount: props.reservation.amount ?? 10000000,
     payment_method: props.reservation.payment_method || 'transfer',
     company_name: props.reservation.company_name || props.settings?.company_name || 'PT Serangkai Roden Development',
     receipt_title: props.reservation.receipt_title || 'KWITANSI TANDA TERIMA RESERVASI UNIT',
@@ -88,6 +88,42 @@ const editForm = useForm({
     agent_coordinator_title: props.reservation.agent_coordinator_title || 'Master Lead / Agent Coordinator',
     notes: props.reservation.notes || '',
 });
+
+const syncEditFormFromProps = (res) => {
+    editForm.client_name = res.client_name || '';
+    editForm.client_phone = res.client_phone || '';
+    editForm.client_email = res.client_email || '';
+    editForm.client_nik = res.client_nik || '';
+    editForm.amount = res.amount ?? 10000000;
+    editForm.payment_method = res.payment_method || 'transfer';
+    editForm.company_name = res.company_name || props.settings?.company_name || 'PT Serangkai Roden Development';
+    editForm.receipt_title = res.receipt_title || 'KWITANSI TANDA TERIMA RESERVASI UNIT';
+    editForm.city = res.city || props.settings?.spr_signatures?.city || 'Jakarta Selatan';
+    editForm.terms_text = res.terms_text || '';
+    editForm.policy_title = res.policy_title || 'GARANSI KLAUSA 100% REFUNDABLE (PENGEMBALIAN DANA UTUH)';
+    editForm.policy_text = res.policy_text || 'Apabila pengajuan penawaran harga/skema pembayaran tidak disetujui oleh Developer atau Calon Pembeli memutuskan untuk membatalkan pengajuan sebelum penandatanganan Surat Pemesanan Rumah (SPR), dana reservasi ini DIJAMIN DIKEMBALIKAN 100% UTUH (TANPA POTONGAN BIAYA APAPUN).';
+    editForm.custom_overrides = {
+        project_name: res.custom_overrides?.project_name || res.project?.name || '',
+        unit_code: res.custom_overrides?.unit_code || formatUnitLabel(res.unit),
+        unit_type_name: res.custom_overrides?.unit_type_name || res.unit?.unit_type?.name || '',
+        spec_text: res.custom_overrides?.spec_text || `LB ${res.unit?.building_area || res.unit?.unit_type?.building_area || '-'} m² / LT ${res.unit?.land_area || res.unit?.surface_area || res.unit?.unit_type?.land_area || res.unit?.unit_type?.surface_area || '-'} m²`,
+        company_address: res.custom_overrides?.company_address || props.settings?.company_address || '',
+    };
+    editForm.agent_coordinator_id = res.agent_coordinator_id
+        || (typeof res.lead?.assigned_to === 'object' ? res.lead?.assigned_to?.id : res.lead?.assigned_to)
+        || res.lead?.inhouse_pic?.id
+        || res.lead?.inhouse_pic_id
+        || '';
+    editForm.agent_coordinator_name = res.agent_coordinator_name || res.agent_coordinator?.name || res.lead?.assigned_to?.name || res.lead?.inhouse_pic?.name || '';
+    editForm.agent_coordinator_title = res.agent_coordinator_title || 'Master Lead / Agent Coordinator';
+    editForm.notes = res.notes || '';
+};
+
+watch(() => props.reservation, (res) => {
+    if (res) {
+        syncEditFormFromProps(res);
+    }
+}, { deep: true });
 
 watch(() => editForm.agent_coordinator_id, (coordId) => {
     if (!coordId) return;
