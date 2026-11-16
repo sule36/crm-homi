@@ -85,6 +85,10 @@ function deleteNego(id) {
     router.delete(`/negotiations/${id}`, { preserveScroll: true });
 }
 
+function convertNegoToBooking(id) {
+    router.post(`/negotiations/${id}/convert`);
+}
+
 // Helpers
 function formatCurrency(val) {
     if (!val) return 'Rp 0';
@@ -215,11 +219,11 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                                 <p v-if="nego.negotiation_number" class="text-[10px] text-slate-500 font-mono font-semibold">No: {{ nego.negotiation_number }}</p>
                             </td>
                             <td class="px-6 py-5">
-                                <p class="text-xs font-black text-slate-800">{{ nego.unit?.code || '-' }}</p>
-                                <p class="text-[10px] text-slate-400 font-bold">{{ nego.project?.name || '-' }} · {{ nego.unit?.unit_type?.name || '' }}</p>
+                                <p class="text-xs font-black text-slate-800">{{ nego.unit?.label || nego.unit?.code || '-' }}</p>
+                                <p class="text-[10px] text-slate-400 font-bold">{{ nego.project?.name || nego.unit?.project?.name || '-' }} · {{ nego.unit?.unit_type?.name || '' }}</p>
                             </td>
                             <td class="px-6 py-5 text-right">
-                                <p class="text-xs font-bold text-slate-600 font-mono">{{ formatCurrency(nego.unit_listed_price) }}</p>
+                                <p class="text-xs font-bold text-slate-600 font-mono">{{ formatCurrency(nego.unit_listed_price || nego.unit?.display_price) }}</p>
                             </td>
                             <td class="px-6 py-5 text-right">
                                 <p v-if="nego.offered_price" class="text-sm font-black font-mono" :class="nego.offered_price < nego.unit_listed_price ? 'text-rose-600' : 'text-emerald-600'">
@@ -244,6 +248,12 @@ const paymentLabels = { cash_keras: 'Cash Keras', cash_bertahap: 'Cash Bertahap'
                             </td>
                             <td class="px-6 py-5 text-right">
                                 <div class="flex items-center justify-end gap-1.5">
+                                    <Link v-if="nego.booking_id" :href="`/bookings/${nego.booking_id}`" title="Lihat Booking & SPR Terkait" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black transition-all flex items-center gap-1">
+                                        <span>📋</span> SPR
+                                    </Link>
+                                    <button v-else-if="nego.status === 'approved' || nego.client_response === 'accepted'" @click="convertNegoToBooking(nego.id)" title="Konversi ke Booking & Terbitkan SPR" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer">
+                                        <span>➡️</span> Booking
+                                    </button>
                                     <a :href="`/negotiations/${nego.id}/pdf`" target="_blank" title="Download Dokumen PDF Pengajuan" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10px] font-bold transition-all flex items-center gap-1">
                                         <span>📄</span> PDF
                                     </a>

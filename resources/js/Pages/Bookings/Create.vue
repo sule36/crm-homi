@@ -42,6 +42,23 @@ function resolveNegotiationDealPrice(nego) {
     return Number(nego.counter_price || nego.offered_price || 0) || '';
 }
 
+function composeNegotiationNotes(nego) {
+    if (!nego) return '';
+    const parts = [];
+    if (nego.custom_layout_notes && String(nego.custom_layout_notes).trim() !== '') {
+        parts.push(`Custom Layout / Denah: ${String(nego.custom_layout_notes).trim()}`);
+    } else if (Array.isArray(nego.custom_layout_options) && nego.custom_layout_options.length > 0) {
+        parts.push(`Custom Layout: ${nego.custom_layout_options.join(', ')}`);
+    }
+    if (nego.special_requests && String(nego.special_requests).trim() !== '') {
+        parts.push(`Permintaan Khusus: ${String(nego.special_requests).trim()}`);
+    }
+    if (nego.notes && String(nego.notes).trim() !== '') {
+        parts.push(String(nego.notes).trim());
+    }
+    return parts.join('\n');
+}
+
 const initialBasePrice = resolveNegotiationDealPrice(props.negotiation) || props.unit?.final_price || '';
 const initialReservedCredit = Number(props.reservedAmount || props.reservation?.amount || 0);
 const initialBookingFee = props.standardBookingFee > 0
@@ -97,7 +114,7 @@ const form = useForm({
     sig4_title: '',
     sig4_name: '',
     special_bonus_items: initialSpecialBonusItems,
-    notes: props.negotiation?.notes || '',
+    notes: composeNegotiationNotes(props.negotiation),
     auto_approve: true,
 });
 
@@ -280,7 +297,8 @@ const applyNegotiation = (nego) => {
     if (Array.isArray(nego.special_bonus_items) && nego.special_bonus_items.length > 0) {
         form.special_bonus_items = [...nego.special_bonus_items];
     }
-    if (nego.notes) form.notes = nego.notes;
+    const composedNotes = composeNegotiationNotes(nego);
+    if (composedNotes) form.notes = composedNotes;
     form.free_ppn = props.defaultFreePpn !== undefined ? props.defaultFreePpn : true;
     form.free_legal = props.defaultFreeLegal !== undefined ? props.defaultFreeLegal : true;
     calculateTaxes();
@@ -442,36 +460,51 @@ const formatCurrency = (value) => {
                 <p class="text-sm text-slate-500 mt-1">Konfirmasi harga kesepakatan akhir, skema pembayaran, dan data konsumen untuk diterbitkan menjadi Surat Pesanan Rumah (SPR) resmi.</p>
             </div>
 
-            <!-- RESERVATION CONVERSION BADGE -->
-            <div v-if="activeReservation" class="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-start gap-3 shadow-sm">
-                <span class="text-2xl">🔖</span>
-                <div class="flex-1">
-                    <div class="flex items-center justify-between">
-                        <h4 class="font-black text-sm text-emerald-950">Dikonversi dari Reservasi #{{ activeReservation.reservation_number }}</h4>
-                        <span class="px-2 py-0.5 bg-emerald-200/60 text-emerald-900 rounded font-black text-[10px]">UTJ TERSEDIA</span>
+            <!-- UNIFIED CONNECTED DEAL CONVERSION SUMMARY (RESERVATION & NEGOTIATION) -->
+            <div v-if="activeReservation || props.negotiation" class="mb-6 bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
+                <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-black uppercase">Auto-Sync End-to-End</span>
+                        <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Data Konversi Terhubung Otomatis ke SPR</h4>
                     </div>
-                    <p class="mt-0.5">Pemohon: <strong>{{ activeReservation.client_name }}</strong> · Kredit Biaya Reservasi: <strong class="font-mono text-emerald-800 text-sm">{{ formatCurrency(activeReservation.amount) }}</strong></p>
-                    <p class="text-[11px] text-emerald-700 mt-1 font-semibold">
-                        ✅ Nominal reservasi sebesar <strong>{{ formatCurrency(activeReservation.amount) }}</strong> otomatis terkunci sebagai Kredit Booking Fee (UTJ).
-                    </p>
+                    <span class="text-[10px] text-emerald-700 font-bold">✓ Siap Terbit SPR</span>
                 </div>
-            </div>
 
-            <!-- NEGOTIATION CONVERSION BADGE -->
-            <div v-if="props.negotiation" class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-900 flex items-start gap-3 shadow-sm">
-                <span class="text-2xl">🤝</span>
-                <div class="flex-1">
-                    <div class="flex items-center justify-between">
-                        <h4 class="font-black text-sm text-purple-950">Harga Kesepakatan Negosiasi #{{ props.negotiation.negotiation_number || ('NEGO-' + props.negotiation.token) }}</h4>
-                        <span class="px-2 py-0.5 bg-purple-200/60 text-purple-900 rounded font-black text-[10px]">DISETUJUI</span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <!-- Reservation Box -->
+                    <div v-if="activeReservation" class="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-black text-emerald-950 flex items-center gap-1">
+                                <span>🔖</span> <span>Reservasi #{{ activeReservation.reservation_number }}</span>
+                            </span>
+                            <span class="px-1.5 py-0.5 bg-emerald-200/70 text-emerald-900 rounded text-[9px] font-black">UTJ TERSEDIA</span>
+                        </div>
+                        <p class="text-[11px] text-emerald-900">
+                            Kredit Tanda Jadi: <strong class="font-mono font-black text-emerald-800">{{ formatCurrency(activeReservation.amount) }}</strong>
+                        </p>
+                        <p class="text-[10px] text-emerald-700">
+                            Otomatis mengurangi sisa pembayaran Booking Fee (UTJ) saat naik ke SPR.
+                        </p>
                     </div>
-                    <p class="mt-0.5">
-                        Calon Pembeli: <strong>{{ props.negotiation.client_name }}</strong> · 
-                        Harga Deal: <strong class="font-mono text-purple-900 text-sm font-black">{{ formatCurrency(props.negotiation.offered_price || props.negotiation.counter_price) }}</strong>
-                    </p>
-                    <p class="text-[11px] text-purple-700 mt-1 font-semibold">
-                        💡 Harga kesepakatan negosiasi ini otomatis diterapkan pada kolom Harga Dasar dan menetapkan paket <strong>Free PPN & Free Legalitas (All-in)</strong>.
-                    </p>
+
+                    <!-- Negotiation Box -->
+                    <div v-if="props.negotiation" class="p-3.5 bg-purple-50/70 border border-purple-200 rounded-xl space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-black text-purple-950 flex items-center gap-1">
+                                <span>🤝</span> <span>Negosiasi #{{ props.negotiation.negotiation_number || ('NEGO-' + props.negotiation.token) }}</span>
+                            </span>
+                            <span class="px-1.5 py-0.5 bg-purple-200/70 text-purple-900 rounded text-[9px] font-black">DISETUJUI</span>
+                        </div>
+                        <p class="text-[11px] text-purple-900">
+                            Harga Deal: <strong class="font-mono font-black text-purple-900">{{ formatCurrency(resolveNegotiationDealPrice(props.negotiation)) }}</strong>
+                            <span v-if="props.negotiation.special_bonus_items?.length" class="ml-1 text-[10px] font-bold text-purple-700">
+                                · 🎁 {{ props.negotiation.special_bonus_items.length }} Bonus
+                            </span>
+                        </p>
+                        <p v-if="props.negotiation.custom_layout_notes" class="text-[10px] text-purple-800 truncate" :title="props.negotiation.custom_layout_notes">
+                            🏗️ Custom Layout: "{{ props.negotiation.custom_layout_notes }}"
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -528,11 +561,11 @@ const formatCurrency = (value) => {
 
                             <!-- PILIH UNIT -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Unit Properti <span class="text-rose-500">*</span></label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Unit Properti (Master Stock) <span class="text-rose-500">*</span></label>
                                 <select v-model="form.unit_id" @change="handleUnitChange" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 cursor-pointer">
                                     <option value="">Pilih Unit...</option>
                                     <option v-for="u in selectableUnits" :key="u.id" :value="u.id">
-                                        {{ u.project?.code }} - {{ u.block }}{{ u.number }} (Brosur: {{ formatCurrency(u.final_price) }}) [{{ u.status }}]
+                                        {{ u.project?.name || u.project?.code }} · {{ u.label || (`Blok ${u.block} No. ${u.number}`) }} ({{ u.unit_type?.name || 'Standar' }}) — Brosur: {{ formatCurrency(u.display_price || u.final_price) }} [{{ u.status }}]
                                     </option>
                                 </select>
                                 <p v-if="form.errors.unit_id" class="text-xs text-rose-500 mt-1">{{ form.errors.unit_id }}</p>
@@ -678,7 +711,7 @@ const formatCurrency = (value) => {
                                     </label>
                                 </div>
 
-                                <div class="grid grid-cols-3 gap-3">
+                                <div v-if="!form.free_ppn || !form.free_legal" class="grid grid-cols-3 gap-3">
                                     <div>
                                         <div class="flex items-center justify-between mb-1.5">
                                             <label class="text-xs font-bold text-slate-700">PPN (11%)</label>

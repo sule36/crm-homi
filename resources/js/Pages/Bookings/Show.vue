@@ -18,7 +18,11 @@ const props = defineProps({
     signatureConfig: {
         type: Object,
         default: () => ({})
-    }
+    },
+    standardBookingFee: {
+        type: Number,
+        default: 17000000,
+    },
 });
 
 const showPaymentModal = ref(false);
@@ -54,125 +58,41 @@ function submitChangeBookingUnit() {
     });
 }
 
-// Dedicated Financial & Tax Management Modal
-const showFinancialModal = ref(false);
+// Unified Financial & Tax Management opens the 'financial' tab inside SPR Template Modal
+function openFinancialModal() {
+    openSprTemplateModal('financial', true);
+}
 
-const financialForm = useForm({
-    base_price: Number(props.booking.base_price) || 0,
-    free_ppn: Number(props.booking.ppn_amount) === 0,
-    free_bphtb: Number(props.booking.bphtb_amount) === 0,
-    free_ajb: Number(props.booking.ajb_bbn_amount) === 0,
-    ppn_amount: Number(props.booking.ppn_amount) || 0,
-    bphtb_amount: Number(props.booking.bphtb_amount) || 0,
-    ajb_bbn_amount: Number(props.booking.ajb_bbn_amount) || 0,
-    other_legal_fees: Number(props.booking.other_legal_fees) || 0,
-    final_price: Number(props.booking.final_price) || 0,
-    sync_schedules: true,
+const schemeLabels = {
+    cash: 'Cash Keras (Tunai)',
+    cash_installment: 'Cash Bertahap / In-House',
+    kpr: 'KPR Bank',
+};
+
+const totalPaidAmount = computed(() => {
+    const txSum = (props.booking?.transactions || []).reduce((acc, tx) => acc + Number(tx.amount || 0), 0);
+    const paidSchedSum = (props.booking?.payment_schedules || [])
+        .filter(s => s.status === 'paid')
+        .reduce((acc, s) => acc + Number(s.amount || 0), 0);
+    return Math.max(txSum, paidSchedSum);
 });
 
-function openFinancialModal() {
-    financialForm.base_price = Number(props.booking.base_price) || 0;
-    financialForm.free_ppn = Number(props.booking.ppn_amount) === 0;
-    financialForm.free_bphtb = Number(props.booking.bphtb_amount) === 0;
-    financialForm.free_ajb = Number(props.booking.ajb_bbn_amount) === 0;
-    financialForm.ppn_amount = Number(props.booking.ppn_amount) || 0;
-    financialForm.bphtb_amount = Number(props.booking.bphtb_amount) || 0;
-    financialForm.ajb_bbn_amount = Number(props.booking.ajb_bbn_amount) || 0;
-    financialForm.other_legal_fees = Number(props.booking.other_legal_fees) || 0;
-    financialForm.final_price = Number(props.booking.final_price) || 0;
-    financialForm.sync_schedules = true;
-    showFinancialModal.value = true;
-}
+const remainingBalance = computed(() => {
+    return Math.max(0, Number(props.booking?.final_price || 0) - totalPaidAmount.value);
+});
 
-function handleFinancialBasePriceChange() {
-    if (financialForm.free_ppn) {
-        financialForm.ppn_amount = 0;
-    } else {
-        financialForm.ppn_amount = Math.round(Number(financialForm.base_price || 0) * 0.11);
-    }
-    if (financialForm.free_bphtb) {
-        financialForm.bphtb_amount = 0;
-    } else {
-        financialForm.bphtb_amount = Math.max(0, Math.round((Number(financialForm.base_price || 0) - 60000000) * 0.05));
-    }
-    if (financialForm.free_ajb) {
-        financialForm.ajb_bbn_amount = 0;
-    } else {
-        financialForm.ajb_bbn_amount = Math.round(Number(financialForm.base_price || 0) * 0.01);
-    }
-    recalculateFinancialTotal();
-}
-
-function toggleFinancialFreePpn() {
-    if (financialForm.free_ppn) {
-        financialForm.ppn_amount = 0;
-    } else {
-        financialForm.ppn_amount = Math.round(Number(financialForm.base_price || 0) * 0.11);
-    }
-    recalculateFinancialTotal();
-}
-
-function toggleFinancialFreeBphtb() {
-    if (financialForm.free_bphtb) {
-        financialForm.bphtb_amount = 0;
-    } else {
-        financialForm.bphtb_amount = Math.max(0, Math.round((Number(financialForm.base_price || 0) - 60000000) * 0.05));
-    }
-    recalculateFinancialTotal();
-}
-
-function toggleFinancialFreeAjb() {
-    if (financialForm.free_ajb) {
-        financialForm.ajb_bbn_amount = 0;
-    } else {
-        financialForm.ajb_bbn_amount = Math.round(Number(financialForm.base_price || 0) * 0.01);
-    }
-    recalculateFinancialTotal();
-}
-
-function setFinancialAllFree() {
-    financialForm.free_ppn = true;
-    financialForm.free_bphtb = true;
-    financialForm.free_ajb = true;
-    financialForm.ppn_amount = 0;
-    financialForm.bphtb_amount = 0;
-    financialForm.ajb_bbn_amount = 0;
-    financialForm.other_legal_fees = 0;
-    financialForm.final_price = Number(financialForm.base_price || 0);
-}
-
-function setFinancialStandardTaxes() {
-    financialForm.free_ppn = false;
-    financialForm.free_bphtb = false;
-    financialForm.free_ajb = false;
-    const base = Number(financialForm.base_price || 0);
-    financialForm.ppn_amount = Math.round(base * 0.11);
-    financialForm.bphtb_amount = Math.max(0, Math.round((base - 60000000) * 0.05));
-    financialForm.ajb_bbn_amount = Math.round(base * 0.01);
-    recalculateFinancialTotal();
-}
-
-function recalculateFinancialTotal() {
-    financialForm.final_price = Number(financialForm.base_price || 0) +
-        Number(financialForm.ppn_amount || 0) +
-        Number(financialForm.bphtb_amount || 0) +
-        Number(financialForm.ajb_bbn_amount || 0) +
-        Number(financialForm.other_legal_fees || 0);
-}
-
-function submitFinancialForm() {
-    financialForm.post(`/bookings/${props.booking.id}/financial`, {
-        preserveScroll: true,
-        onSuccess: () => {
-            showFinancialModal.value = false;
-        }
-    });
-}
+const paymentProgressPct = computed(() => {
+    const finalPrice = Number(props.booking?.final_price || 0);
+    if (finalPrice <= 0) return 0;
+    return Math.min(100, Math.round((totalPaidAmount.value / finalPrice) * 100));
+});
 
 function getScheduleTransaction(schedule) {
     if (!props.booking?.transactions) return null;
     return props.booking.transactions.find(tx => tx.payment_schedule_id === schedule.id);
 }
+
+const effectiveUtjFormatted = Number(props.booking?.booking_fee || props.standardBookingFee || 17000000).toLocaleString('id-ID');
 
 const defaultTerms = [
     "Pembeli menyatakan telah mengerti dan menyetujui serta akan tunduk kepada persyaratan dan ketentuan serta kebijakan yang ditetapkan oleh Pengembang dalam SPR",
@@ -183,7 +103,7 @@ const defaultTerms = [
     "Pembeli diperkenankan untuk memilih cara pembayaran selain KPR dengan syarat dan ketentuan dari Pengembang",
     "Pembayaran segala bentuk cicilan kepada Pengembang yang melebihi waktu yang telah ditentukan dalam SPR ini, akan dikenakan denda sebesar 1% per hari dengan denda maksimal 5% dari jumlah kewajiban yang terlambat",
     "Pembeli tidak diperkenankan untuk mengalihkan pembelian tanah dan bangunan, pengalihan pembelian akan dikenakan denda sebesar 2.5% dari harga jual final",
-    "Nilai Uang Tanda Jadi ditetapkan sebesar Rp. 15.000.000,- (lima belas juta rupiah)",
+    `Nilai Uang Tanda Jadi ditetapkan sebesar Rp. ${effectiveUtjFormatted},-`,
     "Jangka waktu perjanjian ini berakhir sesuai tanggal akhir pelunasan pembayaran oleh Pembeli, kecuali untuk KPR sesuai pelunasan dari Bank setelah Serah Terima unit kepada Pembeli",
     "SPR ini akan batal dengan sendirinya dalam hal terjadinya kondisi yang dijelaskan pada pasal 3 dan 5, Pembatalan SPR dalam bentuk tertulis antara Pengembang dan Pembeli dibuat 3 rangkap dimana 1 rangkapnya milik Pemilik Tanah",
     "Penandatanganan SPR dilakukan setelah seluruh pasal didalamnya disepakati oleh masing-masing pihak"
@@ -210,7 +130,7 @@ const isSoObj = rawSo && typeof rawSo === 'object' && !Array.isArray(rawSo);
 
 const initialSo = {
     enabled: isSoObj && rawSo.enabled !== undefined ? Boolean(rawSo.enabled) : true,
-    title: (isSoObj && rawSo.title) ? rawSo.title : ('Special Offer & Benefit ' + (props.booking.unit?.project?.name || 'Umala Andara')),
+    title: (isSoObj && rawSo.title) ? rawSo.title : ('Special Offer & Benefit ' + (props.booking.unit?.project?.name || 'Proyek Hunian')),
     promo_valid_until: (isSoObj && rawSo.promo_valid_until) ? rawSo.promo_valid_until : '30 September 2026',
 };
 
@@ -400,8 +320,8 @@ function onReceiptSigSlotChange() {
     }
 }
 
-function openSprTemplateModal(tab = 'bank') {
-    activeSprTab.value = tab;
+function openSprTemplateModal(tab = 'bank', autoSyncSchedules = false) {
+    activeSprTab.value = typeof tab === 'string' ? tab : 'bank';
     sprTemplateForm.base_price = Number(props.booking.base_price) || 0;
     sprTemplateForm.free_ppn = Number(props.booking.ppn_amount) === 0;
     sprTemplateForm.free_bphtb = Number(props.booking.bphtb_amount) === 0;
@@ -411,7 +331,7 @@ function openSprTemplateModal(tab = 'bank') {
     sprTemplateForm.ajb_bbn_amount = Number(props.booking.ajb_bbn_amount) || 0;
     sprTemplateForm.other_legal_fees = Number(props.booking.other_legal_fees) || 0;
     sprTemplateForm.final_price = Number(props.booking.final_price) || 0;
-    sprTemplateForm.sync_schedules = false;
+    sprTemplateForm.sync_schedules = Boolean(autoSyncSchedules);
     showSprTemplateModal.value = true;
 }
 
@@ -900,9 +820,6 @@ const docTypeLabels = {
             </div>
             
             <div v-if="booking.status === 'pending'" class="flex gap-2">
-                <button @click="openChangeBookingUnitModal" class="px-4 py-2.5 bg-indigo-50 text-indigo-700 text-sm font-bold rounded-xl border border-indigo-200 hover:bg-indigo-100 transition-all flex items-center gap-1.5 cursor-pointer">
-                    <span>🔄</span> Ganti Unit
-                </button>
                 <button @click="approve" class="px-6 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5 transition-all">
                     Approve
                 </button>
@@ -911,52 +828,147 @@ const docTypeLabels = {
                 </button>
             </div>
             <div v-else-if="booking.status === 'approved'" class="flex flex-wrap gap-2">
-                <button @click="openChangeBookingUnitModal" class="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-600/20 hover:-translate-y-0.5 transition-all flex items-center gap-2 cursor-pointer">
-                    <span>🔄</span> Ganti Unit
-                </button>
-                <button v-if="booking.transactions?.length > 0" @click="showReceiptsModal = true" class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                <button v-if="booking.transactions?.length > 0" @click="showReceiptsModal = true" class="px-4 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:-translate-y-0.5 transition-all flex items-center gap-1.5">
                     <span>📄</span>
-                    <span>Daftar Kwitansi PDF ({{ booking.transactions.length }})</span>
+                    <span>Kwitansi ({{ booking.transactions.length }})</span>
                 </button>
-                <button @click="openSprTemplateModal" class="px-5 py-2.5 bg-amber-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                    ⚙️ Edit Template SPR
+                <button @click="openSprTemplateModal('bank')" class="px-4 py-2.5 bg-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:-translate-y-0.5 transition-all flex items-center gap-1.5">
+                    ⚙️ Edit Setting SPR / Kwitansi
                 </button>
-                <button @click="openSpkPreview" class="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                    👁️ Tinjau SPR
+                <button @click="openSpkPreview" class="px-4 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-1.5">
+                    👁️ Pratinjau SPR
                 </button>
-                <button v-if="booking.customer_signed_at || booking.sig4_image" @click="resetCustomerSignature" class="px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl shadow-sm hover:bg-rose-100 transition-all flex items-center gap-1.5 cursor-pointer" title="Reset tanda tangan konsumen agar bisa ditandatangani ulang">
-                    <span>🔄</span> <span>Reset TTD Konsumen</span>
+                <button v-if="booking.customer_signed_at || booking.sig4_image" @click="resetCustomerSignature" class="px-3.5 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl shadow-sm hover:bg-rose-100 transition-all flex items-center gap-1.5 cursor-pointer" title="Reset tanda tangan konsumen agar bisa ditandatangani ulang">
+                    <span>🔄</span> <span>Reset TTD</span>
                 </button>
-                <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Download SPR (PDF)
                 </a>
-                <button @click="openReasonModal('cancel')" class="px-4 py-2.5 text-slate-400 text-xs font-bold hover:text-rose-600 transition-all">
-                    Batalkan Pesanan
+                <button @click="openReasonModal('cancel')" class="px-3.5 py-2.5 text-slate-400 text-xs font-bold hover:text-rose-600 transition-all">
+                    Batalkan
                 </button>
-                <button @click="deleteBooking" class="px-4 py-2.5 text-rose-500 text-xs font-bold hover:bg-rose-50 rounded-xl transition-all border border-rose-200">
-                    🗑️ Hapus Booking
+                <button @click="deleteBooking" class="px-3.5 py-2.5 text-rose-500 text-xs font-bold hover:bg-rose-50 rounded-xl transition-all border border-rose-200">
+                    🗑️ Hapus
                 </button>
             </div>
         </div>
 
-        <!-- QUICK ACTIONS BAR -->
-        <div class="bg-white rounded-2xl border border-blue-100 p-4 mb-8 flex flex-wrap items-center justify-between gap-4 shadow-sm shadow-blue-500/5">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826L10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 10-5.656-5.656l-1.102 1.101m-.758 4.826L12 12"/></svg>
+        <!-- END-TO-END DEAL JOURNEY & CONNECTED RECORDS -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-6 shadow-xs space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-black uppercase tracking-wider">Alur End-to-End</span>
+                    <h2 class="text-xs font-black text-slate-800 uppercase tracking-wider">Jejak Relasi Transaksi & Portal Konsumen</h2>
                 </div>
-                <div>
-                    <p class="text-xs font-black text-slate-900 uppercase tracking-tight">Customer Tracking Link</p>
-                    <p class="text-[10px] text-slate-400 font-bold">Bagikan link ini agar konsumen bisa pantau progres & pembayaran.</p>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-slate-400 hidden sm:inline">Link Tracking Pembeli:</span>
+                    <button @click="copyTrackingLink" class="px-3 py-1.5 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-all cursor-pointer">
+                        🔗 Salin Link Tracking
+                    </button>
+                    <a :href="whatsappReminderLink" target="_blank" class="px-3 py-1.5 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-emerald-600 transition-all shadow-sm flex items-center gap-1.5">
+                        <span>💬</span> <span>Kirim Tracking WA</span>
+                    </a>
                 </div>
             </div>
-            <div class="flex gap-2">
-                <button @click="copyTrackingLink" class="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-all">Salin Link</button>
-                <a :href="whatsappReminderLink" target="_blank" class="px-4 py-2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2">
-                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.432 5.631 1.433h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                    Kirim WA
-                </a>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <!-- 1. Lead -->
+                <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-black text-slate-400 uppercase">1. Profil Lead</span>
+                        <span class="text-xs">👤</span>
+                    </div>
+                    <div class="my-1.5">
+                        <Link v-if="booking.lead_id" :href="`/leads/${booking.lead_id}`" class="text-xs font-black text-blue-700 hover:underline block truncate">
+                            {{ booking.lead?.name || 'Konsumen' }} →
+                        </Link>
+                        <p v-else class="text-xs font-black text-slate-800 truncate">{{ booking.lead?.name || 'Konsumen' }}</p>
+                        <p class="text-[10px] text-slate-500 font-semibold truncate">📱 {{ booking.lead?.phone || '-' }}</p>
+                    </div>
+                    <span class="text-[9px] font-bold text-slate-500">Status Lead: <strong class="uppercase text-slate-700">{{ booking.lead?.status || 'booking' }}</strong></span>
+                </div>
+
+                <!-- 2. Reservasi (UTJ) -->
+                <div class="p-3 rounded-xl border flex flex-col justify-between" :class="booking.reservation ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-slate-50/40'">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-black uppercase" :class="booking.reservation ? 'text-emerald-700' : 'text-slate-400'">2. Reservasi (UTJ)</span>
+                        <span class="text-xs">🔖</span>
+                    </div>
+                    <template v-if="booking.reservation">
+                        <div class="my-1.5">
+                            <Link :href="`/reservations/${booking.reservation.id}`" class="text-xs font-mono font-black text-emerald-800 hover:underline block truncate">
+                                {{ booking.reservation.reservation_number }} →
+                            </Link>
+                            <p class="text-[11px] font-black text-emerald-700 font-mono mt-0.5">{{ formatCurrency(booking.reservation.amount) }}</p>
+                        </div>
+                        <div class="flex items-center justify-between pt-1 border-t border-emerald-200/60">
+                            <span class="text-[9px] font-bold text-emerald-700 uppercase">✓ Terkredit ke UTJ</span>
+                            <a :href="`/reservations/${booking.reservation.id}/receipt`" target="_blank" class="text-[9px] font-black text-slate-700 hover:text-blue-600 underline">📄 Kwitansi</a>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <p class="text-[11px] text-slate-400 italic my-2">Tanpa Reservasi Awal (Langsung Booking)</p>
+                        <span class="text-[9px] text-slate-400 font-semibold">UTJ: {{ formatCurrency(booking.booking_fee) }}</span>
+                    </template>
+                </div>
+
+                <!-- 3. Negosiasi -->
+                <div class="p-3 rounded-xl border flex flex-col justify-between" :class="booking.negotiation ? 'border-purple-200 bg-purple-50/50' : 'border-slate-200 bg-slate-50/40'">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-black uppercase" :class="booking.negotiation ? 'text-purple-700' : 'text-slate-400'">3. Form Negosiasi</span>
+                        <span class="text-xs">🤝</span>
+                    </div>
+                    <template v-if="booking.negotiation">
+                        <div class="my-1.5">
+                            <Link :href="`/negotiations/${booking.negotiation.id}`" class="text-xs font-mono font-black text-purple-800 hover:underline block truncate">
+                                {{ booking.negotiation.negotiation_number || ('NEGO-' + booking.negotiation.id) }} →
+                            </Link>
+                            <p class="text-[11px] font-black text-purple-700 font-mono mt-0.5">
+                                {{ formatCurrency(booking.negotiation.counter_price || booking.negotiation.offered_price || booking.final_price) }}
+                            </p>
+                        </div>
+                        <div class="flex items-center justify-between pt-1 border-t border-purple-200/60">
+                            <span class="text-[9px] font-bold text-purple-700 uppercase">✓ Deal Disetujui</span>
+                            <a :href="`/negotiations/${booking.negotiation.id}/pdf`" target="_blank" class="text-[9px] font-black text-slate-700 hover:text-blue-600 underline">📄 PDF Nego</a>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <p class="text-[11px] text-slate-400 italic my-2">Tanpa Form Negosiasi (Harga Pricelist)</p>
+                        <span class="text-[9px] text-slate-400 font-semibold">Deal: {{ formatCurrency(booking.final_price) }}</span>
+                    </template>
+                </div>
+
+                <!-- 4. Booking & SPR (Active) -->
+                <div class="p-3 rounded-xl border-2 border-blue-500 bg-blue-50/50 flex flex-col justify-between shadow-2xs">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-black text-blue-700 uppercase">4. Booking & SPR</span>
+                        <span class="px-1.5 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase">Aktif</span>
+                    </div>
+                    <div class="my-1.5">
+                        <p class="text-xs font-mono font-black text-slate-900 truncate">{{ booking.spk_number }}</p>
+                        <p class="text-[10px] text-blue-700 font-bold mt-0.5">Terbayar {{ paymentProgressPct }}% ({{ formatCurrency(totalPaidAmount) }})</p>
+                    </div>
+                    <div class="flex items-center justify-between pt-1 border-t border-blue-200/60">
+                        <button type="button" @click="openSpkPreview" class="text-[9px] font-black text-blue-700 hover:underline cursor-pointer">👁️ Preview</button>
+                        <a :href="`/bookings/${booking.id}/spk`" target="_blank" class="text-[9px] font-black text-slate-800 hover:text-blue-600 underline">📥 Unduh SPR</a>
+                    </div>
+                </div>
+
+                <!-- 5. Komisi Penjualan -->
+                <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-black text-slate-400 uppercase">5. Komisi Agen</span>
+                        <span class="text-xs">💸</span>
+                    </div>
+                    <div class="my-1.5">
+                        <p class="text-xs font-black text-slate-900 font-mono">
+                            {{ booking.commission_amount > 0 ? formatCurrency(booking.commission_amount) : 'Mengikuti Skema' }}
+                        </p>
+                        <p class="text-[10px] text-slate-500 font-semibold truncate">👤 {{ booking.bookedBy?.name || '-' }}</p>
+                    </div>
+                    <Link href="/commissions" class="text-[9px] font-black text-blue-600 hover:underline">Buka Dashboard Komisi →</Link>
+                </div>
             </div>
         </div>
 
@@ -993,27 +1005,35 @@ const docTypeLabels = {
                         <div class="space-y-4">
                             <div class="flex items-center justify-between">
                                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data Unit</p>
-                                <button v-if="booking.status !== 'cancelled' && booking.status !== 'rejected'" @click="openChangeBookingUnitModal" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer">
+                                <button v-if="booking.status !== 'cancelled' && booking.status !== 'rejected'" @click="openChangeBookingUnitModal" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors">
                                     <span>🔄</span> Ganti Unit
                                 </button>
                             </div>
                             <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
                                 <h3 class="text-sm font-black text-slate-900">{{ booking.unit?.project?.name }}</h3>
-                                <p class="text-xs text-slate-500 mt-1">Blok {{ booking.unit?.block }}{{ booking.unit?.number }} • Tipe {{ booking.unit?.unit_type?.name }}</p>
+                                <p class="text-xs text-slate-600 font-bold mt-1">{{ booking.unit?.label || (`Blok ${booking.unit?.block} No. ${booking.unit?.number}`) }} • Tipe {{ booking.unit?.unit_type?.name }}</p>
                                 <div class="mt-4 flex items-center justify-between pt-4 border-t border-slate-200">
-                                    <span class="text-xs text-slate-400">Harga Unit</span>
-                                    <span class="text-sm font-black text-slate-900">{{ formatCurrency(booking.final_price) }}</span>
+                                    <span class="text-xs text-slate-400">Harga Kesepakatan</span>
+                                    <span class="text-sm font-black text-slate-900 font-mono">{{ formatCurrency(booking.final_price) }}</span>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Customer Info -->
                         <div class="space-y-4">
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data Konsumen Utama</p>
+                            <div class="flex items-center justify-between">
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data Konsumen Utama</p>
+                                <Link v-if="booking.lead_id" :href="`/leads/${booking.lead_id}`" class="text-[11px] font-bold text-blue-600 hover:underline">
+                                    Profil Lead →
+                                </Link>
+                            </div>
                             <div class="space-y-2 text-xs">
                                 <div>
                                     <p class="text-[10px] text-slate-400 font-bold uppercase">Nama Pemesan</p>
-                                    <p class="text-sm font-bold text-slate-900">{{ booking.lead?.name }}</p>
+                                    <Link v-if="booking.lead_id" :href="`/leads/${booking.lead_id}`" class="text-sm font-bold text-slate-900 hover:text-blue-600 transition-colors">
+                                        {{ booking.lead?.name }}
+                                    </Link>
+                                    <p v-else class="text-sm font-bold text-slate-900">{{ booking.lead?.name }}</p>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div>
@@ -1066,7 +1086,7 @@ const docTypeLabels = {
                                 <span>📅</span> <span>Jadwal Pembayaran</span>
                             </h2>
                             <p class="text-xs text-slate-500 mt-0.5">
-                                Skema: <span class="font-bold text-amber-600 uppercase">{{ booking.payment_scheme }}</span> 
+                                Skema: <span class="font-bold text-amber-600 uppercase">{{ schemeLabels[booking.payment_scheme] || booking.payment_scheme }}</span> 
                                 <span v-if="booking.installment_months"> ({{ booking.installment_months }} Bulan / {{ (booking.installment_months / 12).toFixed(1) }} Thn)</span>
                             </p>
                         </div>
@@ -1217,16 +1237,29 @@ const docTypeLabels = {
                             <span class="font-black">{{ formatCurrency(booking.other_legal_fees) }}</span>
                         </div>
                         <div class="flex justify-between items-center pt-2 border-t border-white/10">
-                            <span class="text-xs text-white font-black">Total All-in</span>
-                            <span class="text-lg font-black text-blue-400">{{ formatCurrency(booking.final_price) }}</span>
+                            <span class="text-xs text-white font-black">Total All-in (SPR)</span>
+                            <span class="text-lg font-black text-blue-400 font-mono">{{ formatCurrency(booking.final_price) }}</span>
                         </div>
                         <div class="flex justify-between items-center pt-3 border-t border-white/10">
                             <span class="text-xs text-slate-400">Booking Fee (UTJ)</span>
-                            <span class="text-sm font-black text-emerald-400">{{ formatCurrency(booking.booking_fee) }}</span>
+                            <span class="text-xs font-black text-slate-200 font-mono">{{ formatCurrency(booking.booking_fee) }}</span>
                         </div>
-                        <div class="flex justify-between items-center pt-3 border-t border-white/10">
-                            <span class="text-xs text-slate-400">Total Harga</span>
-                            <span class="text-lg font-black">{{ formatCurrency(booking.final_price) }}</span>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Sudah Dibayar (Lunas)</span>
+                            <span class="font-black text-emerald-400 font-mono">{{ formatCurrency(totalPaidAmount) }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Sisa Piutang / Tagihan</span>
+                            <span class="font-black text-amber-400 font-mono">{{ formatCurrency(remainingBalance) }}</span>
+                        </div>
+                        <div class="pt-2 space-y-1.5">
+                            <div class="flex justify-between text-[10px] font-bold">
+                                <span class="text-slate-400">Progres Pelunasan</span>
+                                <span class="text-emerald-400 font-black">{{ paymentProgressPct }}%</span>
+                            </div>
+                            <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                                <div class="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all" :style="{ width: `${paymentProgressPct}%` }"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2146,127 +2179,6 @@ const docTypeLabels = {
             </div>
         </div>
 
-        <!-- STANDALONE FINANCIAL & TAX MODAL -->
-        <div v-if="showFinancialModal" class="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" @click="showFinancialModal = false"></div>
-            <div class="relative bg-white dark:bg-slate-900 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
-                <!-- Header -->
-                <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-                    <div>
-                        <h3 class="text-sm font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                            <span>💰</span> Atur Pajak & Bebas Biaya (Free PPN & BPHTB)
-                        </h3>
-                        <p class="text-xs text-slate-400 mt-0.5">Unit {{ booking.unit?.block }}{{ booking.unit?.number }} - {{ booking.lead?.name }}</p>
-                    </div>
-                    <button @click="showFinancialModal = false" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
-                </div>
-
-                <!-- Form -->
-                <form @submit.prevent="submitFinancialForm" class="p-6 space-y-5">
-                    <!-- Presets -->
-                    <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <span class="text-[10px] font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1">
-                                <span>⚡</span> Pilihan Cepat:
-                            </span>
-                            <div class="flex gap-2">
-                                <button type="button" @click="setFinancialAllFree" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition">
-                                    ✨ Semua Free (All-in)
-                                </button>
-                                <button type="button" @click="setFinancialStandardTaxes" class="px-3 py-1.5 bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 rounded-xl text-xs font-bold transition">
-                                    Hitung Pajak Standar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Fields -->
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-500 uppercase mb-1">Harga Dasar Unit Properti (Rp)</label>
-                            <input v-model.number="financialForm.base_price" @input="handleFinancialBasePriceChange" type="number" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-slate-900" />
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <!-- PPN -->
-                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <label class="text-[10px] font-black text-slate-700 uppercase">Pajak PPN (11%)</label>
-                                    <label class="flex items-center gap-1.5 cursor-pointer">
-                                        <input v-model="financialForm.free_ppn" @change="toggleFinancialFreePpn" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
-                                        <span class="text-[11px] font-bold text-emerald-700">Free PPN</span>
-                                    </label>
-                                </div>
-                                <input v-model.number="financialForm.ppn_amount" :disabled="financialForm.free_ppn" @input="recalculateFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
-                            </div>
-
-                            <!-- BPHTB -->
-                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <label class="text-[10px] font-black text-slate-700 uppercase">BPHTB (5%)</label>
-                                    <label class="flex items-center gap-1.5 cursor-pointer">
-                                        <input v-model="financialForm.free_bphtb" @change="toggleFinancialFreeBphtb" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
-                                        <span class="text-[11px] font-bold text-emerald-700">Free BPHTB</span>
-                                    </label>
-                                </div>
-                                <input v-model.number="financialForm.bphtb_amount" :disabled="financialForm.free_bphtb" @input="recalculateFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
-                            </div>
-
-                            <!-- AJB/BBN -->
-                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <label class="text-[10px] font-black text-slate-700 uppercase">AJB / BBN / Notaris</label>
-                                    <label class="flex items-center gap-1.5 cursor-pointer">
-                                        <input v-model="financialForm.free_ajb" @change="toggleFinancialFreeAjb" type="checkbox" class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer" />
-                                        <span class="text-[11px] font-bold text-emerald-700">Free AJB</span>
-                                    </label>
-                                </div>
-                                <input v-model.number="financialForm.ajb_bbn_amount" :disabled="financialForm.free_ajb" @input="recalculateFinancialTotal" type="number" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold disabled:bg-slate-100 disabled:text-slate-400" />
-                            </div>
-
-                            <!-- Biaya Lainnya -->
-                            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
-                                <label class="block text-[10px] font-black text-slate-700 uppercase">Biaya Lainnya (Opsional)</label>
-                                <input v-model.number="financialForm.other_legal_fees" @input="recalculateFinancialTotal" type="number" placeholder="0" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold" />
-                            </div>
-                        </div>
-
-                        <!-- Summary Result -->
-                        <div class="p-4 bg-slate-900 rounded-2xl text-white flex items-center justify-between">
-                            <div>
-                                <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest">Total Harga All-in Baru</p>
-                                <p class="text-xl font-black text-white mt-0.5">{{ formatCurrency(financialForm.final_price) }}</p>
-                            </div>
-                            <div class="text-right">
-                                <span v-if="financialForm.free_ppn && financialForm.free_bphtb" class="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-full">
-                                    ✓ Bebas Pajak & Surat Aktif
-                                </span>
-                            </div>
-                        </div>
-
-                        <!-- Checkbox Sinkronisasi Jadwal -->
-                        <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-1">
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input v-model="financialForm.sync_schedules" type="checkbox" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
-                                <span class="text-xs font-black text-blue-950">Sinkronisasikan Jadwal Pembayaran Otomatis</span>
-                            </label>
-                            <p class="text-[11px] text-blue-800 leading-relaxed pl-6">
-                                Sistem akan menghapus baris tagihan pajak terpisah (#99) jika Free, serta menyesuaikan sisa cicilan yang belum dibayar agar total tagihan sama dengan Total All-in. Tagihan yang sudah dibayar tidak akan berubah.
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Footer Buttons -->
-                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                        <button type="button" @click="showFinancialModal = false" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">Batal</button>
-                        <button type="submit" :disabled="financialForm.processing" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50">
-                            {{ financialForm.processing ? 'Menyimpan...' : 'Simpan & Terapkan ke Booking & Jadwal' }}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
         <!-- DAFTAR KWITANSI MODAL -->
         <div v-if="showReceiptsModal" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl">
@@ -2324,7 +2236,7 @@ const docTypeLabels = {
                 <div class="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl">
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unit Saat Ini</p>
                     <div class="flex items-center justify-between mt-1">
-                        <span class="text-sm font-black text-slate-800 dark:text-white">{{ booking.unit?.code || `Blok ${booking.unit?.block} No. ${booking.unit?.number}` }}</span>
+                        <span class="text-sm font-black text-slate-800 dark:text-white">{{ booking.unit?.label || booking.unit?.code || `Blok ${booking.unit?.block} No. ${booking.unit?.number}` }}</span>
                         <span class="text-xs font-bold font-mono text-emerald-600">Rp {{ Number(booking.final_price || 0).toLocaleString('id-ID') }}</span>
                     </div>
                     <p class="text-[10px] text-slate-500 mt-0.5">{{ booking.unit?.project?.name }} • Tipe {{ booking.unit?.unit_type?.name || 'Standard' }}</p>

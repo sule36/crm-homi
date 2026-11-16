@@ -18,19 +18,116 @@ class BookingController extends Controller
 {
     public function index(Request $request)
     {
-        $bookings = Booking::with(['unit.project', 'lead', 'bookedBy', 'inhousePic'])
+        $bookings = Booking::with([
+            'unit.project',
+            'unit.unitType',
+            'lead',
+            'bookedBy',
+            'inhousePic',
+            'reservation',
+            'negotiation',
+            'paymentSchedules',
+            'transactions',
+        ])
             ->when($request->search, function ($q, $s) {
-                $q->whereHas('lead', fn($query) => $query->where('name', 'like', "%{$s}%"))
-                  ->orWhere('spk_number', 'like', "%{$s}%");
+                $q->where(function ($sub) use ($s) {
+                    $sub->whereHas('lead', fn ($query) => $query->where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%"))
+                        ->orWhere('spk_number', 'like', "%{$s}%")
+                        ->orWhereHas('unit', fn ($uq) => $uq->where('block', 'like', "%{$s}%")->orWhere('number', 'like', "%{$s}%"));
+                });
             })
-            ->when($request->status, fn($q, $s) => $q->where('status', $s))
+            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            ->when($request->project_id, function ($q, $pid) {
+                $q->where(function ($sub) use ($pid) {
+                    $sub->where('project_id', $pid)
+                        ->orWhereHas('unit', fn ($uq) => $uq->where('project_id', $pid));
+                });
+            })
+            ->when($request->payment_scheme, fn ($q, $ps) => $q->where('payment_scheme', $ps))
             ->latest()
             ->paginate(15)
             ->withQueryString();
 
+        // Fallback link resolution for historical bookings without booking_id on child records
+        $bookings->getCollection()->transform(function (Booking $b) {
+            if (!$b->reservation && ($b->unit_id || $b->lead_id)) {
+                $fallbackRes = Reservation::whereIn('status', ['converted', 'active'])
+                    ->where(function ($q) use ($b) {
+                        if ($b->unit_id && $b->lead_id) {
+                            $q->where('unit_id', $b->unit_id)->where('lead_id', $b->lead_id);
+                        } elseif ($b->unit_id) {
+                            $q->where('unit_id', $b->unit_id);
+                        } else {
+                            $q->where('lead_id', $b->lead_id);
+                        }
+                    })
+                    ->latest('id')
+                    ->first(['id', 'reservation_number', 'amount', 'status']);
+                if ($fallbackRes) {
+                    $b->setRelation('reservation', $fallbackRes);
+                }
+            }
+            if (!$b->negotiation && ($b->unit_id || $b->lead_id)) {
+                $fallbackNego = Negotiation::whereIn('status', ['approved', 'counter_offer', 'pending'])
+                    ->where(function ($q) use ($b) {
+                        if ($b->unit_id && $b->lead_id) {
+                            $q->where('unit_id', $b->unit_id)->where('lead_id', $b->lead_id);
+                        } elseif ($b->unit_id) {
+                            $q->where('unit_id', $b->unit_id);
+                        } else {
+                            $q->where('lead_id', $b->lead_id);
+                        }
+                    })
+                    ->latest('id')
+                    ->first(['id', 'negotiation_number', 'token', 'offered_price', 'counter_price', 'status']);
+                if ($fallbackNego) {
+                    $b->setRelation('negotiation', $fallbackNego);
+                }
+            }
+            return $b;
+        });
+
+        $stats = [
+            'total' => Booking::count(),
+            'approved' => Booking::whereIn('status', ['approved', 'completed'])->count(),
+            'pending' => Booking::where('status', 'pending')->count(),
+            'cancelled' => Booking::where('status', 'cancelled')->count(),
+            'total_value' => (float) Booking::whereIn('status', ['approved', 'completed'])->sum('final_price'),
+            'total_collected' => (float) \App\Models\Transaction::whereHas('booking', fn ($q) => $q->whereNotIn('status', ['cancelled', 'rejected']))->sum('amount'),
+        ];
+
+        // Ready-to-Book Queue: Approved Negotiations & Active Reservations without an existing Booking
+        $bookedUnitIds = Booking::whereNotIn('status', ['cancelled', 'rejected'])->pluck('unit_id')->filter()->unique()->all();
+
+        $readyNegotiations = Negotiation::with(['unit.project', 'unit.unitType', 'lead'])
+            ->where(function ($q) {
+                $q->where('status', 'approved')->orWhere('client_response', 'accepted');
+            })
+            ->whereNull('booking_id')
+            ->when(!empty($bookedUnitIds), fn ($q) => $q->whereNotIn('unit_id', $bookedUnitIds))
+            ->latest('id')
+            ->limit(6)
+            ->get();
+
+        $negoLeadUnitKeys = $readyNegotiations->map(fn ($n) => ($n->lead_id ?: 0) . ':' . ($n->unit_id ?: 0))->all();
+
+        $readyReservations = Reservation::with(['unit.project', 'unit.unitType', 'lead'])
+            ->where('status', 'active')
+            ->whereNull('booking_id')
+            ->when(!empty($bookedUnitIds), fn ($q) => $q->whereNotIn('unit_id', $bookedUnitIds))
+            ->latest('id')
+            ->limit(6)
+            ->get()
+            ->reject(fn ($r) => in_array(($r->lead_id ?: 0) . ':' . ($r->unit_id ?: 0), $negoLeadUnitKeys, true))
+            ->values();
+
         return Inertia::render('Bookings/Index', [
             'bookings' => $bookings,
-            'filters' => $request->only(['search', 'status']),
+            'stats' => $stats,
+            'readyNegotiations' => $readyNegotiations,
+            'readyReservations' => $readyReservations,
+            'projects' => \App\Models\Project::select('id', 'name', 'code')->orderBy('name')->get(),
+            'filters' => $request->only(['search', 'status', 'project_id', 'payment_scheme']),
         ]);
     }
 
@@ -521,12 +618,48 @@ class BookingController extends Controller
         $relations = [
             'unit.project', 'unit.unitType', 'lead', 'bookedBy', 'inhousePic', 'approvedBy',
             'paymentSchedules.transactions',
-            'transactions', 'documents'
+            'transactions', 'documents', 'reservation', 'negotiation',
         ];
         if (\Illuminate\Support\Facades\Schema::hasColumn('bookings', 'bank_account_id')) {
             $relations[] = 'bankAccount';
         }
         $booking->load($relations);
+
+        if (!$booking->reservation && ($booking->unit_id || $booking->lead_id)) {
+            $fallbackRes = Reservation::whereIn('status', ['converted', 'active'])
+                ->where(function ($q) use ($booking) {
+                    if ($booking->unit_id && $booking->lead_id) {
+                        $q->where('unit_id', $booking->unit_id)->where('lead_id', $booking->lead_id);
+                    } elseif ($booking->unit_id) {
+                        $q->where('unit_id', $booking->unit_id);
+                    } else {
+                        $q->where('lead_id', $booking->lead_id);
+                    }
+                })
+                ->latest('id')
+                ->first();
+            if ($fallbackRes) {
+                $booking->setRelation('reservation', $fallbackRes);
+            }
+        }
+
+        if (!$booking->negotiation && ($booking->unit_id || $booking->lead_id)) {
+            $fallbackNego = Negotiation::whereIn('status', ['approved', 'counter_offer', 'pending'])
+                ->where(function ($q) use ($booking) {
+                    if ($booking->unit_id && $booking->lead_id) {
+                        $q->where('unit_id', $booking->unit_id)->where('lead_id', $booking->lead_id);
+                    } elseif ($booking->unit_id) {
+                        $q->where('unit_id', $booking->unit_id);
+                    } else {
+                        $q->where('lead_id', $booking->lead_id);
+                    }
+                })
+                ->latest('id')
+                ->first();
+            if ($fallbackNego) {
+                $booking->setRelation('negotiation', $fallbackNego);
+            }
+        }
 
         $bankAccountsAll = [];
         try {
@@ -549,6 +682,7 @@ class BookingController extends Controller
             'bank_accounts_all' => $bankAccountsAll,
             'units' => $units,
             'signatureConfig' => \App\Models\Setting::getSignatureConfig(),
+            'standardBookingFee' => \App\Models\Setting::getStandardBookingFee(),
         ]);
     }
 
@@ -584,7 +718,7 @@ class BookingController extends Controller
                 ->exists();
 
         if ($newUnit->status !== 'available' || $newUnitHasLocks) {
-            return back()->with('error', "Unit {$newUnit->code} saat ini tidak berstatus Available (Status: {$newUnit->status}).");
+            return back()->with('error', "Unit {$newUnit->label} saat ini tidak berstatus Available (Status: {$newUnit->status}).");
         }
 
         $oldUnit = \App\Models\Unit::find($booking->unit_id);
@@ -614,13 +748,13 @@ class BookingController extends Controller
                 'lead_id' => $booking->lead_id,
                 'user_id' => auth()->id(),
                 'type' => 'note',
-                'description' => "🔄 Unit Booking / SPK (#{$booking->spk_number}) dipindahkan dari " . ($oldUnit ? $oldUnit->code : "Unit #{$booking->unit_id}") . " ke {$newUnit->code}.{$reasonText}",
+                'description' => "🔄 Unit Booking / SPK (#{$booking->spk_number}) dipindahkan dari " . ($oldUnit ? $oldUnit->label : "Unit #{$booking->unit_id}") . " ke {$newUnit->label}.{$reasonText}",
             ]);
         }
 
         \App\Models\AuditLog::record('booking_unit_changed', $booking, ['old_unit_id' => $oldUnit?->id], ['new_unit_id' => $newUnit->id]);
 
-        return back()->with('success', "Unit booking berhasil dipindahkan ke {$newUnit->code}!");
+        return back()->with('success', "Unit booking berhasil dipindahkan ke {$newUnit->label}!");
     }
 
     public function updateSprTemplate(Request $request, Booking $booking)

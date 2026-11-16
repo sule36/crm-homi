@@ -2099,6 +2099,14 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
             'counter_notes' => 'Disetujui sesuai pengajuan',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
+        // Bookings Index Ready-to-Book Queue lists the approved negotiation before conversion
+        $this->get('/bookings')
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('readyNegotiations.0.id', $negotiation->id)
+                ->where('readyNegotiations.0.unit.label', 'Blok B No. 2')
+            );
+
         $this->post("/negotiations/{$negotiation->id}/convert")
             ->assertRedirect()
             ->assertSessionHasNoErrors();
@@ -2126,6 +2134,25 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $this->assertEquals($unitB2->id, $booking->unit_id);
         $this->assertEquals(['Free Kanopi Carport', 'AC 2 Unit', 'Free BPHTB'], $booking->special_bonus_items);
         $this->assertEquals('booked', $unitB2->fresh()->status);
+
+        // Bookings Index & Show now expose full end-to-end connected Reservation + Negotiation + KPI stats
+        $this->get('/bookings')
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('stats.approved', 1)
+                ->has('readyNegotiations', 0)
+                ->where('bookings.data.0.id', $booking->id)
+                ->where('bookings.data.0.negotiation.id', $negotiation->id)
+                ->where('bookings.data.0.reservation.amount', 11000000)
+            );
+
+        $this->get("/bookings/{$booking->id}")
+            ->assertStatus(200)
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('booking.negotiation.id', $negotiation->id)
+                ->where('booking.reservation.amount', 11000000)
+                ->where('standardBookingFee', 17000000)
+            );
 
         $sprResp = $this->get("/bookings/{$booking->id}/spr?html=1");
         $sprResp->assertStatus(200);
