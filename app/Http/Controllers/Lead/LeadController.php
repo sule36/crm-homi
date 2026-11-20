@@ -167,14 +167,20 @@ class LeadController extends Controller
             'source' => 'required|in:' . self::ALLOWED_SOURCES,
             'notes' => 'nullable|string',
             'preferences' => 'nullable|array',
-            'nik' => 'nullable|string|max:30',
-            'npwp' => 'nullable|string|max:30',
+            'identity_number' => 'nullable|string|max:50',
+            'nik' => 'nullable|string|max:50',
+            'npwp' => 'nullable|string|max:50',
             'address' => 'nullable|string',
             'job' => 'nullable|string|max:255',
             'budget' => 'nullable|numeric|min:0',
             'preferred_type' => 'nullable|string|max:255',
             'inhouse_pic_id' => 'nullable|exists:users,id',
         ]);
+
+        if (empty($validated['identity_number']) && !empty($validated['nik'])) {
+            $validated['identity_number'] = $validated['nik'];
+        }
+        unset($validated['nik']);
 
         $validated['status'] = 'new';
         $validated['score'] = 5;
@@ -395,35 +401,8 @@ class LeadController extends Controller
             $lead->bookings()->whereNull('booked_by')->update(['booked_by' => $validated['assigned_to']]);
         }
 
-        // Sync buyer details & SPR signature name with active bookings
-        foreach ($lead->bookings as $booking) {
-            $bUpdates = [];
-            if (isset($validated['name'])) {
-                if (empty($booking->secondary_name)) {
-                    if ($booking->sig4_name && $booking->sig4_name !== $validated['name']) {
-                        // The client name was changed to another person! Reset previous digital signature
-                        $bUpdates['sig4_image'] = null;
-                        $bUpdates['customer_signed_at'] = null;
-                    }
-                    $bUpdates['sig4_name'] = $validated['name'];
-                }
-            }
-            if (isset($validated['identity_number'])) {
-                $bUpdates['buyer_nik'] = $validated['identity_number'];
-            }
-            if (isset($validated['npwp'])) {
-                $bUpdates['buyer_npwp'] = $validated['npwp'];
-            }
-            if (isset($validated['address'])) {
-                $bUpdates['buyer_address'] = $validated['address'];
-            }
-            if (isset($validated['job'])) {
-                $bUpdates['buyer_job'] = $validated['job'];
-            }
-            if (!empty($bUpdates)) {
-                $booking->update($bUpdates);
-            }
-        }
+        // Propagate updated client biodata (Name, Phone, Email, NIK, NPWP, Address, Job) across Reservations, Negotiations, and Bookings
+        \App\Services\DealSyncService::syncBiodataAcrossDeal($lead, $validated);
 
         AuditLog::record('updated', $lead, $old, $validated);
 

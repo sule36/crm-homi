@@ -351,14 +351,37 @@ class ReservationController extends Controller
         $selectedNegoId = $request->query('negotiation_id');
 
         $units = Unit::selectableForLov($selectedUnitId ? (int) $selectedUnitId : null)
-            ->with(['project:id,name', 'unitType:id,name,current_price'])
+            ->with(['project:id,name,code', 'unitType:id,name,current_price,land_area,building_area'])
             ->orderByUnitNumber()
             ->get();
 
-        $leads = Lead::select('id', 'name', 'phone', 'email', 'identity_number', 'assigned_to', 'inhouse_pic_id')
-            ->with(['assignedTo:id,name', 'inhousePic:id,name'])
+        $leads = Lead::select('id', 'name', 'phone', 'email', 'identity_number', 'npwp', 'address', 'job', 'project_id', 'assigned_to', 'inhouse_pic_id')
+            ->with([
+                'assignedTo:id,name',
+                'inhousePic:id,name',
+                'bookings' => fn ($q) => $q->whereNotIn('status', ['cancelled', 'rejected'])->latest('id')->limit(1),
+                'negotiations' => fn ($q) => $q->whereNotIn('status', ['rejected', 'expired'])->latest('id')->limit(1),
+            ])
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(function (Lead $l) {
+                $latestBooking = $l->bookings->first();
+                $latestNego = $l->negotiations->first();
+                if (empty($l->identity_number) && !empty($latestBooking?->buyer_nik)) {
+                    $l->identity_number = $latestBooking->buyer_nik;
+                }
+                if (empty($l->npwp) && !empty($latestBooking?->buyer_npwp)) {
+                    $l->npwp = $latestBooking->buyer_npwp;
+                }
+                if (empty($l->address) && !empty($latestBooking?->buyer_address)) {
+                    $l->address = $latestBooking->buyer_address;
+                }
+                if (empty($l->job) && !empty($latestBooking?->buyer_job)) {
+                    $l->job = $latestBooking->buyer_job;
+                }
+                $l->setAttribute('suggested_unit_id', $latestNego?->unit_id ?? $latestBooking?->unit_id ?? null);
+                return $l;
+            });
 
         $coordinators = $this->getCoordinatorOptions();
 
@@ -436,9 +459,23 @@ class ReservationController extends Controller
                 DB::rollBack();
                 return back()->withInput()->with('error', "Unit {$unit->label} sudah berstatus {$unit->status} / tidak tersedia dan tidak dapat direservasi.");
             }
-            $lead = !empty($validated['lead_id'])
-                ? Lead::with(['assignedTo', 'inhousePic'])->find($validated['lead_id'])
-                : null;
+            $companyId = auth()->user()?->company_id ?: ($unit->company_id ?: $unit->project?->company_id);
+            $lead = \App\Services\DealSyncService::resolveOrCreateLead(
+                !empty($validated['lead_id']) ? (int) $validated['lead_id'] : null,
+                [
+                    'name' => $validated['client_name'],
+                    'phone' => $validated['client_phone'],
+                    'email' => $validated['client_email'] ?? null,
+                    'identity_number' => $validated['client_nik'] ?? null,
+                    'status' => 'reservation',
+                ],
+                $companyId,
+                $unit->project_id
+            );
+            if ($lead) {
+                $lead->loadMissing(['assignedTo', 'inhousePic']);
+                $validated['lead_id'] = $lead->id;
+            }
 
             $proofPath = null;
             if ($request->hasFile('payment_proof')) {
@@ -454,7 +491,7 @@ class ReservationController extends Controller
             $expiresAt = now()->addDays((int) ($validated['expires_days'] ?? 7));
 
             $reservationData = [
-                'company_id' => auth()->user()?->company_id ?: ($unit->company_id ?: $unit->project?->company_id),
+                'company_id' => $companyId,
                 'reservation_number' => Reservation::generateReservationNumber($unit->project_id),
                 'project_id' => $unit->project_id,
                 'unit_id' => $unit->id,
@@ -464,7 +501,7 @@ class ReservationController extends Controller
                 'client_name' => $validated['client_name'],
                 'client_phone' => $validated['client_phone'],
                 'client_email' => $validated['client_email'] ?? null,
-                'client_nik' => $validated['client_nik'] ?? null,
+                'client_nik' => $validated['client_nik'] ?? ($lead?->identity_number ?? null),
                 'amount' => $validated['amount'],
                 'payment_method' => $validated['payment_method'],
                 'payment_proof' => $proofPath,
@@ -510,12 +547,21 @@ class ReservationController extends Controller
                 ]);
             }
 
-            // If linked to lead, record activity and set status to 'reservation' (with safe fallback to 'negotiation')
+            // If linked to lead, record activity, sync biodata across all deal records, and set status to 'reservation'
             if ($reservation->lead_id) {
                 $lead = Lead::find($reservation->lead_id);
                 if ($lead) {
+                    \App\Services\DealSyncService::syncBiodataAcrossDeal($lead, [
+                        'name' => $reservation->client_name,
+                        'phone' => $reservation->client_phone,
+                        'email' => $reservation->client_email,
+                        'identity_number' => $reservation->client_nik,
+                    ], $unit->project_id);
+
                     try {
-                        $lead->update(['status' => 'reservation']);
+                        if (!in_array($lead->status, ['booking', 'won'], true)) {
+                            $lead->update(['status' => 'reservation']);
+                        }
                     } catch (\Throwable $le) {
                         Log::warning("Direct lead update to reservation failed, falling back to negotiation: " . $le->getMessage());
                         $lead->update(['status' => 'negotiation']);
@@ -569,7 +615,7 @@ class ReservationController extends Controller
         $units = Unit::selectableForLov($reservation->unit_id)
             ->when($reservation->project_id, fn ($q) => $q->where('project_id', $reservation->project_id))
             ->select('id', 'block', 'number', 'floor', 'final_price', 'project_id', 'unit_type_id', 'status')
-            ->with(['project:id,name', 'unitType:id,name'])
+            ->with(['project:id,name,code', 'unitType:id,name,land_area,building_area,current_price'])
             ->orderByUnitNumber()
             ->get();
 
@@ -647,6 +693,9 @@ class ReservationController extends Controller
             'custom_overrides' => !empty($overrides) ? $overrides : null,
         ]);
 
+        // Synchronize unit & document number across linked Negotiation / Booking
+        \App\Services\DealSyncService::syncUnitChangeAcrossDeal($newUnit, $oldUnit?->id, $reservation->lead_id, $reservation);
+
         // 4. Record Lead Activity
         if ($reservation->lead_id) {
             $reasonText = !empty($validated['reason']) ? " Alasan: {$validated['reason']}" : "";
@@ -694,8 +743,10 @@ class ReservationController extends Controller
         ]);
 
         // If unit_id is being changed in update
+        $unitSwappedTo = null;
+        $oldUnitId = $reservation->unit_id;
         if (!empty($validated['unit_id']) && $validated['unit_id'] != $reservation->unit_id) {
-            $newUnit = Unit::with('project')->findOrFail($validated['unit_id']);
+            $newUnit = Unit::with(['project', 'unitType'])->findOrFail($validated['unit_id']);
             $newUnitLocked = \App\Models\Booking::withoutGlobalScopes()
                 ->where('unit_id', $newUnit->id)
                 ->whereNull('deleted_at')
@@ -718,6 +769,14 @@ class ReservationController extends Controller
                     'held_until' => $reservation->expires_at ?? now()->addDays(7),
                 ]);
                 $validated['project_id'] = $newUnit->project_id;
+                $unitSwappedTo = $newUnit;
+
+                // Clear stale unit overrides so live Master Stock Unit specs are used
+                if (isset($validated['custom_overrides']) && is_array($validated['custom_overrides'])) {
+                    foreach (['unit_code', 'unit_type_name', 'spec_text', 'project_name'] as $staleKey) {
+                        unset($validated['custom_overrides'][$staleKey]);
+                    }
+                }
 
                 if ($reservation->lead_id) {
                     LeadActivity::create([
@@ -730,6 +789,11 @@ class ReservationController extends Controller
             }
         }
 
+        // Prevent placeholder spec_text ("LB - m² / LT - m²") from overriding live Master Stock dimensions
+        if (isset($validated['custom_overrides']['spec_text']) && str_contains((string) $validated['custom_overrides']['spec_text'], '- m²')) {
+            unset($validated['custom_overrides']['spec_text']);
+        }
+
         $reservation->loadMissing(['lead.assignedTo', 'lead.inhousePic']);
         $signerResolved = $this->resolveReservationSignerData($validated, $reservation->lead, $reservation);
 
@@ -737,6 +801,12 @@ class ReservationController extends Controller
         $validated['agent_coordinator_name'] = $signerResolved['agent_coordinator_name'];
         $validated['agent_coordinator_title'] = $signerResolved['agent_coordinator_title'];
         $validated['custom_overrides'] = !empty($signerResolved['custom_overrides']) ? $signerResolved['custom_overrides'] : null;
+
+        if ($unitSwappedTo && is_array($validated['custom_overrides'])) {
+            foreach (['unit_code', 'unit_type_name', 'spec_text', 'project_name'] as $staleKey) {
+                unset($validated['custom_overrides'][$staleKey]);
+            }
+        }
 
         // Safe filter against actual database schema to prevent crashes if migrations aren't executed yet
         $safeData = [];
@@ -747,8 +817,39 @@ class ReservationController extends Controller
         }
 
         $reservation->update($safeData);
+        $reservation->refresh();
 
-        return back()->with('success', 'Kwitansi reservasi berhasil diperbarui.');
+        // Sync client biodata, unit change, and reservation amount across Lead, Negotiations, and Bookings
+        $lead = \App\Services\DealSyncService::resolveOrCreateLead(
+            $reservation->lead_id ? (int) $reservation->lead_id : null,
+            [
+                'name' => $reservation->client_name,
+                'phone' => $reservation->client_phone,
+                'email' => $reservation->client_email,
+                'identity_number' => $reservation->client_nik,
+            ],
+            $reservation->company_id,
+            $reservation->project_id
+        );
+        if ($lead) {
+            if (!$reservation->lead_id) {
+                $reservation->update(['lead_id' => $lead->id]);
+            }
+            \App\Services\DealSyncService::syncBiodataAcrossDeal($lead, [
+                'name' => $reservation->client_name,
+                'phone' => $reservation->client_phone,
+                'email' => $reservation->client_email,
+                'identity_number' => $reservation->client_nik,
+            ], $reservation->project_id);
+        }
+
+        if ($unitSwappedTo) {
+            \App\Services\DealSyncService::syncUnitChangeAcrossDeal($unitSwappedTo, $oldUnitId, $reservation->lead_id, $reservation);
+        }
+
+        \App\Services\DealSyncService::syncReservationAmountToNegotiations($reservation);
+
+        return back()->with('success', 'Kwitansi reservasi berhasil diperbarui & tersinkronisasi.');
     }
 
     /**

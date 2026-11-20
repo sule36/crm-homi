@@ -2160,4 +2160,145 @@ class ReceiptAndCleanupEndToEndTest extends TestCase
         $sprResp->assertSee('Free Kanopi Carport');
         $sprResp->assertSee('11.000.000');
     }
+
+    public function test_bidirectional_biodata_unit_and_document_number_sync_across_all_modules(): void
+    {
+        $company = Company::create(['name' => 'PT Sync Satu Data', 'slug' => 'pt-sync-satu-data', 'status' => 'active']);
+        $user = User::factory()->create(['company_id' => $company->id, 'status' => 'active', 'name' => 'Sales Satu Data']);
+        $this->actingAs($user);
+
+        Setting::set('standard_booking_fee', '15000000', $company->id);
+        Setting::set('company_name', 'PT Sync Satu Data', $company->id);
+
+        [$projectAlo, $typeAlo, $unitB2] = $this->createProjectUnit($company, 'ALO', 'B', '2', 'available');
+        $projectAlo->update(['name' => 'Alonica Hills', 'code' => 'ALO']);
+        $typeAlo->update(['name' => 'Tipe 198', 'land_area' => 105, 'building_area' => 198, 'current_price' => 3500000000]);
+        $unitB2->update(['final_price' => 3500000000]);
+
+        [$projectHrm, $typeHrm, $unitC5] = $this->createProjectUnit($company, 'HRM', 'C', '5', 'available');
+        $projectHrm->update(['name' => 'Harmony Residence', 'code' => 'HRM']);
+        $typeHrm->update(['name' => 'Tipe 220', 'land_area' => 120, 'building_area' => 220, 'current_price' => 4100000000]);
+        $unitC5->update(['final_price' => 4100000000]);
+
+        // 1. Create Reservation WITHOUT lead_id -> auto-creates & links Lead with NIK and generates RSV-ALO number
+        $this->post('/reservations', [
+            'unit_id' => $unitB2->id,
+            'client_name' => 'Budi Santoso',
+            'client_phone' => '081277788899',
+            'client_email' => 'budi@example.com',
+            'client_nik' => '3174099988887777',
+            'amount' => 10000000,
+            'payment_method' => 'transfer',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $reservation = Reservation::where('unit_id', $unitB2->id)->firstOrFail();
+        $this->assertNotNull($reservation->lead_id);
+        $this->assertStringContainsString('/RSV-ALO/', $reservation->reservation_number);
+
+        $lead = Lead::findOrFail($reservation->lead_id);
+        $this->assertEquals('Budi Santoso', $lead->name);
+        $this->assertEquals('3174099988887777', $lead->identity_number);
+
+        // 2. Create Negotiation & Booking -> Booking fills NPWP, Address, Job, and updated NIK -> syncs back to Lead & Reservation
+        $this->post('/negotiations', [
+            'unit_id' => $unitB2->id,
+            'lead_id' => $lead->id,
+            'client_name' => $lead->name,
+            'client_phone' => $lead->phone,
+            'client_email' => $lead->email,
+            'offered_price' => 3400000000,
+            'payment_scheme' => 'cash_bertahap',
+            'dp_amount' => 400000000,
+            'installment_months' => 6,
+            'status' => 'approved',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $negotiation = Negotiation::where('lead_id', $lead->id)->firstOrFail();
+        $this->assertStringContainsString('/NG-ALO/', $negotiation->negotiation_number);
+
+        $this->post('/bookings', [
+            'lead_id' => $lead->id,
+            'unit_id' => $unitB2->id,
+            'reservation_id' => $reservation->id,
+            'negotiation_id' => $negotiation->id,
+            'booked_by' => $user->id,
+            'payment_scheme' => 'cash_installment',
+            'installment_months' => 6,
+            'booking_date' => '2026-11-20',
+            'booking_fee' => 15000000,
+            'base_price' => 3400000000,
+            'final_price' => 3400000000,
+            'dp_amount' => 400000000,
+            'buyer_nik' => '3174000011112222',
+            'buyer_npwp' => '09.123.456.7-890.000',
+            'buyer_address' => 'Jl. Kemang Raya No. 88',
+            'buyer_job' => 'Direktur Utama',
+            'auto_approve' => true,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $booking = Booking::where('lead_id', $lead->id)->firstOrFail();
+        $this->assertStringContainsString('/SPR-ALO/', $booking->spk_number);
+
+        // Verify NIK, NPWP, Address, Job typed in Booking synced back to Lead AND Reservation
+        $lead->refresh();
+        $reservation->refresh();
+        $this->assertEquals('3174000011112222', $lead->identity_number);
+        $this->assertEquals('09.123.456.7-890.000', $lead->npwp);
+        $this->assertEquals('Jl. Kemang Raya No. 88', $lead->address);
+        $this->assertEquals('Direktur Utama', $lead->job);
+        $this->assertEquals('3174000011112222', $reservation->client_nik);
+
+        // 3. Edit Client Name & NIK from Reservation -> propagates to Lead, Negotiation (client_name & form_data), and Booking (sig4_name & buyer_nik)
+        $this->put("/reservations/{$reservation->id}", [
+            'client_name' => 'Ir. Budi Santoso, M.T.',
+            'client_phone' => '081277788899',
+            'client_email' => 'budi.mt@example.com',
+            'client_nik' => '3174999900001111',
+            'amount' => 12000000,
+            'payment_method' => 'transfer',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $lead->refresh();
+        $negotiation->refresh();
+        $booking->refresh();
+        $this->assertEquals('Ir. Budi Santoso, M.T.', $lead->name);
+        $this->assertEquals('3174999900001111', $lead->identity_number);
+        $this->assertEquals('Ir. Budi Santoso, M.T.', $negotiation->client_name);
+        $this->assertEquals('12.000.000,-', $negotiation->getFormDetails()['pengajuan']['reservasi']);
+        $this->assertEquals('3.000.000,-', $negotiation->getFormDetails()['pengajuan']['booking_fee']);
+        $this->assertEquals('Ir. Budi Santoso, M.T.', $booking->sig4_name);
+        $this->assertEquals('3174999900001111', $booking->buyer_nik);
+
+        // 4. Change Unit on Booking to Unit C5 (Project HRM) -> auto-updates Unit, LT/LB, and Nomor Surat (SPR-HRM, RSV-HRM, NG-HRM) across all 3 modules!
+        $this->post("/bookings/{$booking->id}/change-unit", [
+            'unit_id' => $unitC5->id,
+            'reason' => 'Upgrade ke kavling Harmony C5',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $booking->refresh();
+        $reservation->refresh();
+        $negotiation->refresh();
+
+        $this->assertEquals($unitC5->id, $booking->unit_id);
+        $this->assertEquals($unitC5->id, $reservation->unit_id);
+        $this->assertEquals($unitC5->id, $negotiation->unit_id);
+
+        $this->assertStringContainsString('/SPR-HRM/', $booking->spk_number);
+        $this->assertStringContainsString('/RSV-HRM/', $reservation->reservation_number);
+        $this->assertStringContainsString('/NG-HRM/', $negotiation->negotiation_number);
+
+        $negoDetails = $negotiation->getFormDetails();
+        $this->assertEquals('Blok C No. 5', $negoDetails['kavling']);
+        $this->assertEquals('120', $negoDetails['luas_tanah']);
+        $this->assertEquals('220', $negoDetails['luas_bangunan']);
+
+        // Kwitansi Reservasi HTML reflects synced Name, NIK, RSV-HRM number, Blok C No. 5, and LB 220 / LT 120
+        $resReceipt = $this->get("/reservations/{$reservation->id}/receipt?html=1");
+        $resReceipt->assertStatus(200);
+        $resReceipt->assertSee('Ir. Budi Santoso, M.T.');
+        $resReceipt->assertSee('3174999900001111');
+        $resReceipt->assertSee($reservation->reservation_number);
+        $resReceipt->assertSee('Blok C No. 5');
+        $resReceipt->assertSee('LB 220 m² / LT 120 m²');
+    }
 }

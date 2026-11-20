@@ -139,8 +139,7 @@ class Booking extends Model
 
     public function getSpkNumberAttribute($value): string
     {
-        $hasRomanMonth = preg_match('/\\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\\//i', $value ?? '');
-        if (empty($value) || str_contains($value, 'HOMI') || str_starts_with($value, 'SPR-2026-') || !$hasRomanMonth) {
+        if (empty($value) || str_contains($value, 'HOMI') || preg_match('/^SPR-\d{4}-/', (string) $value)) {
             return static::formatSprNumberForBooking($this);
         }
         return $value;

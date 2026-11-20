@@ -89,14 +89,21 @@ watch(selectedSignerKey, (key) => {
     activePresetImage.value = res.image;
 }, { immediate: true });
 
-watch(() => form.lead_id, (leadId) => {
+watch(() => form.lead_id, (leadId, oldLeadId) => {
     if (!leadId) return;
     const lead = props.leads.find(l => l.id == leadId);
     if (lead) {
-        if (!form.client_name) form.client_name = lead.name || '';
-        if (!form.client_phone) form.client_phone = lead.phone || '';
-        if (!form.client_email) form.client_email = lead.email || '';
-        if (!form.client_nik) form.client_nik = lead.identity_number || '';
+        const isSwitchingLead = Boolean(oldLeadId && oldLeadId != leadId);
+        if (isSwitchingLead || !form.client_name) form.client_name = lead.name || '';
+        if (isSwitchingLead || !form.client_phone) form.client_phone = lead.phone || '';
+        if (isSwitchingLead || !form.client_email) form.client_email = lead.email || '';
+        if (isSwitchingLead || !form.client_nik) form.client_nik = lead.identity_number || '';
+        if ((isSwitchingLead || !form.unit_id) && !props.preselectedUnitId && lead.suggested_unit_id) {
+            const matchingUnit = selectableUnits.value.find(u => Number(u.id) === Number(lead.suggested_unit_id));
+            if (matchingUnit) {
+                form.unit_id = matchingUnit.id;
+            }
+        }
         const leadPicName = lead.assigned_to?.name || lead.inhouse_pic?.name || '';
         if (leadPicName) {
             form.sales_pic_name = leadPicName;
@@ -184,7 +191,13 @@ const formatCurrency = (val) => {
                     <div v-if="selectedUnit" class="mt-3 p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between text-xs text-blue-900">
                         <div>
                             <p class="font-black">🏠 {{ selectedUnit.project?.name }} — {{ selectedUnit.label || (`Unit ${selectedUnit.number || '-'}`) }}</p>
-                            <p class="text-[10px] text-blue-700 font-semibold">Tipe {{ selectedUnit.unit_type?.name }} · Harga Listing: {{ formatCurrency(selectedUnit.final_price || selectedUnit.unit_type?.current_price) }}</p>
+                            <p class="text-[10px] text-blue-700 font-semibold">
+                                Tipe {{ selectedUnit.unit_type?.name }}
+                                <span v-if="selectedUnit.unit_type?.building_area || selectedUnit.unit_type?.land_area">
+                                    (LB {{ selectedUnit.unit_type?.building_area || '-' }} m² / LT {{ selectedUnit.unit_type?.land_area || '-' }} m²)
+                                </span>
+                                · Harga Listing: {{ formatCurrency(selectedUnit.final_price || selectedUnit.unit_type?.current_price) }}
+                            </p>
                         </div>
                         <span class="px-2 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-lg">Siap Di-Hold</span>
                     </div>

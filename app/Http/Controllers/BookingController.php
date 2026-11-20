@@ -493,26 +493,21 @@ class BookingController extends Controller
                     }
                 }
 
-                // Update Lead info & status to 'booking'
+                // Update Lead info, status to 'booking', and sync buyer biodata (NIK, NPWP, Address, Job) across Reservation & Negotiation
                 $lead = Lead::find($validated['lead_id']);
                 if ($lead) {
-                    $leadData = ['status' => 'booking'];
-                    $optFields = [
+                    try {
+                        $lead->update(['status' => 'booking']);
+                    } catch (\Throwable $le) {
+                        Log::warning("Lead status update failed: " . $le->getMessage());
+                    }
+
+                    \App\Services\DealSyncService::syncBiodataAcrossDeal($lead, [
                         'identity_number' => $validated['buyer_nik'] ?? null,
                         'npwp' => $validated['buyer_npwp'] ?? null,
                         'address' => $validated['buyer_address'] ?? null,
                         'job' => $validated['buyer_job'] ?? null,
-                    ];
-                    foreach ($optFields as $lCol => $lVal) {
-                        if (!empty($lVal) && Schema::hasColumn('leads', $lCol)) {
-                            $leadData[$lCol] = $lVal;
-                        }
-                    }
-                    try {
-                        $lead->update($leadData);
-                    } catch (\Throwable $le) {
-                        Log::warning("Lead update failed: " . $le->getMessage());
-                    }
+                    ], $unit->project_id);
                 }
 
                 // 2. Update Unit Status to 'hold'
@@ -741,6 +736,10 @@ class BookingController extends Controller
             'held_until' => now()->addDays(7),
         ]);
 
+        // 3. Synchronize unit & document numbers (SPR, RSV, NG) across linked Reservation and Negotiation
+        \App\Services\DealSyncService::syncUnitChangeAcrossDeal($newUnit, $oldUnit?->id, $booking->lead_id, null, null, $booking);
+        $booking->refresh();
+
         // 4. Record Lead Activity
         if ($booking->lead_id) {
             $reasonText = !empty($validated['reason']) ? " Alasan: {$validated['reason']}" : "";
@@ -929,24 +928,14 @@ class BookingController extends Controller
                     $booking->update($safeUpdates);
                 }
 
-                // Pastikan update data pemesan di SPR juga tersinkronisasi ke profil lead konsumen
+                // Pastikan update data pemesan di SPR juga tersinkronisasi ke profil Lead, Reservasi, dan Negosiasi
                 if ($booking->lead) {
-                    $leadUpdates = [];
-                    if (!empty($data['buyer_address']) && Schema::hasColumn('leads', 'address')) {
-                        $leadUpdates['address'] = $data['buyer_address'];
-                    }
-                    if (!empty($data['buyer_nik']) && Schema::hasColumn('leads', 'identity_number')) {
-                        $leadUpdates['identity_number'] = $data['buyer_nik'];
-                    }
-                    if (!empty($data['buyer_npwp']) && Schema::hasColumn('leads', 'npwp')) {
-                        $leadUpdates['npwp'] = $data['buyer_npwp'];
-                    }
-                    if (!empty($data['buyer_job']) && Schema::hasColumn('leads', 'job')) {
-                        $leadUpdates['job'] = $data['buyer_job'];
-                    }
-                    if (!empty($leadUpdates)) {
-                        $booking->lead->update($leadUpdates);
-                    }
+                    \App\Services\DealSyncService::syncBiodataAcrossDeal($booking->lead, [
+                        'identity_number' => $data['buyer_nik'] ?? null,
+                        'npwp' => $data['buyer_npwp'] ?? null,
+                        'address' => $data['buyer_address'] ?? null,
+                        'job' => $data['buyer_job'] ?? null,
+                    ], $booking->project_id);
                 }
             });
         } catch (\Throwable $e) {

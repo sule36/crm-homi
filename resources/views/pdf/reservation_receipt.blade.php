@@ -242,7 +242,11 @@
         $unitTypeName = !empty($overrides['unit_type_name']) ? $overrides['unit_type_name'] : ($reservation->unit->unitType->name ?? '-');
         $lb = $reservation->unit?->building_area ?? $reservation->unit?->unitType?->building_area ?? '-';
         $lt = $reservation->unit?->land_area ?? $reservation->unit?->surface_area ?? $reservation->unit?->unitType?->land_area ?? $reservation->unit?->unitType?->surface_area ?? '-';
-        $specText = !empty($overrides['spec_text']) ? $overrides['spec_text'] : ('LB ' . $lb . ' m² / LT ' . $lt . ' m²');
+        $rawOverrideSpec = $overrides['spec_text'] ?? null;
+        $specText = (!empty($rawOverrideSpec) && !str_contains((string) $rawOverrideSpec, '- m²'))
+            ? $rawOverrideSpec
+            : ('LB ' . $lb . ' m² / LT ' . $lt . ' m²');
+        $effectiveNik = $reservation->client_nik ?: ($reservation->lead?->identity_number ?: null);
 
         $getSafeBase64 = function($path) {
             if (empty($path) || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
@@ -357,7 +361,7 @@
                 </tr>
                 <tr>
                     <td class="data-label">NIK Pemohon</td>
-                    <td class="data-value">: {{ $reservation->client_nik ?: '-' }}</td>
+                    <td class="data-value">: {{ $effectiveNik ?: '-' }}</td>
                     <td class="data-label">Spesifikasi Unit</td>
                     <td class="data-value">: {{ $specText }}</td>
                 </tr>

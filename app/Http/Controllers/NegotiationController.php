@@ -452,10 +452,22 @@ class NegotiationController extends Controller
             ?: ($inputFormData['jawaban']['sig_menyetujui_name'] ?? null)
             ?: $defaultSigName;
 
+        $lead = \App\Services\DealSyncService::resolveOrCreateLead(
+            $request->lead_id ? (int) $request->lead_id : null,
+            [
+                'name' => $request->client_name,
+                'phone' => $request->client_phone,
+                'email' => $request->client_email,
+                'status' => 'negotiation',
+            ],
+            $unit->company_id ?? auth()->user()?->company_id,
+            $unit->project_id
+        );
+
         $negotiation = Negotiation::create([
             'unit_id' => $unit->id,
             'project_id' => $unit->project_id,
-            'lead_id' => $request->lead_id,
+            'lead_id' => $lead?->id ?? $request->lead_id,
             'created_by' => auth()->id(),
             'client_name' => $request->client_name,
             'client_phone' => $request->client_phone,
@@ -473,6 +485,14 @@ class NegotiationController extends Controller
             'special_bonus_items' => $bonusItems,
             'status' => $request->status ?: 'draft',
         ]);
+
+        if ($lead) {
+            \App\Services\DealSyncService::syncBiodataAcrossDeal($lead, [
+                'name' => $negotiation->client_name,
+                'phone' => $negotiation->client_phone,
+                'email' => $negotiation->client_email,
+            ], $unit->project_id);
+        }
 
         // Log activity if linked to a lead
         if ($negotiation->lead_id) {
@@ -667,6 +687,33 @@ class NegotiationController extends Controller
         }
 
         $negotiation->update($updateData);
+        $negotiation->refresh();
+
+        // Sync client biodata and unit changes across Lead, Reservation, and Booking
+        $lead = \App\Services\DealSyncService::resolveOrCreateLead(
+            $negotiation->lead_id ? (int) $negotiation->lead_id : null,
+            [
+                'name' => $negotiation->client_name,
+                'phone' => $negotiation->client_phone,
+                'email' => $negotiation->client_email,
+            ],
+            $negotiation->company_id,
+            $negotiation->project_id
+        );
+        if ($lead) {
+            if (!$negotiation->lead_id) {
+                $negotiation->update(['lead_id' => $lead->id]);
+            }
+            \App\Services\DealSyncService::syncBiodataAcrossDeal($lead, [
+                'name' => $negotiation->client_name,
+                'phone' => $negotiation->client_phone,
+                'email' => $negotiation->client_email,
+            ], $negotiation->project_id);
+        }
+
+        if ($oldUnitId != $newUnit->id) {
+            \App\Services\DealSyncService::syncUnitChangeAcrossDeal($newUnit, (int) $oldUnitId, $negotiation->lead_id, null, $negotiation);
+        }
 
         // If approved and linked to lead, log activity and update lead status
         if (($updateData['status'] ?? '') === 'approved' && $negotiation->lead_id) {
@@ -1018,13 +1065,29 @@ class NegotiationController extends Controller
             'status' => 'pending',
             'form_data' => $syncedFormData,
         ]));
+        $negotiation->refresh();
 
-        // Auto-link to existing lead if phone matches
-        if (!$negotiation->lead_id) {
-            $existingLead = Lead::where('phone', $validated['client_phone'])->first();
-            if ($existingLead) {
-                $negotiation->update(['lead_id' => $existingLead->id]);
+        // Auto-link or create Lead and synchronize client biodata across Reservation & Booking
+        $lead = \App\Services\DealSyncService::resolveOrCreateLead(
+            $negotiation->lead_id ? (int) $negotiation->lead_id : null,
+            [
+                'name' => $validated['client_name'],
+                'phone' => $validated['client_phone'],
+                'email' => $validated['client_email'] ?? null,
+                'status' => 'negotiation',
+            ],
+            $negotiation->company_id,
+            $negotiation->project_id
+        );
+        if ($lead) {
+            if (!$negotiation->lead_id) {
+                $negotiation->update(['lead_id' => $lead->id]);
             }
+            \App\Services\DealSyncService::syncBiodataAcrossDeal($lead, [
+                'name' => $validated['client_name'],
+                'phone' => $validated['client_phone'],
+                'email' => $validated['client_email'] ?? null,
+            ], $negotiation->project_id);
         }
 
         // Log activity

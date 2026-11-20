@@ -84,10 +84,11 @@ const refundForm = useForm({
 });
 
 const editForm = useForm({
-    client_name: props.reservation.client_name || '',
-    client_phone: props.reservation.client_phone || '',
-    client_email: props.reservation.client_email || '',
-    client_nik: props.reservation.client_nik || '',
+    unit_id: props.reservation.unit_id || '',
+    client_name: props.reservation.client_name || props.reservation.lead?.name || '',
+    client_phone: props.reservation.client_phone || props.reservation.lead?.phone || '',
+    client_email: props.reservation.client_email || props.reservation.lead?.email || '',
+    client_nik: props.reservation.client_nik || props.reservation.lead?.identity_number || '',
     amount: props.reservation.amount ?? 10000000,
     payment_method: props.reservation.payment_method || 'transfer',
     company_name: props.reservation.company_name || props.settings?.company_name || 'PT Serangkai Roden Development',
@@ -100,7 +101,9 @@ const editForm = useForm({
         project_name: props.reservation.custom_overrides?.project_name || props.reservation.project?.name || '',
         unit_code: props.reservation.custom_overrides?.unit_code || formatUnitLabel(props.reservation.unit),
         unit_type_name: props.reservation.custom_overrides?.unit_type_name || props.reservation.unit?.unit_type?.name || '',
-        spec_text: props.reservation.custom_overrides?.spec_text || `LB ${props.reservation.unit?.building_area || props.reservation.unit?.unit_type?.building_area || '-'} m² / LT ${props.reservation.unit?.land_area || props.reservation.unit?.surface_area || props.reservation.unit?.unit_type?.land_area || props.reservation.unit?.unit_type?.surface_area || '-'} m²`,
+        spec_text: (props.reservation.custom_overrides?.spec_text && !String(props.reservation.custom_overrides.spec_text).includes('- m²'))
+            ? props.reservation.custom_overrides.spec_text
+            : `LB ${props.reservation.unit?.building_area || props.reservation.unit?.unit_type?.building_area || '-'} m² / LT ${props.reservation.unit?.land_area || props.reservation.unit?.surface_area || props.reservation.unit?.unit_type?.land_area || props.reservation.unit?.unit_type?.surface_area || '-'} m²`,
         company_address: props.reservation.custom_overrides?.company_address || props.settings?.company_address || '',
     },
     signer_slot: props.reservation.custom_overrides?.signer_slot || (props.reservation.agent_coordinator_id ? 'user' : 'custom'),
@@ -111,14 +114,26 @@ const editForm = useForm({
     notes: props.reservation.notes || '',
 });
 
+const onEditUnitChange = () => {
+    const u = (props.units || []).find(item => Number(item.id) === Number(editForm.unit_id));
+    if (!u) return;
+    editForm.custom_overrides.project_name = u.project?.name || props.reservation.project?.name || '';
+    editForm.custom_overrides.unit_code = formatUnitLabel(u);
+    editForm.custom_overrides.unit_type_name = u.unit_type?.name || u.unitType?.name || '';
+    const lb = u.building_area || u.unit_type?.building_area || u.unitType?.building_area || '-';
+    const lt = u.land_area || u.surface_area || u.unit_type?.land_area || u.unitType?.land_area || '-';
+    editForm.custom_overrides.spec_text = `LB ${lb} m² / LT ${lt} m²`;
+};
+
 const selectedSignerKey = ref(resolveInitialSignerKey({ reservation: props.reservation, defaultDeveloperSigner: props.defaultDeveloperSigner }));
 const activePresetImage = ref(props.reservation.custom_overrides?.signer_image || null);
 
 const syncEditFormFromProps = (res) => {
-    editForm.client_name = res.client_name || '';
-    editForm.client_phone = res.client_phone || '';
-    editForm.client_email = res.client_email || '';
-    editForm.client_nik = res.client_nik || '';
+    editForm.unit_id = res.unit_id || '';
+    editForm.client_name = res.client_name || res.lead?.name || '';
+    editForm.client_phone = res.client_phone || res.lead?.phone || '';
+    editForm.client_email = res.client_email || res.lead?.email || '';
+    editForm.client_nik = res.client_nik || res.lead?.identity_number || '';
     editForm.amount = res.amount ?? 10000000;
     editForm.payment_method = res.payment_method || 'transfer';
     editForm.company_name = res.company_name || props.settings?.company_name || 'PT Serangkai Roden Development';
@@ -131,7 +146,9 @@ const syncEditFormFromProps = (res) => {
         project_name: res.custom_overrides?.project_name || res.project?.name || '',
         unit_code: res.custom_overrides?.unit_code || formatUnitLabel(res.unit),
         unit_type_name: res.custom_overrides?.unit_type_name || res.unit?.unit_type?.name || '',
-        spec_text: res.custom_overrides?.spec_text || `LB ${res.unit?.building_area || res.unit?.unit_type?.building_area || '-'} m² / LT ${res.unit?.land_area || res.unit?.surface_area || res.unit?.unit_type?.land_area || res.unit?.unit_type?.surface_area || '-'} m²`,
+        spec_text: (res.custom_overrides?.spec_text && !String(res.custom_overrides.spec_text).includes('- m²'))
+            ? res.custom_overrides.spec_text
+            : `LB ${res.unit?.building_area || res.unit?.unit_type?.building_area || '-'} m² / LT ${res.unit?.land_area || res.unit?.surface_area || res.unit?.unit_type?.land_area || res.unit?.unit_type?.surface_area || '-'} m²`,
         company_address: res.custom_overrides?.company_address || props.settings?.company_address || '',
     };
     editForm.signer_slot = res.custom_overrides?.signer_slot || (res.agent_coordinator_id ? 'user' : 'custom');
@@ -284,7 +301,7 @@ const statusConfig = {
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-slate-500 font-medium">NIK KTP:</span>
-                            <span class="font-mono font-bold text-slate-900">{{ reservation.client_nik || '-' }}</span>
+                            <span class="font-mono font-bold text-slate-900">{{ reservation.client_nik || reservation.lead?.identity_number || '-' }}</span>
                         </div>
                     </div>
                 </div>
@@ -582,7 +599,20 @@ const statusConfig = {
                         </div>
 
                         <div class="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-3">
-                            <p class="font-black text-blue-900 text-xs">🏠 Custom Override Teks Unit Properti (Kwitansi)</p>
+                            <div class="flex items-center justify-between">
+                                <p class="font-black text-blue-900 text-xs">🏠 Pilih Unit Master Stock & Detail Unit (Otomatis Sinkron)</p>
+                                <button type="button" @click="onEditUnitChange" class="px-2.5 py-1 bg-white hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold cursor-pointer">
+                                    🔄 Tarik Ulang LT/LB Master Stock
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">Unit Properti (Master Stock)</label>
+                                <select v-model="editForm.unit_id" @change="onEditUnitChange" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold">
+                                    <option v-for="u in units" :key="u.id" :value="u.id" :disabled="u.status !== 'available' && u.id !== reservation.unit_id">
+                                        {{ formatUnitLabel(u) }} — Tipe {{ u.unit_type?.name || 'Standard' }} (LB {{ u.unit_type?.building_area || '-' }} / LT {{ u.unit_type?.land_area || '-' }} m²) [{{ u.status }}]
+                                    </option>
+                                </select>
+                            </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label class="block font-bold text-slate-700 mb-1">Nama Proyek</label>

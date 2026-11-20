@@ -70,7 +70,10 @@ const bookingReceiptSettings = props.transaction.booking?.receipt_settings || {}
 const projectLogo = props.transaction.booking?.unit?.project?.logo || null;
 const logoImage = projectLogo || props.settings?.company_logo || null;
 const companyName = props.transaction.booking?.unit?.project?.name || props.settings?.company_name || 'Developer Properti';
-const projectCode = props.transaction.booking?.unit?.project?.code || 'ALN';
+const rawProj = props.transaction.booking?.unit?.project;
+const projectCode = rawProj?.code
+    ? String(rawProj.code).trim().toUpperCase()
+    : (rawProj?.name ? (String(rawProj.name).replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || 'ALC') : 'ALC');
 const txYear = new Date(props.transaction.created_at).getFullYear();
 const paddedId = String(props.transaction.id).padStart(4, '0');
 
